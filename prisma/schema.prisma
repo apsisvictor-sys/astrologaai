@@ -1,0 +1,173 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTH
+// ============================================
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  passwordHash      String    @map("password_hash")
+  fullName          String?   @map("full_name")
+  tier              Tier      @default(FREE)
+  language          String    @default("bg")
+  emailVerified     Boolean   @default(false) @map("email_verified")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  profile           Profile?
+  birthChart        BirthChart? @relation("UserBirthChart")
+  messages           Message[]
+  partners           Partner[]
+  subscription      Subscription?
+  usageRecords      UsageRecord[]
+
+  @@map("users")
+}
+
+model Profile {
+  id                String    @id @default(uuid())
+  userId            String    @unique @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  birthDataId       String?   @unique @map("birth_data_id")
+  birthData         BirthData? @relation(fields: [birthDataId], references: [id])
+  onboardingComplete Boolean   @default(false) @map("onboarding_complete")
+  notificationPrefs  Json?     @map("notification_prefs")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@map("profiles")
+}
+
+model BirthData {
+  id                String    @id @default(uuid())
+  userId            String    @unique @map("user_id")
+  date              DateTime
+  time              String    // "HH:MM" format
+  place             String
+  latitude          Float
+  longitude         Float
+  timezone          String
+  isUnknownTime     Boolean   @default(false) @map("is_unknown_time")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  profile           Profile?
+  birthChart        BirthChart?
+
+  @@map("birth_data")
+}
+
+model BirthChart {
+  id                String    @id @default(uuid())
+  userId            String    @unique @map("user_id")
+  user              User      @relation("UserBirthChart", fields: [userId], references: [id], onDelete: Cascade)
+  birthDataId       String    @unique @map("birth_data_id")
+  birthData         BirthData @relation(fields: [birthDataId], references: [id])
+  chartData         Json      @map("chart_data") // Full chart calculation result
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@map("birth_charts")
+}
+
+// ============================================
+// CHAT & MESSAGES
+// ============================================
+
+model Message {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role              MessageRole
+  content           String
+  metadata          Json?     // For streaming, tokens, etc.
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@map("messages")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+// ============================================
+// RELATIONSHIPS
+// ============================================
+
+model Partner {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  birthDataId       String    @unique @map("birth_data_id")
+  birthData         BirthData @relation(fields: [birthDataId], references: [id])
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@map("partners")
+}
+
+// ============================================
+// SUBSCRIPTION & BILLING
+// ============================================
+
+model Subscription {
+  id                String    @id @default(uuid())
+  userId            String    @unique @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripeCustomerId  String?   @unique @map("stripe_customer_id")
+  stripeSubscriptionId String? @unique @map("stripe_subscription_id")
+  tier              Tier
+  status            SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart DateTime? @map("current_period_start")
+  currentPeriodEnd   DateTime? @map("current_period_end")
+  cancelAtPeriodEnd Boolean   @default(false) @map("cancel_at_period_end")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@map("subscriptions")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+  TRIALING
+}
+
+// ============================================
+// USAGE & LIMITS
+// ============================================
+
+model UsageRecord {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month             String    // "2026-02" format
+  queryCount        Int       @default(0) @map("query_count")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, month])
+  @@map("usage_records")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum Tier {
+  FREE
+  PRO
+  PREMIUM
+}
