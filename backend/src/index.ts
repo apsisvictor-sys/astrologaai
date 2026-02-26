@@ -29,15 +29,24 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// API Routes (to be implemented)
-app.use('/api/v1/auth', require('./routes/auth'));
-app.use('/api/v1/user', require('./routes/user'));
-app.use('/api/v1/chat', require('./routes/chat'));
-app.use('/api/v1/birth-chart', require('./routes/birthChart'));
-app.use('/api/v1/forecasts', require('./routes/forecasts'));
-app.use('/api/v1/partners', require('./routes/partners'));
-app.use('/api/v1/subscription', require('./routes/subscription'));
-app.use('/api/v1/language', require('./routes/language'));
+// API Routes
+import authRoutes from './routes/auth';
+import userRoutes from './routes/user';
+import chatRoutes from './routes/chat';
+import birthChartRoutes from './routes/birthChart';
+import forecastsRoutes from './routes/forecasts';
+import partnersRoutes from './routes/partners';
+import subscriptionRoutes from './routes/subscription';
+import languageRoutes from './routes/language';
+
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/user', userRoutes);
+app.use('/api/v1/chat', chatRoutes);
+app.use('/api/v1/birth-chart', birthChartRoutes);
+app.use('/api/v1/forecasts', forecastsRoutes);
+app.use('/api/v1/partners', partnersRoutes);
+app.use('/api/v1/subscription', subscriptionRoutes);
+app.use('/api/v1/language', languageRoutes);
 
 // Error handler
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
