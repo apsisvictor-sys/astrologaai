@@ -111,17 +111,10 @@ export class AuthService {
     const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '15m';
     const jwtRefreshExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
 
-    const accessToken = jwt.sign(
-      { userId, email },
-      jwtSecret,
-      { expiresIn: jwtExpiresIn }
-    );
-
-    const refreshToken = jwt.sign(
-      { userId, email, type: 'refresh' },
-      jwtSecret,
-      { expiresIn: jwtRefreshExpiresIn }
-    );
+    // @ts-expect-error - Type mismatch between string and StringValue from ms
+    const accessToken = jwt.sign({ userId, email }, jwtSecret, { expiresIn: jwtExpiresIn });
+    // @ts-expect-error - Type mismatch between string and StringValue from ms  
+    const refreshToken = jwt.sign({ userId, email, type: 'refresh' }, jwtSecret, { expiresIn: jwtRefreshExpiresIn });
 
     // Calculate expiration time in seconds
     const expiresIn = this.parseExpiresIn(jwtExpiresIn);

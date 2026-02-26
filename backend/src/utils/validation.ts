@@ -3,13 +3,20 @@ import { z } from 'zod';
 // Password requirements: 8+ chars, 1 uppercase, 1 number
 const passwordRegex = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
 
+// Email validation schema - trim and lowercase first, then validate
+const emailSchema = z
+  .string()
+  .transform((email) => email.toLowerCase().trim())
+  .pipe(
+    z
+      .string()
+      .min(1, 'Email is required')
+      .max(255, 'Email must be less than 255 characters')
+      .email('Invalid email format')
+  );
+
 export const registerSchema = z.object({
-  email: z
-    .string()
-    .email('Invalid email format')
-    .min(1, 'Email is required')
-    .max(255, 'Email must be less than 255 characters')
-    .transform((email) => email.toLowerCase().trim()),
+  email: emailSchema,
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')

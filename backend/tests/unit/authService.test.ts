@@ -1,9 +1,32 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { AuthService } from '../src/services/authService';
+import { AuthService } from '../../src/services/authService';
+
+// Mock jsonwebtoken
+jest.mock('jsonwebtoken', () => ({
+  sign: jest.fn().mockImplementation((payload, secret, options) => {
+    // Return a mock JWT token format
+    const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
+    return `mock-token-header.${base64Payload}.mock-signature`;
+  }),
+  verify: jest.fn(),
+  decode: jest.fn().mockImplementation((token) => {
+    // Extract payload from mock token
+    const parts = token.split('.');
+    if (parts.length === 3) {
+      try {
+        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+        return payload;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }),
+}));
 
 // Mock Prisma
-jest.mock('../src/utils/prisma', () => ({
+jest.mock('../../src/utils/prisma', () => ({
   user: {
     findUnique: jest.fn(),
     create: jest.fn(),
@@ -17,7 +40,7 @@ jest.mock('../src/utils/prisma', () => ({
 }));
 
 // Import the mocked prisma
-import prisma from '../src/utils/prisma';
+import prisma from '../../src/utils/prisma';
 
 describe('AuthService', () => {
   beforeEach(() => {
@@ -77,10 +100,13 @@ describe('AuthService', () => {
 
   describe('verifyToken', () => {
     it('should return decoded payload for valid token', () => {
+      const payload = { userId: 'user-123', email: 'test@example.com' };
       const secret = process.env.JWT_SECRET || 'default-secret-change-in-production';
-      const token = jwt.sign({ userId: 'user-123', email: 'test@example.com' }, secret);
+      
+      // Mock jwt.verify to return the payload
+      (jwt.verify as jest.Mock).mockReturnValue(payload);
 
-      const result = AuthService.verifyToken(token);
+      const result = AuthService.verifyToken('valid-token');
 
       expect(result).not.toBeNull();
       expect(result?.userId).toBe('user-123');
@@ -88,19 +114,24 @@ describe('AuthService', () => {
     });
 
     it('should return null for invalid token', () => {
+      // Mock jwt.verify to throw an error
+      (jwt.verify as jest.Mock).mockImplementation(() => {
+        throw new Error('Invalid token');
+      });
+
       const result = AuthService.verifyToken('invalid-token');
       expect(result).toBeNull();
     });
 
     it('should return null for expired token', () => {
-      const secret = process.env.JWT_SECRET || 'default-secret-change-in-production';
-      const token = jwt.sign(
-        { userId: 'user-123', email: 'test@example.com' },
-        secret,
-        { expiresIn: '-1h' } // Already expired
-      );
+      // Mock jwt.verify to throw an expired error
+      (jwt.verify as jest.Mock).mockImplementation(() => {
+        const error = new Error('Token expired');
+        (error as Error & { name: string }).name = 'TokenExpiredError';
+        throw error;
+      });
 
-      const result = AuthService.verifyToken(token);
+      const result = AuthService.verifyToken('expired-token');
       expect(result).toBeNull();
     });
   });
