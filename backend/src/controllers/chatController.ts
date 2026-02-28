@@ -1,0 +1,1005 @@
+/**
+ * Chat Controller
+ * US-07: Send Message to AI Astrologer
+ * US-08: Chat History
+ * US-09: Chat Context Persistence
+ * 
+ * Handles chat message sending with streaming responses
+ * Implements rate limiting based on user tier
+ * Implements context persistence via Redis with session summarization
+ */
+
+import { Request, Response } from 'express';
+import { PrismaClient, Tier } from '@prisma/client';
+import { redisClient, 
+  storeSessionContext, 
+  getSessionContext, 
+  updateSessionSummary,
+  clearSessionContext,
+  clearUserSessionContexts 
+} from '../utils/redis';
+import { 
+  streamChatCompletion, 
+  buildSystemPrompt, 
+  generateChartSummary,
+  generateSessionSummary,
+  getOrchestratorStatus,
+} from '../services/llm';
+import {
+  getEffectiveMonthlyLimit,
+  getBurstLimit,
+  isUnlimitedTier,
+  isUnlimitedBurst,
+  getTierLimits,
+  getMonthlyResetDay,
+} from '../config/subscription-tiers';
+import type { ChatMessage } from '../services/llm';
+
+const prisma = new PrismaClient();
+
+// ============================================
+// Rate Limiting Configuration (US-36, US-37)
+// ============================================
+// Using centralized subscription-tiers.ts config
+// FREE: 10 queries/month, 10/min burst
+// PRO: unlimited, 60/min burst
+// PREMIUM: unlimited, no burst limit
+
+const RATE_LIMIT_WINDOW = 60; // 1 minute for burst
+const MAX_CONTEXT_MESSAGES = 10; // Last 10 messages for context
+const SUMMARY_THRESHOLD = 20; // Generate summary after 20 messages
+
+// ============================================
+// Helper Functions
+// ============================================
+
+function getCurrentMonth(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function getMonthResetDate(): Date {
+  const now = new Date();
+  const resetDay = getMonthlyResetDay();
+  const nextMonth = now.getMonth() === 11 ? 0 : now.getMonth() + 1;
+  const nextYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
+  return new Date(nextYear, nextMonth, resetDay);
+}
+
+async function checkRateLimit(userId: string, tier: Tier): Promise<{ 
+  allowed: boolean; 
+  remaining: number; 
+  resetAt?: Date;
+  limit: number | 'unlimited';
+}> {
+  // Get burst limit from centralized config
+  const burstLimit = getBurstLimit(tier);
+  const isUnlimitedBurstTier = isUnlimitedBurst(tier);
+  
+  // Burst rate limiting (per minute) - skip for unlimited tiers
+  if (!isUnlimitedBurstTier) {
+    const burstKey = `ratelimit:burst:${userId}`;
+    const burstCount = parseInt(await redisClient.get(burstKey) || '0', 10);
+    
+    if (burstCount >= burstLimit) {
+      return { 
+        allowed: false, 
+        remaining: 0, 
+        limit: burstLimit,
+        resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW * 1000) 
+      };
+    }
+  }
+  
+  // Monthly rate limiting (for FREE tier)
+  if (!isUnlimitedTier(tier)) {
+    const monthlyLimit = getEffectiveMonthlyLimit(tier);
+    const month = getCurrentMonth();
+    const monthKey = `ratelimit:monthly:${userId}:${month}`;
+    const monthCount = parseInt(await redisClient.get(monthKey) || '0', 10);
+    
+    if (monthCount >= monthlyLimit) {
+      return { 
+        allowed: false, 
+        remaining: 0, 
+        limit: monthlyLimit,
+        resetAt: getMonthResetDate() 
+      };
+    }
+    
+    return { 
+      allowed: true, 
+      remaining: monthlyLimit - monthCount,
+      limit: monthlyLimit
+    };
+  }
+  
+  return { 
+    allowed: true, 
+    remaining: Infinity,
+    limit: 'unlimited'
+  };
+}
+
+async function incrementRateLimit(userId: string): Promise<void> {
+  // Increment burst counter
+  const burstKey = `ratelimit:burst:${userId}`;
+  const burstCount = await redisClient.incr(burstKey);
+  if (burstCount === 1) {
+    await redisClient.expire(burstKey, RATE_LIMIT_WINDOW);
+  }
+  
+  // Increment monthly counter
+  const month = getCurrentMonth();
+  const monthKey = `ratelimit:monthly:${userId}:${month}`;
+  const monthCount = await redisClient.incr(monthKey);
+  if (monthCount === 1) {
+    // Set expiry to end of month
+    const ttl = Math.floor((getMonthResetDate().getTime() - Date.now()) / 1000);
+    await redisClient.expire(monthKey, ttl);
+  }
+}
+
+async function getOrCreateSession(userId: string, sessionId?: string, birthProfileId?: string) {
+  if (sessionId) {
+    // Try to get from Redis first for faster context
+    const cachedContext = await getSessionContext(sessionId);
+    
+    const existing = await prisma.chatSession.findFirst({
+      where: { id: sessionId, userId },
+      include: { 
+        messages: { 
+          orderBy: { createdAt: 'asc' as const },
+          take: MAX_CONTEXT_MESSAGES // Last 10 messages for DB
+        } 
+      },
+    });
+    
+    if (existing) {
+      // Sync Redis context if not present but session exists
+      if (!cachedContext && existing.messages.length > 0) {
+        const summary = existing.summary || undefined;
+        await storeSessionContext(
+          existing.id, 
+          userId, 
+          existing.messages.map(m => ({ role: m.role.toLowerCase(), content: m.content })),
+          summary || undefined
+        );
+      }
+      return existing;
+    }
+  }
+  
+  // Create new session
+  return prisma.chatSession.create({
+    data: {
+      userId,
+      birthProfileId,
+      title: 'Нов разговор', // Will be updated after first message
+    },
+    include: { 
+      messages: true 
+    },
+  });
+}
+
+// ============================================
+// Session Summary Generation (US-09)
+// ============================================
+
+async function generateAndStoreSessionSummary(
+  sessionId: string,
+  userId: string,
+  allMessages: Array<{ role: string; content: string }>,
+  language: string
+): Promise<string> {
+  // Generate summary using LLM
+  const lang = (language === 'en' ? 'en' : 'bg') as 'bg' | 'en';
+  const summary = await generateSessionSummary(allMessages, lang);
+  
+  // Store summary in database
+  await prisma.chatSession.update({
+    where: { id: sessionId },
+    data: { summary },
+  });
+  
+  // Update Redis context
+  await updateSessionSummary(sessionId, summary);
+  
+  return summary;
+}
+
+// ============================================
+// Controller Functions
+// ============================================
+
+/**
+ * POST /api/v1/chat/message
+ * Send a message to the AI astrologer with streaming response
+ */
+export async function sendMessage(req: Request, res: Response): Promise<void> {
+  try {
+    // US-34: Track latency for response headers
+    const startTime = Date.now();
+    
+    const { content, sessionId, birthProfileId } = req.body;
+    const userId = req.user?.id;
+    const userTier = (req.user?.tier as Tier) || 'FREE';
+    // US-25: Get from user preferences, ensure valid type
+    const userLanguage: 'bg' | 'en' = (req.user?.language === 'en' ? 'en' : 'bg');
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+      });
+      return;
+    }
+
+    if (!content || typeof content !== 'string' || content.trim().length === 0) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Message content is required' },
+      });
+      return;
+    }
+
+    // Check rate limit
+    const rateLimit = await checkRateLimit(userId, userTier);
+    
+    if (!rateLimit.allowed) {
+      res.status(429).json({
+        success: false,
+        error: {
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: userLanguage === 'bg' 
+            ? 'Достигнахте лимита на заявките. Моля, опитайте по-късно или надградете плана си.'
+            : 'Rate limit exceeded. Please try again later or upgrade your plan.',
+          limit: rateLimit.limit,
+          remaining: rateLimit.remaining,
+          resetAt: rateLimit.resetAt,
+          upgradeUrl: '/subscription',
+        },
+      });
+      return;
+    }
+
+    // Get or create session
+    const session = await getOrCreateSession(userId, sessionId, birthProfileId);
+
+    // Get user's birth chart for context
+    let chartSummary: string | undefined;
+    
+    if (session.birthProfileId || birthProfileId) {
+      const profileId = session.birthProfileId || birthProfileId;
+      const birthProfile = await prisma.birthProfile.findUnique({
+        where: { id: profileId },
+        include: { birthChart: true },
+      });
+      
+      if (birthProfile?.birthChart?.chartData) {
+        const chart = birthProfile.birthChart.chartData as any;
+        chartSummary = generateChartSummary(chart, userLanguage);
+      }
+    } else {
+      // Try to get user's primary birth chart
+      const userChart = await prisma.birthChart.findFirst({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+      });
+      
+      if (userChart?.chartData) {
+        const chart = userChart.chartData as any;
+        chartSummary = generateChartSummary(chart, userLanguage);
+      }
+    }
+
+    // Build messages array for LLM
+    const conversationHistory: ChatMessage[] = session.messages.map((msg) => ({
+      role: msg.role.toLowerCase() as 'user' | 'assistant',
+      content: msg.content,
+    }));
+
+    // US-09: Get session context from Redis for enhanced context
+    const sessionContext = await getSessionContext(session.id);
+    const sessionSummary = sessionContext?.summary || session.summary || undefined;
+    const recentMessages = sessionContext?.recentMessages || 
+      session.messages.slice(-MAX_CONTEXT_MESSAGES).map(m => ({ 
+        role: m.role.toLowerCase(), 
+        content: m.content 
+      }));
+
+    const systemPrompt = buildSystemPrompt({
+      chartSummary,
+      language: userLanguage,
+      conversationHistory,
+      sessionSummary, // US-09: Add session summary for follow-up context
+      recentMessages, // US-09: Add recent messages for context
+    });
+
+    const messages: ChatMessage[] = [
+      { role: 'system', content: systemPrompt },
+      ...conversationHistory,
+      { role: 'user', content: content.trim() },
+    ];
+
+    // Save user message
+    const userMessage = await prisma.chatMessage.create({
+      data: {
+        sessionId: session.id,
+        role: 'USER',
+        content: content.trim(),
+      },
+    });
+
+    // Update session title if it's the first message
+    if (session.messages.length === 0) {
+      const title = content.trim().substring(0, 50) + (content.length > 50 ? '...' : '');
+      await prisma.chatSession.update({
+        where: { id: session.id },
+        data: { title },
+      });
+    }
+
+    // Increment rate limit counter
+    await incrementRateLimit(userId);
+
+    // Set headers for Server-Sent Events
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+    
+    // US-34: Get initial provider info for headers
+    const orchestratorStatus = getOrchestratorStatus();
+    res.setHeader('X-Provider', orchestratorStatus.activeProvider);
+
+    // Send initial metadata
+    res.write(`event: metadata\ndata: ${JSON.stringify({
+      sessionId: session.id,
+      messageId: userMessage.id,
+      rateLimit: {
+        remaining: rateLimit.remaining - 1,
+        limit: rateLimit.limit,
+      },
+    })}\n\n`);
+
+    // Stream AI response
+    let fullResponse = '';
+    let assistantMessageId: string | undefined;
+    let hasError = false;
+
+    try {
+      for await (const chunk of streamChatCompletion(messages)) {
+        if (chunk.error) {
+          hasError = true;
+          res.write(`event: error\ndata: ${JSON.stringify({ 
+            message: chunk.error 
+          })}\n\n`);
+          break;
+        }
+
+        fullResponse += chunk.content;
+
+        // Send chunk to client
+        res.write(`event: chunk\ndata: ${JSON.stringify({ 
+          content: chunk.content,
+          done: chunk.done 
+        })}\n\n`);
+
+        if (chunk.done) {
+          break;
+        }
+      }
+    } catch (streamError) {
+      hasError = true;
+      const errorMessage = streamError instanceof Error ? streamError.message : 'Streaming error';
+      res.write(`event: error\ndata: ${JSON.stringify({ 
+        message: errorMessage 
+      })}\n\n`);
+    }
+
+    // Save assistant response if no error
+    if (!hasError && fullResponse) {
+      const assistantMessage = await prisma.chatMessage.create({
+        data: {
+          sessionId: session.id,
+          role: 'ASSISTANT',
+          content: fullResponse,
+          metadata: {
+            model: process.env.LLM_MODEL || 'glm-5',
+            tokensUsed: Math.ceil(fullResponse.length / 4), // Rough estimate
+          },
+        },
+      });
+      assistantMessageId = assistantMessage.id;
+
+      // Update session updatedAt
+      await prisma.chatSession.update({
+        where: { id: session.id },
+        data: { updatedAt: new Date() },
+      });
+
+      // US-09: Update Redis session context with new messages
+      const updatedMessages = [
+        ...session.messages.map(m => ({ role: m.role.toLowerCase(), content: m.content })),
+        { role: 'user', content: content.trim() },
+        { role: 'assistant', content: fullResponse },
+      ];
+      
+      // Get current summary from DB or Redis
+      const currentSummary = session.summary || 
+        (await getSessionContext(session.id))?.summary || undefined;
+      
+      // Store updated context in Redis
+      await storeSessionContext(
+        session.id,
+        userId,
+        updatedMessages,
+        currentSummary
+      );
+
+      // US-09: Generate session summary if threshold reached
+      const totalMessages = session.messages.length + 2; // +2 for new messages
+      if (totalMessages >= SUMMARY_THRESHOLD && !session.summary) {
+        // Generate summary in background (non-blocking)
+        generateAndStoreSessionSummary(session.id, userId, updatedMessages, userLanguage)
+          .then(summary => {
+            console.log(`[Chat] Session ${session.id} summary generated: ${summary.substring(0, 50)}...`);
+          })
+          .catch(err => {
+            console.error('[Chat] Failed to generate session summary:', err);
+          });
+      }
+    }
+
+    // Send completion event
+    const latencyMs = Date.now() - startTime;
+    const finalStatus = getOrchestratorStatus();
+    
+    // US-34: Add latency header
+    res.setHeader('X-Latency', `${latencyMs}ms`);
+    res.setHeader('X-Provider', finalStatus.activeProvider);
+    
+    res.write(`event: complete\ndata: ${JSON.stringify({
+      messageId: assistantMessageId,
+      content: fullResponse,
+      hasError,
+      provider: finalStatus.activeProvider,
+      latencyMs,
+    })}\n\n`);
+
+    res.end();
+  } catch (error) {
+    console.error('[Chat] Error sending message:', error);
+    
+    // Check if headers already sent
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'An error occurred while processing your message',
+        },
+      });
+    } else {
+      // Send error via SSE
+      res.write(`event: error\ndata: ${JSON.stringify({ 
+        message: 'An internal error occurred' 
+      })}\n\n`);
+      res.end();
+    }
+  }
+}
+
+/**
+ * GET /api/v1/chat/sessions
+ * List user's chat sessions with optional search
+ * US-08: Chat History - Full-text search support
+ */
+export async function listSessions(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { page = 1, limit = 20, search } = req.query;
+    const userLanguage = req.user?.language || 'bg';
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+      });
+      return;
+    }
+
+    // Build where clause
+    let whereClause: any = { userId };
+    
+    // Full-text search on message content (US-08)
+    if (search && typeof search === 'string' && search.trim().length > 0) {
+      const searchTerm = search.trim();
+      
+      // Use PostgreSQL full-text search via Prisma raw query for better search
+      // First find session IDs that contain matching messages
+      const matchingSessions = await prisma.$queryRaw<{ session_id: string }[]>`
+        SELECT DISTINCT cm.session_id
+        FROM chat_messages cm
+        INNER JOIN chat_sessions cs ON cm.session_id = cs.id
+        WHERE cs.user_id = ${userId}
+        AND to_tsvector('simple', cm.content) @@ plainto_tsquery('simple', ${searchTerm})
+        ORDER BY cm.session_id
+      `;
+      
+      const sessionIds = matchingSessions.map(s => s.session_id);
+      
+      // Also search in session titles
+      const titleMatchingSessions = await prisma.chatSession.findMany({
+        where: {
+          userId,
+          title: { contains: searchTerm, mode: 'insensitive' },
+        },
+        select: { id: true },
+      });
+      
+      const titleSessionIds = titleMatchingSessions.map(s => s.id);
+      
+      // Combine both sets
+      const allMatchingIds = [...new Set([...sessionIds, ...titleSessionIds])];
+      
+      if (allMatchingIds.length === 0) {
+        // No matches found
+        res.json({
+          success: true,
+          data: {
+            sessions: [],
+            pagination: {
+              page: Number(page),
+              limit: Number(limit),
+              total: 0,
+              hasMore: false,
+            },
+            searchQuery: searchTerm,
+          },
+        });
+        return;
+      }
+      
+      whereClause = { userId, id: { in: allMatchingIds } };
+    }
+
+    const sessions = await prisma.chatSession.findMany({
+      where: whereClause,
+      orderBy: { updatedAt: 'desc' },
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit),
+      include: {
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+        _count: { select: { messages: true } },
+      },
+    });
+
+    const total = await prisma.chatSession.count({ where: whereClause });
+
+    res.json({
+      success: true,
+      data: {
+        sessions: sessions.map((s) => ({
+          id: s.id,
+          title: s.title,
+          lastMessage: s.messages[0]?.content?.substring(0, 100),
+          lastMessageAt: s.messages[0]?.createdAt || s.createdAt,
+          messageCount: s._count.messages,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+        })),
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          hasMore: total > Number(page) * Number(limit),
+        },
+        searchQuery: search || null,
+      },
+    });
+  } catch (error) {
+    console.error('[Chat] Error listing sessions:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to list sessions' },
+    });
+  }
+}
+
+/**
+ * GET /api/v1/chat/sessions/:id
+ * Get a specific chat session with messages
+ */
+export async function getSession(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { before, limit = 50 } = req.query;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+      });
+      return;
+    }
+
+    const session = await prisma.chatSession.findFirst({
+      where: { id, userId },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          take: Number(limit),
+          ...(before ? { cursor: { id: String(before) }, skip: 1 } : {}),
+        },
+      },
+    });
+
+    if (!session) {
+      res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Session not found' },
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        session: {
+          id: session.id,
+          title: session.title,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+        },
+        messages: session.messages.map((m) => ({
+          id: m.id,
+          role: m.role.toLowerCase(),
+          content: m.content,
+          metadata: m.metadata,
+          createdAt: m.createdAt,
+        })),
+        hasMore: session.messages.length === Number(limit),
+      },
+    });
+  } catch (error) {
+    console.error('[Chat] Error getting session:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to get session' },
+    });
+  }
+}
+
+/**
+ * POST /api/v1/chat/sessions
+ * Create a new chat session
+ */
+export async function createSession(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { title, birthProfileId } = req.body;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+      });
+      return;
+    }
+
+    const session = await prisma.chatSession.create({
+      data: {
+        userId,
+        title: title || 'Нов разговор',
+        birthProfileId,
+      },
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        session: {
+          id: session.id,
+          title: session.title,
+          createdAt: session.createdAt,
+        },
+        welcomeMessage: {
+          role: 'assistant',
+          content: 'Здравей! Аз съм AstroLogAI, твоят личен астролог. Какво те интересува днес?',
+        },
+      },
+    });
+  } catch (error) {
+    console.error('[Chat] Error creating session:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to create session' },
+    });
+  }
+}
+
+/**
+ * DELETE /api/v1/chat/sessions/:id
+ * Delete a chat session
+ */
+export async function deleteSession(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+      });
+      return;
+    }
+
+    const session = await prisma.chatSession.findFirst({
+      where: { id, userId },
+    });
+
+    if (!session) {
+      res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Session not found' },
+      });
+      return;
+    }
+
+    // US-09: Clear Redis context for this session
+    await clearSessionContext(id);
+
+    await prisma.chatSession.delete({ where: { id } });
+
+    res.json({
+      success: true,
+      data: { message: 'Session deleted successfully' },
+    });
+  } catch (error) {
+    console.error('[Chat] Error deleting session:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to delete session' },
+    });
+  }
+}
+
+/**
+ * POST /api/v1/chat/new
+ * Start a new conversation with fresh context
+ * US-09: New Conversation - clears session context
+ */
+export async function startNewConversation(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { title, birthProfileId } = req.body;
+    const userLanguage = req.user?.language || 'bg';
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+      });
+      return;
+    }
+
+    // Create a new session with fresh context
+    const session = await prisma.chatSession.create({
+      data: {
+        userId,
+        title: title || 'Нов разговор',
+        birthProfileId,
+      },
+    });
+
+    // US-09: Initialize Redis context for the new session
+    await storeSessionContext(
+      session.id,
+      userId,
+      [], // No previous messages
+      undefined // No summary
+    );
+
+    const welcomeMessage = userLanguage === 'bg'
+      ? 'Здравей! Аз съм AstroLogAI, твоят личен астролог. Какво те интересува днес?'
+      : 'Hello! I am AstroLogAI, your personal astrologer. What would you like to know today?';
+
+    res.status(201).json({
+      success: true,
+      data: {
+        session: {
+          id: session.id,
+          title: session.title,
+          createdAt: session.createdAt,
+        },
+        welcomeMessage: {
+          role: 'assistant',
+          content: welcomeMessage,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('[Chat] Error starting new conversation:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to start new conversation' },
+    });
+  }
+}
+
+/**
+ * DELETE /api/v1/chat/sessions
+ * Clear all chat sessions for the user
+ * US-08: Chat History - Clear all history
+ */
+export async function clearAllSessions(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const userLanguage = req.user?.language || 'bg';
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+      });
+      return;
+    }
+
+    // Count sessions before deletion
+    const sessionCount = await prisma.chatSession.count({ where: { userId } });
+
+    // Delete all sessions (cascade will delete messages)
+    await prisma.chatSession.deleteMany({ where: { userId } });
+
+    // Clear rate limit counters for the month
+    const month = getCurrentMonth();
+    const monthKey = `ratelimit:monthly:${userId}:${month}`;
+    await redisClient.del(monthKey);
+
+    // US-09: Clear Redis session contexts
+    await clearUserSessionContexts(userId);
+
+    res.json({
+      success: true,
+      data: {
+        message: userLanguage === 'bg' 
+          ? `Успешно изтрити ${sessionCount} разговори`
+          : `Successfully deleted ${sessionCount} conversations`,
+        deletedCount: sessionCount,
+      },
+    });
+  } catch (error) {
+    console.error('[Chat] Error clearing all sessions:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to clear chat history' },
+    });
+  }
+}
+
+/**
+ * PATCH /api/v1/chat/sessions/:id
+ * Update a chat session (e.g., rename title)
+ * US-08: Chat History - Rename conversation
+ */
+export async function updateSession(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { title } = req.body;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+      });
+      return;
+    }
+
+    if (!title || typeof title !== 'string' || title.trim().length === 0) {
+      res.status(400).json({
+        success: false,
+        error: { code: 'VALIDATION_ERROR', message: 'Title is required' },
+      });
+      return;
+    }
+
+    // Verify session belongs to user
+    const session = await prisma.chatSession.findFirst({
+      where: { id, userId },
+    });
+
+    if (!session) {
+      res.status(404).json({
+        success: false,
+        error: { code: 'NOT_FOUND', message: 'Session not found' },
+      });
+      return;
+    }
+
+    // Update title
+    const updated = await prisma.chatSession.update({
+      where: { id },
+      data: { title: title.trim().substring(0, 100) },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        session: {
+          id: updated.id,
+          title: updated.title,
+          updatedAt: updated.updatedAt,
+        },
+      },
+    });
+  } catch (error) {
+    console.error('[Chat] Error updating session:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to update session' },
+    });
+  }
+}
+
+/**
+ * GET /api/v1/chat/usage
+ * Get user's chat usage statistics
+ */
+export async function getUsage(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const userTier = (req.user?.tier as Tier) || 'FREE';
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+      });
+      return;
+    }
+
+    const limits = RATE_LIMITS[userTier] || RATE_LIMITS.FREE;
+    const month = getCurrentMonth();
+    const monthKey = `ratelimit:monthly:${userId}:${month}`;
+    
+    const used = parseInt(await redisClient.get(monthKey) || '0', 10);
+    const remaining = limits.monthly === Infinity ? Infinity : limits.monthly - used;
+
+    res.json({
+      success: true,
+      data: {
+        tier: userTier,
+        usage: {
+          used,
+          limit: limits.monthly === Infinity ? 'unlimited' : limits.monthly,
+          remaining: remaining === Infinity ? 'unlimited' : remaining,
+          resetAt: getMonthResetDate(),
+        },
+      },
+    });
+  } catch (error) {
+    console.error('[Chat] Error getting usage:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: 'Failed to get usage' },
+    });
+  }
+}
+
+export default {
+  sendMessage,
+  listSessions,
+  getSession,
+  createSession,
+  deleteSession,
+  getUsage,
+};

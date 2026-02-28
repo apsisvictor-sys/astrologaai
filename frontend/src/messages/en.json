@@ -1,0 +1,566 @@
+{
+  "common": {
+    "appName": "AstroLogAI",
+    "tagline": "Your Personal AI Astrologer",
+    "loading": "Loading..."
+  },
+  "auth": {
+    "register": {
+      "title": "Create Account",
+      "subtitle": "Start your cosmic journey today",
+      "email": "Email",
+      "emailPlaceholder": "your@email.com",
+      "password": "Password",
+      "passwordPlaceholder": "••••••••",
+      "confirmPassword": "Confirm Password",
+      "fullName": "Full Name",
+      "fullNamePlaceholder": "John Doe",
+      "fullNameOptional": "(optional)",
+      "createAccount": "Create Account",
+      "creatingAccount": "Creating account...",
+      "alreadyHaveAccount": "Already have an account?",
+      "signIn": "Sign in",
+      "bySigningUp": "By signing up, you agree to our",
+      "termsOfService": "Terms of Service",
+      "and": "and",
+      "privacyPolicy": "Privacy Policy",
+      "errors": {
+        "emailRequired": "Email is required",
+        "emailInvalid": "Please enter a valid email address",
+        "passwordRequired": "Password is required",
+        "passwordMinLength": "Password must be at least 8 characters",
+        "passwordUppercase": "Password must contain at least 1 uppercase letter",
+        "passwordNumber": "Password must contain at least 1 number",
+        "confirmPasswordRequired": "Please confirm your password",
+        "passwordsDoNotMatch": "Passwords do not match",
+        "emailExists": "An account with this email already exists",
+        "registrationFailed": "Registration failed"
+      },
+      "passwordStrength": {
+        "weak": "Weak",
+        "medium": "Medium",
+        "strong": "Strong",
+        "veryStrong": "Very Strong",
+        "minChars": "8+ characters",
+        "uppercase": "1 uppercase",
+        "number": "1 number",
+        "passwordsMatch": "Passwords match"
+      }
+    },
+    "login": {
+      "title": "Sign In",
+      "subtitle": "Welcome back",
+      "email": "Email",
+      "password": "Password",
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot password?",
+      "signIn": "Sign In",
+      "signingIn": "Signing in...",
+      "noAccount": "Don't have an account?",
+      "createAccount": "Create Account",
+      "errors": {
+        "invalidCredentials": "Invalid email or password",
+        "loginFailed": "Login failed"
+      }
+    },
+    "forgotPassword": {
+      "title": "Forgot Password",
+      "subtitle": "Enter your email and we'll send you a reset link",
+      "email": "Email",
+      "emailPlaceholder": "your@email.com",
+      "sendResetLink": "Send Reset Link",
+      "sending": "Sending...",
+      "backToLogin": "Back to login",
+      "checkYourEmail": "Check Your Email",
+      "emailSentDescription": "We've sent a password reset link to your email address. The link will expire in 24 hours.",
+      "errors": {
+        "emailRequired": "Email is required",
+        "emailInvalid": "Please enter a valid email address",
+        "networkError": "Network error. Please try again."
+      }
+    },
+    "resetPassword": {
+      "title": "Reset Password",
+      "subtitle": "Create a new password for your account",
+      "newPassword": "New Password",
+      "passwordPlaceholder": "••••••••",
+      "confirmPassword": "Confirm Password",
+      "confirmPasswordPlaceholder": "••••••••",
+      "resetPassword": "Reset Password",
+      "resetting": "Resetting password...",
+      "backToLogin": "Back to login",
+      "invalidToken": "Invalid Token",
+      "requestNewLink": "Request New Link",
+      "success": "Password Updated!",
+      "successDescription": "Your password has been successfully changed. All active sessions have been terminated for your security.",
+      "continueToLogin": "Continue to Login",
+      "requirements": {
+        "minLength": "8+ characters",
+        "uppercase": "1 uppercase letter",
+        "number": "1 number",
+        "match": "Passwords match",
+        "noMatch": "Passwords do not match"
+      },
+      "errors": {
+        "tokenRequired": "Reset token is required",
+        "invalidToken": "Invalid or expired reset token",
+        "passwordsDoNotMatch": "Passwords do not match",
+        "passwordRequirements": "Password does not meet requirements",
+        "networkError": "Network error. Please try again."
+      }
+    }
+  },
+  "chat": {
+    "astrologer": "Your Personal Astrologer",
+    "typing": "Typing...",
+    "thinking": "Thinking...",
+    "welcomeTitle": "Welcome to AstroLogAI!",
+    "welcomeDesc": "Ask about your natal chart, transits, relationships, or career. I'll help you understand cosmic influences in your life.",
+    "limitReached": "Query limit reached",
+    "askPlaceholder": "Ask the astrologer...",
+    "disclaimer": "AstroLogAI can make mistakes. Verify important information.",
+    "newChat": "New Chat",
+    "history": "History",
+    "suggestions": {
+      "career": "What does my chart say about my career?",
+      "transits": "What transits are happening today?",
+      "compatibility": "Are we compatible with my partner?"
+    },
+    "historyPage": {
+      "title": "Chat History",
+      "searchPlaceholder": "Search conversations...",
+      "noConversations": "No conversations",
+      "noConversationsDesc": "Start a new conversation to see your history here.",
+      "noResults": "No results",
+      "noResultsDesc": "We couldn't find any conversations matching your search.",
+      "messages": "messages",
+      "delete": "Delete",
+      "rename": "Rename",
+      "clearAll": "Clear All",
+      "clearAllConfirm": "Are you sure you want to delete all conversations? This action cannot be undone.",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "renameTitle": "Rename conversation",
+      "newTitlePlaceholder": "New title",
+      "save": "Save",
+      "justNow": "just now",
+      "backToChat": "Back to chat"
+    }
+  },
+  "navigation": {
+    "home": "Home",
+    "dashboard": "Dashboard",
+    "myChart": "My Chart",
+    "chat": "Chat",
+    "forecasts": "Forecasts",
+    "relationships": "Relationships",
+    "settings": "Settings",
+    "logout": "Logout"
+  },
+  "subscription": {
+    "page": {
+      "title": "Choose Your Plan",
+      "subtitle": "Unlock the full potential of your astrological chart",
+      "monthly": "Monthly",
+      "yearly": "Yearly",
+      "save": "Save 20%",
+      "mostPopular": "Most Popular",
+      "current": "Current",
+      "upgrade": "Upgrade",
+      "downgrade": "Downgrade",
+      "getStarted": "Get Started",
+      "select": "Select",
+      "features": "Features",
+      "notIncluded": "Not Included",
+      "queries": "queries/month",
+      "perMonth": "/month",
+      "bgnEquivalent": "€{price}/month",
+      "comparisonTitle": "Feature Comparison",
+      "comparisonFeatures": {
+        "queries": "Queries per month",
+        "coreAstrology": "Core Astrology (20+ APIs)",
+        "vedicAstrology": "Vedic Astrology",
+        "relationshipAnalysis": "Relationship Analysis",
+        "dailyForecast": "Daily Forecasts",
+        "weeklyForecast": "Weekly Forecasts",
+        "fullChartAccess": "Full Chart Access",
+        "businessAstrology": "Business Astrology",
+        "tarotReadings": "Tarot Readings",
+        "numerology": "Numerology",
+        "chineseAstrology": "Chinese/Eastern Astrology",
+        "prioritySupport": "Priority Support"
+      },
+      "yes": "✓",
+      "no": "—",
+      "faq": {
+        "title": "Frequently Asked Questions",
+        "canChange": "Can I change my plan?",
+        "canChangeAnswer": "Yes, you can upgrade or downgrade your plan at any time. Changes take effect immediately, and you'll retain access to higher-tier features until the end of your current billing period.",
+        "cancel": "How do I cancel my subscription?",
+        "cancelAnswer": "You can cancel your subscription anytime from your profile settings. You'll retain access to paid features until the end of your current billing period.",
+        "refund": "Do you offer refunds?",
+        "refundAnswer": "We offer a 14-day trial period for new users. If you're not satisfied with the service, contact us within the first 14 days for a full refund.",
+        "whatGet": "What do I get with each plan?",
+        "whatGetAnswer": "The Free plan gives you 10 queries per month to try the service. The Pro plan unlocks unlimited queries, all core astrology features, and daily forecasts. The Premium plan gives full access including business astrology, tarot, and numerology.",
+        "payment": "How does payment work?",
+        "paymentAnswer": "Payments are securely processed through Stripe. We accept all major credit and debit cards. You can choose between monthly or yearly billing.",
+        "support": "How do I get support?",
+        "supportAnswer": "All users have access to our knowledge base and email support. Pro users get priority support, and Premium users get exclusive access to personal consultations."
+      }
+    },
+    "tier": {
+      "free": "Free",
+      "pro": "Pro",
+      "premium": "Premium"
+    },
+    "status": {
+      "active": "Active",
+      "canceled": "Canceled",
+      "pastDue": "Past Due",
+      "trialing": "Trial Period"
+    },
+    "queriesRemaining": "queries remaining",
+    "unlimited": "Unlimited",
+    "limitReached": "Query limit reached",
+    "upgradeNow": "Upgrade now",
+    "manage": "Manage",
+    "billingPeriod": "Billing Period",
+    "nextPayment": "Next Payment",
+    "cancelSubscription": "Cancel Subscription",
+    "reactivateSubscription": "Reactivate Subscription",
+    "management": {
+      "title": "Subscription Management",
+      "subtitle": "View and manage your subscription",
+      "currentPlan": "Current Plan",
+      "statusActive": "Active",
+      "statusCanceled": "Canceled",
+      "statusPastDue": "Past Due",
+      "statusTrialing": "Trial Period",
+      "statusActiveDesc": "Your subscription is active",
+      "statusCanceledDesc": "Subscription will cancel at end of period",
+      "statusPastDueDesc": "There is a payment issue",
+      "billingInfo": "Billing Information",
+      "nextPaymentDate": "Next Payment",
+      "cancelDate": "Cancel Date",
+      "usage": "Usage",
+      "queriesThisMonth": "Queries this month",
+      "managePayment": "Manage Payment",
+      "openPortal": "Open Customer Portal",
+      "invoices": "Invoices",
+      "invoiceNumber": "Number",
+      "invoiceDate": "Date",
+      "invoiceAmount": "Amount",
+      "invoiceStatus": "Status",
+      "invoicePaid": "Paid",
+      "invoicePending": "Pending",
+      "invoiceFailed": "Failed",
+      "downloadPdf": "Download PDF",
+      "noInvoices": "No invoices",
+      "cancelWarning": "Are you sure you want to cancel your subscription?",
+      "cancelWarningDesc": "You will lose access to these features at the end of your current billing period:",
+      "cancelConfirm": "Yes, cancel",
+      "cancelBack": "Back",
+      "cancelSuccess": "Subscription will be canceled",
+      "reactivateSuccess": "Subscription reactivated successfully!",
+      "reactivateDesc": "Your subscription is active and will renew automatically.",
+      "upgradeTitle": "Upgrade to Pro or Premium",
+      "upgradeDesc": "Unlock unlimited queries, full chart access, forecasts, and more.",
+      "viewPlans": "View Plans",
+      "loading": "Loading...",
+      "error": "Error loading",
+      "tryAgain": "Try again",
+      "backToSettings": "Back to settings",
+      "featureLoss": {
+        "unlimitedQueries": "Unlimited AI conversations",
+        "forecasts": "Daily and weekly forecasts",
+        "compatibility": "Compatibility analysis",
+        "vedic": "Vedic astrology",
+        "business": "Business astrology",
+        "tarot": "Tarot and numerology"
+      }
+    }
+  },
+  "validation": {
+    "required": "This field is required",
+    "invalidEmail": "Invalid email format",
+    "minLength": "Must be at least {min} characters",
+    "maxLength": "Must be at most {max} characters"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your account and preferences",
+    "backToDashboard": "Back to dashboard",
+    "accountInfo": "Account Info",
+    "logout": "Logout",
+    "logoutConfirm": "Are you sure you want to log out?",
+    "language": {
+      "title": "Language",
+      "subtitle": "Change the interface language",
+      "currentLanguage": "Current Language",
+      "selectLanguage": "Select Language",
+      "description": "Choose your preferred language for the interface and AI responses.",
+      "note": "Changing the language will affect all text in the app, and the AI astrologer will respond in your selected language.",
+      "saved": "Language changed successfully!",
+      "saving": "Saving...",
+      "error": "Error changing language",
+      "languages": {
+        "bg": {
+          "name": "Български",
+          "nativeName": "Български",
+          "description": "Use Bulgarian for interface and AI responses"
+        },
+        "en": {
+          "name": "English",
+          "nativeName": "English",
+          "description": "Use English for interface and AI responses"
+        }
+      }
+    },
+    "categories": {
+      "subscription": {
+        "title": "Subscription",
+        "description": "Manage your plan, invoices, and payments"
+      },
+      "profile": {
+        "title": "Profile",
+        "description": "Edit your name, email, and avatar"
+      },
+      "birthData": {
+        "title": "Birth Data",
+        "description": "Update your birth date, time, and location"
+      },
+      "notifications": {
+        "title": "Notifications",
+        "description": "Email and push notification preferences"
+      },
+      "language": {
+        "title": "Language",
+        "description": "Change the interface language"
+      },
+      "privacy": {
+        "title": "Privacy",
+        "description": "Export or delete your data"
+      }
+    }
+  },
+  "forecast": {
+    "daily": "Daily Forecast",
+    "weekly": "Weekly Forecast",
+    "monthly": "Monthly Forecast",
+    "today": "Today",
+    "thisWeek": "This Week",
+    "overallTheme": "Overall Theme",
+    "mood": "Mood",
+    "energy": "Energy",
+    "high": "High",
+    "medium": "Medium",
+    "low": "Low",
+    "moonPhase": "Moon Phase",
+    "illumination": "Illumination",
+    "transits": "Transits",
+    "horoscope": "Horoscope",
+    "general": "General",
+    "love": "Love",
+    "career": "Career",
+    "health": "Health",
+    "recommendations": "Recommendations",
+    "luckyNumbers": "Lucky Numbers",
+    "powerHours": "Power Hours",
+    "noBirthData": "Add your birth data to get a personalized forecast",
+    "loading": "Loading forecast...",
+    "error": "Error loading forecast",
+    "retry": "Retry",
+    "cached": "Cached",
+    "lastUpdated": "Last updated"
+  },
+  "astrology": {
+    "planets": {
+      "sun": "Sun",
+      "moon": "Moon",
+      "mercury": "Mercury",
+      "venus": "Venus",
+      "mars": "Mars",
+      "jupiter": "Jupiter",
+      "saturn": "Saturn",
+      "uranus": "Uranus",
+      "neptune": "Neptune",
+      "pluto": "Pluto",
+      "northNode": "North Node",
+      "southNode": "South Node",
+      "chiron": "Chiron",
+      "rising": "Ascendant"
+    },
+    "signs": {
+      "aries": "Aries",
+      "taurus": "Taurus",
+      "gemini": "Gemini",
+      "cancer": "Cancer",
+      "leo": "Leo",
+      "virgo": "Virgo",
+      "libra": "Libra",
+      "scorpio": "Scorpio",
+      "sagittarius": "Sagittarius",
+      "capricorn": "Capricorn",
+      "aquarius": "Aquarius",
+      "pisces": "Pisces"
+    },
+    "aspects": {
+      "conjunction": "Conjunction",
+      "opposition": "Opposition",
+      "trine": "Trine",
+      "square": "Square",
+      "sextile": "Sextile",
+      "quincunx": "Quincunx"
+    },
+    "elements": {
+      "fire": "Fire",
+      "earth": "Earth",
+      "air": "Air",
+      "water": "Water"
+    },
+    "modalities": {
+      "cardinal": "Cardinal",
+      "fixed": "Fixed",
+      "mutable": "Mutable"
+    },
+    "houses": {
+      "1": "First House",
+      "2": "Second House",
+      "3": "Third House",
+      "4": "Fourth House",
+      "5": "Fifth House",
+      "6": "Sixth House",
+      "7": "Seventh House",
+      "8": "Eighth House",
+      "9": "Ninth House",
+      "10": "Tenth House",
+      "11": "Eleventh House",
+      "12": "Twelfth House"
+    }
+  },
+  "chart": {
+    "title": "Natal Chart",
+    "myChart": "My Chart",
+    "loading": "Loading chart...",
+    "calculating": "Calculating your cosmic blueprint...",
+    "calculatingDesc": "This takes just a few seconds",
+    "chartReady": "Your chart is ready!",
+    "welcome": "Welcome",
+    "sun": "Sun",
+    "moon": "Moon",
+    "rising": "Rising",
+    "sunIn": "Sun in",
+    "moonIn": "Moon in",
+    "risingSign": "Rising in",
+    "inHouse": "in house",
+    "retrograde": "retrograde",
+    "elements": "Elements",
+    "fire": "Fire",
+    "earth": "Earth",
+    "air": "Air",
+    "water": "Water",
+    "modalities": "Modalities",
+    "cardinal": "Cardinal",
+    "fixed": "Fixed",
+    "mutable": "Mutable",
+    "aspects": "Aspects",
+    "aspectsDescription": "Connections between planets",
+    "harmonious": "Harmonious",
+    "challenging": "Challenging",
+    "houses": "Houses",
+    "viewFullChart": "View Full Chart",
+    "downloadPNG": "Download PNG",
+    "downloadPDF": "Download PDF",
+    "shareChart": "Share Chart",
+    "askAI": "Ask AI about this placement",
+    "viewMode": {
+      "wheel": "Wheel",
+      "details": "Details",
+      "aspects": "Aspects",
+      "interpretation": "Interpretation",
+      "sensitivity": "Sensitivity"
+    },
+    "tooltip": {
+      "sun": "The Sun represents your essence, ego, and life force",
+      "moon": "The Moon represents your emotions, instincts, and inner world",
+      "rising": "The Rising sign is how you present yourself to the world and first impressions",
+      "mercury": "Mercury rules communication, thinking, and learning",
+      "venus": "Venus rules love, beauty, pleasure, and values",
+      "mars": "Mars rules action, energy, ambition, and desire",
+      "jupiter": "Jupiter rules expansion, growth, luck, and wisdom",
+      "saturn": "Saturn rules discipline, responsibility, and life lessons",
+      "uranus": "Uranus rules innovation, change, and liberation",
+      "neptune": "Neptune rules dreams, intuition, and spirituality",
+      "pluto": "Pluto rules transformation, power, and regeneration"
+    }
+  },
+  "alerts": {
+    "transit": {
+      "title": "Transit Alert",
+      "upcoming": "Upcoming Transits",
+      "description": "Significant astrological events affecting your chart",
+      "positive": "Positive influence",
+      "challenging": "Challenging influence",
+      "neutral": "Neutral influence",
+      "intensity": {
+        "low": "Low intensity",
+        "medium": "Medium intensity",
+        "high": "High intensity"
+      },
+      "types": {
+        "saturnReturn": "Saturn Return",
+        "jupiterReturn": "Jupiter Return",
+        "eclipse": "Eclipse",
+        "retrograde": "Retrograde",
+        "majorTransit": "Major Transit"
+      }
+    }
+  },
+  "app": {
+    "tagline": "Your Personal AI Astrologer"
+  },
+  "onboarding": {
+    "progress": "Step {current} of {total}",
+    "skip": "Skip",
+    "previous": "Back",
+    "next": "Next",
+    "finish": "Finish",
+    "steps": {
+      "welcome": {
+        "title": "Welcome to AstroLogAI!",
+        "description": "Let us show you a quick tour of the app's main features."
+      },
+      "chat": {
+        "title": "Chat with AI Astrologer",
+        "description": "Ask questions to your personal AI astrologer who knows your natal chart."
+      },
+      "natalChart": {
+        "title": "Natal Chart",
+        "description": "Explore your cosmic blueprint with detailed interpretations of all planets and aspects."
+      },
+      "forecasts": {
+        "title": "Forecasts",
+        "description": "Get personalized daily and weekly forecasts based on current transits."
+      },
+      "relationships": {
+        "title": "Relationships",
+        "description": "Add partners and explore astrological compatibility through synastry."
+      }
+    }
+  },
+  "settings": {
+    "language": {
+      "selectLanguage": "Select language"
+    }
+  },
+  "errors": {
+    "generic": "Something went wrong",
+    "networkError": "Network error. Please try again.",
+    "unauthorized": "Unauthorized. Please log in again.",
+    "notFound": "The requested resource was not found",
+    "validationError": "Invalid data. Please check your input.",
+    "serverError": "Server error. Please try again later.",
+    "rateLimitExceeded": "Rate limit exceeded. Please wait a moment.",
+    "languageNotSupported": "This language is not supported"
+  }
+}

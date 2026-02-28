@@ -1,0 +1,778 @@
+/**
+ * Socket.io Client
+ * US-10: Streaming Responses
+ * US-38: WebSocket/Stream Reconnection Strategy
+ * 
+ * WebSocket client for real-time chat communication with reconnection support
+ */
+
+import { io, Socket } from 'socket.io-client';
+
+// Types
+export interface SocketEvents {
+  // Client to Server
+  'chat:subscribe': { conversationId: string };
+  'chat:send_message': {
+    conversationId: string;
+    content: string;
+    language?: 'bg' | 'en';
+    context?: {
+      includeChart?: boolean;
+      includeTransits?: boolean;
+      partnerId?: string | null;
+    };
+    messageId?: string;
+  };
+  'chat:typing': { conversationId: string; isTyping: boolean };
+  'chat:cancel_generation': { conversationId: string; messageId?: string };
+  'chat:unsubscribe': { conversationId: string };
+  'reconnection:request': { conversationId?: string };
+  'pong:heartbeat': { timestamp: number };
+  
+  // Server to Client
+  'chat:connected': {
+    connectionId: string;
+    userId: string;
+    tier: string;
+    serverTime: string;
+  };
+  'chat:subscribed': {
+    conversationId: string;
+    message: string;
+  };
+  'chat:message_received': {
+    clientMessageId?: string;
+    serverMessageId: string | null;
+    status: 'accepted' | 'saved';
+    rateLimit?: {
+      remaining: number;
+      limit: number;
+    };
+  };
+  'chat:generation_started': {
+    messageId: string | null;
+    conversationId: string;
+    estimatedTokens: number;
+  };
+  'chat:message_chunk': {
+    messageId: string | null;
+    chunk: string;
+    index: number;
+    isComplete: boolean;
+  };
+  'chat:message_complete': {
+    messageId: string;
+    conversationId: string;
+    content: string;
+    metadata: {
+      model: string;
+      tokensUsed: number;
+      processingTime: number;
+      finishReason: string;
+    };
+  };
+  'chat:typing_indicator': {
+    conversationId: string;
+    isTyping: boolean;
+  };
+  'chat:generation_cancelled': {
+    conversationId: string;
+    message: string;
+  };
+  'chat:unsubscribed': {
+    conversationId: string;
+    message: string;
+  };
+  'chat:error': {
+    code: string;
+    message: string;
+    conversationId?: string;
+    retryAfter?: number;
+    limit?: number;
+  };
+  'chat:partner_typing': {
+    conversationId: string;
+    userId: string;
+    isTyping: boolean;
+  };
+  // US-38: Reconnection events
+  'ping:heartbeat': { timestamp: number };
+  'reconnection:stream_state': {
+    conversationId: string;
+    lastTokenIndex?: number;
+    lastContent?: string;
+    messageId?: string;
+  };
+  'reconnection:status': {
+    canReconnect: boolean;
+    reconnecting: boolean;
+  };
+}
+
+// Connection states
+export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting';
+
+// Event callbacks
+export interface SocketCallbacks {
+  onConnected?: (data: SocketEvents['chat:connected']) => void;
+  onDisconnected?: (reason: string) => void;
+  onConnectionError?: (error: Error) => void;
+  onReconnecting?: (attempt: number) => void;
+  onReconnected?: (hadQueuedMessages?: boolean) => void;
+  onSubscribed?: (data: SocketEvents['chat:subscribed']) => void;
+  onMessageReceived?: (data: SocketEvents['chat:message_received']) => void;
+  onGenerationStarted?: (data: SocketEvents['chat:generation_started']) => void;
+  onMessageChunk?: (data: SocketEvents['chat:message_chunk']) => void;
+  onMessageComplete?: (data: SocketEvents['chat:message_complete']) => void;
+  onTypingIndicator?: (data: SocketEvents['chat:typing_indicator']) => void;
+  onGenerationCancelled?: (data: SocketEvents['chat:generation_cancelled']) => void;
+  onError?: (data: SocketEvents['chat:error']) => void;
+  onStateChange?: (state: ConnectionState) => void;
+  // US-38: Reconnection callbacks
+  onStreamStateReceived?: (data: SocketEvents['reconnection:stream_state']) => void;
+  onHeartbeat?: () => void;
+}
+
+// Storage keys
+const MESSAGE_QUEUE_KEY = 'astrologaai_message_queue';
+const STREAM_STATE_KEY = 'astrologaai_stream_state';
+
+// Message queue item
+interface QueuedMessage {
+  event: string;
+  data: any;
+  timestamp: number;
+}
+
+// Socket client class
+class SocketClient {
+  private socket: Socket | null = null;
+  private callbacks: SocketCallbacks = {};
+  private connectionState: ConnectionState = 'disconnected';
+  private reconnectAttempts = 0;
+  private maxReconnectAttempts = 5;
+  private reconnectDelay = 1000;
+  private heartbeatInterval: NodeJS.Timeout | null = null;
+  private currentConversationId: string | null = null;
+  private lastStreamContent: string = '';
+  private lastStreamIndex: number = 0;
+
+  /**
+   * Get access token from storage
+   */
+  private getAccessToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('astrologaai_access_token');
+  }
+
+  /**
+   * Update connection state
+   */
+  private setState(state: ConnectionState): void {
+    this.connectionState = state;
+    this.callbacks.onStateChange?.(state);
+  }
+
+  /**
+   * Persist message queue to localStorage
+   */
+  private persistMessageQueue(messages: QueuedMessage[]): void {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(MESSAGE_QUEUE_KEY, JSON.stringify(messages));
+    } catch (e) {
+      console.warn('[Socket] Failed to persist message queue:', e);
+    }
+  }
+
+  /**
+   * Get persisted message queue
+   */
+  private getPersistedMessageQueue(): QueuedMessage[] {
+    if (typeof window === 'undefined') return [];
+    try {
+      const data = localStorage.getItem(MESSAGE_QUEUE_KEY);
+      return data ? JSON.parse(data) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /**
+   * Persist stream state to localStorage
+   */
+  private persistStreamState(conversationId: string, lastContent: string, lastIndex: number): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const state = {
+        conversationId,
+        lastContent,
+        lastIndex,
+        timestamp: Date.now(),
+      };
+      localStorage.setItem(STREAM_STATE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn('[Socket] Failed to persist stream state:', e);
+    }
+  }
+
+  /**
+   * Get persisted stream state
+   */
+  private getPersistedStreamState(): { conversationId: string; lastContent: string; lastIndex: number } | null {
+    if (typeof window === 'undefined') return null;
+    try {
+      const data = localStorage.getItem(STREAM_STATE_KEY);
+      if (!data) return null;
+      
+      const state = JSON.parse(data);
+      // Only valid for 1 hour
+      if (Date.now() - state.timestamp > 3600000) {
+        localStorage.removeItem(STREAM_STATE_KEY);
+        return null;
+      }
+      return state;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /**
+   * Clear persisted stream state
+   */
+  private clearPersistedStreamState(): void {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(STREAM_STATE_KEY);
+  }
+
+  /**
+   * Start heartbeat interval
+   */
+  private startHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+    
+    this.heartbeatInterval = setInterval(() => {
+      if (this.socket?.connected) {
+        // Send pong response to server heartbeat
+        this.socket.emit('pong:heartbeat', { timestamp: Date.now() });
+        this.callbacks.onHeartbeat?.();
+      }
+    }, 30000); // 30 seconds, matches backend
+  }
+
+  /**
+   * Stop heartbeat interval
+   */
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
+  /**
+   * Connect to WebSocket server
+   */
+  connect(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (this.socket?.connected) {
+        resolve();
+        return;
+      }
+
+      const token = this.getAccessToken();
+      if (!token) {
+        reject(new Error('No access token'));
+        return;
+      }
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      
+      this.setState('connecting');
+
+      this.socket = io(apiUrl, {
+        auth: { token },
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: this.maxReconnectAttempts,
+        reconnectionDelay: this.reconnectDelay,
+        reconnectionDelayMax: 5000,
+      });
+
+      // Connection successful
+      this.socket.on('connect', () => {
+        console.log('[Socket] Connected');
+        this.setState('connected');
+        this.reconnectAttempts = 0;
+        
+        // Start heartbeat
+        this.startHeartbeat();
+        
+        // Request stream state if we have a conversation
+        if (this.currentConversationId) {
+          const streamState = this.getPersistedStreamState();
+          if (streamState && streamState.conversationId === this.currentConversationId) {
+            this.socket?.emit('reconnection:request', { 
+              conversationId: this.currentConversationId 
+            });
+          }
+        }
+        
+        // Process queued messages
+        this.flushMessageQueue();
+        
+        resolve();
+      });
+
+      // Connection established with server confirmation
+      this.socket.on('chat:connected', (data: SocketEvents['chat:connected']) => {
+        console.log('[Socket] Server confirmed connection:', data);
+        this.callbacks.onConnected?.(data);
+      });
+
+      // US-38: Handle heartbeat ping from server
+      this.socket.on('ping:heartbeat', (data: SocketEvents['ping:heartbeat']) => {
+        // Respond with pong
+        this.socket?.emit('pong:heartbeat', { timestamp: data.timestamp });
+      });
+
+      // US-38: Handle stream state for resumption
+      this.socket.on('reconnection:stream_state', (data: SocketEvents['reconnection:stream_state']) => {
+        console.log('[Socket] Received stream state for resumption:', data);
+        
+        // Update local stream state
+        if (data.lastContent) {
+          this.lastStreamContent = data.lastContent;
+        }
+        if (data.lastTokenIndex !== undefined) {
+          this.lastStreamIndex = data.lastTokenIndex;
+        }
+        
+        this.callbacks.onStreamStateReceived?.(data);
+      });
+
+      // Disconnection
+      this.socket.on('disconnect', (reason: string) => {
+        console.log('[Socket] Disconnected:', reason);
+        this.setState('disconnected');
+        this.stopHeartbeat();
+        this.callbacks.onDisconnected?.(reason);
+      });
+
+      // Connection error
+      this.socket.on('connect_error', (error: Error) => {
+        console.error('[Socket] Connection error:', error);
+        this.reconnectAttempts++;
+        
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+          this.setState('disconnected');
+          reject(error);
+        } else {
+          this.setState('reconnecting');
+          this.callbacks.onReconnecting?.(this.reconnectAttempts);
+        }
+        
+        this.callbacks.onConnectionError?.(error);
+      });
+
+      // Reconnection attempt
+      this.socket.io.on('reconnect_attempt', (attempt: number) => {
+        console.log(`[Socket] Reconnection attempt ${attempt}`);
+        this.setState('reconnecting');
+      });
+
+      // Reconnection successful
+      this.socket.io.on('reconnect', () => {
+        console.log('[Socket] Reconnected');
+        this.setState('connected');
+        this.reconnectAttempts = 0;
+        
+        // Start heartbeat again
+        this.startHeartbeat();
+        
+        // Check for queued messages
+        const queuedMessages = this.getPersistedMessageQueue();
+        const hadQueuedMessages = queuedMessages.length > 0;
+        
+        this.callbacks.onReconnected?.(hadQueuedMessages);
+      });
+
+      // Register event handlers
+      this.registerEventHandlers();
+    });
+  }
+
+  /**
+   * Register all event handlers
+   */
+  private registerEventHandlers(): void {
+    if (!this.socket) return;
+
+    this.socket.on('chat:subscribed', (data) => {
+      this.callbacks.onSubscribed?.(data);
+    });
+
+    this.socket.on('chat:message_received', (data) => {
+      this.callbacks.onMessageReceived?.(data);
+    });
+
+    this.socket.on('chat:generation_started', (data) => {
+      // Reset stream state on new generation
+      this.lastStreamContent = '';
+      this.lastStreamIndex = 0;
+      this.clearPersistedStreamState();
+      this.callbacks.onGenerationStarted?.(data);
+    });
+
+    this.socket.on('chat:message_chunk', (data) => {
+      // Track stream position for resumption
+      this.lastStreamContent += data.chunk;
+      this.lastStreamIndex = data.index;
+      
+      // Persist stream state periodically (every 10 chunks)
+      if (this.currentConversationId && data.index % 10 === 0) {
+        this.persistStreamState(this.currentConversationId, this.lastStreamContent, this.lastStreamIndex);
+      }
+      
+      this.callbacks.onMessageChunk?.(data);
+    });
+
+    this.socket.on('chat:message_complete', (data) => {
+      // Clear stream state on completion
+      this.lastStreamContent = '';
+      this.lastStreamIndex = 0;
+      this.clearPersistedStreamState();
+      this.callbacks.onMessageComplete?.(data);
+    });
+
+    this.socket.on('chat:typing_indicator', (data) => {
+      this.callbacks.onTypingIndicator?.(data);
+    });
+
+    this.socket.on('chat:generation_cancelled', (data) => {
+      // Clear stream state on cancellation
+      this.lastStreamContent = '';
+      this.lastStreamIndex = 0;
+      this.clearPersistedStreamState();
+      this.callbacks.onGenerationCancelled?.(data);
+    });
+
+    this.socket.on('chat:error', (data) => {
+      this.callbacks.onError?.(data);
+    });
+  }
+
+  /**
+   * Flush queued messages
+   */
+  private flushMessageQueue(): void {
+    const queuedMessages = this.getPersistedMessageQueue();
+    
+    while (queuedMessages.length > 0 && this.socket?.connected) {
+      const message = queuedMessages.shift()!;
+      this.socket.emit(message.event, message.data);
+    }
+    
+    // Clear persisted queue
+    this.persistMessageQueue(queuedMessages);
+  }
+
+  /**
+   * Emit event (queue if disconnected)
+   */
+  private emit<E extends keyof SocketEvents>(
+    event: E,
+    data: SocketEvents[E]
+  ): void {
+    if (this.socket?.connected) {
+      this.socket.emit(event, data);
+    } else {
+      // Queue message for later when reconnected
+      const queuedMessages = this.getPersistedMessageQueue();
+      queuedMessages.push({
+        event,
+        data,
+        timestamp: Date.now(),
+      });
+      
+      // Keep only last 50 messages
+      if (queuedMessages.length > 50) {
+        queuedMessages.splice(0, queuedMessages.length - 50);
+      }
+      
+      this.persistMessageQueue(queuedMessages);
+    }
+  }
+
+  /**
+   * Disconnect from server
+   */
+  disconnect(): void {
+    this.stopHeartbeat();
+    
+    if (this.socket) {
+      this.socket.disconnect();
+      this.socket = null;
+      this.setState('disconnected');
+    }
+  }
+
+  /**
+   * Set callbacks
+   */
+  setCallbacks(callbacks: SocketCallbacks): void {
+    this.callbacks = { ...this.callbacks, ...callbacks };
+  }
+
+  /**
+   * Get connection state
+   */
+  getState(): ConnectionState {
+    return this.connectionState;
+  }
+
+  /**
+   * Check if connected
+   */
+  isConnected(): boolean {
+    return this.socket?.connected || false;
+  }
+
+  /**
+   * Get last stream content for resumption
+   */
+  getLastStreamContent(): string {
+    return this.lastStreamContent;
+  }
+
+  /**
+   * Get last stream index for resumption
+   */
+  getLastStreamIndex(): number {
+    return this.lastStreamIndex;
+  }
+
+  /**
+   * Subscribe to conversation
+   */
+  subscribeToConversation(conversationId: string): void {
+    this.currentConversationId = conversationId;
+    this.emit('chat:subscribe', { conversationId });
+  }
+
+  /**
+   * Unsubscribe from conversation
+   */
+  unsubscribeFromConversation(conversationId: string): void {
+    if (this.currentConversationId === conversationId) {
+      this.currentConversationId = null;
+    }
+    this.emit('chat:unsubscribe', { conversationId });
+  }
+
+  /**
+   * Send message
+   */
+  sendMessage(
+    conversationId: string,
+    content: string,
+    options?: {
+      language?: 'bg' | 'en';
+      context?: SocketEvents['chat:send_message']['context'];
+      messageId?: string;
+    }
+  ): void {
+    // Update current conversation
+    this.currentConversationId = conversationId;
+    
+    // Include stream resumption info if available
+    const streamState = this.getPersistedStreamState();
+    const resumeFrom = (streamState?.conversationId === conversationId) 
+      ? { lastContent: streamState.lastContent, lastIndex: streamState.lastIndex }
+      : undefined;
+    
+    this.emit('chat:send_message', {
+      conversationId,
+      content,
+      language: options?.language,
+      context: {
+        ...options?.context,
+        // Pass resumption data to server
+        ...(resumeFrom && { resumeFrom }),
+      },
+      messageId: options?.messageId,
+    });
+  }
+
+  /**
+   * US-37: Send message with automatic retry on rate limit
+   * Returns a promise that resolves when the message is successfully sent
+   * or rejects after all retries are exhausted
+   */
+  async sendMessageWithRetry(
+    conversationId: string,
+    content: string,
+    options?: {
+      language?: 'bg' | 'en';
+      context?: SocketEvents['chat:send_message']['context'];
+      messageId?: string;
+      maxRetries?: number;
+    }
+  ): Promise<void> {
+    const maxRetries = options?.maxRetries ?? 5;
+    const initialDelay = 1000;
+    const maxDelay = 30000;
+    
+    return new Promise((resolve, reject) => {
+      let attempt = 0;
+      let retryTimeout: NodeJS.Timeout | null = null;
+      
+      const attemptSend = () => {
+        // Generate unique message ID for this attempt
+        const messageId = options?.messageId || `${Date.now()}-${attempt}`;
+        
+        // Set up one-time error listener for rate limit
+        const errorHandler = (data: SocketEvents['chat:error']) => {
+          if (data.conversationId !== conversationId) return;
+          if (data.code !== 'RATE_LIMIT_EXCEEDED') {
+            // Not a rate limit error, reject immediately
+            cleanup();
+            reject(new Error(data.message));
+            return;
+          }
+          
+          // Rate limit error - check if we should retry
+          if (attempt >= maxRetries) {
+            cleanup();
+            reject(new Error(`Rate limit exceeded after ${maxRetries} retries: ${data.message}`));
+            return;
+          }
+          
+          // Calculate backoff delay
+          const retryAfter = data.retryAfter || 0;
+          const backoffDelay = Math.min(
+            initialDelay * Math.pow(2, attempt),
+            maxDelay
+          );
+          const delay = retryAfter > 0 ? Math.min(retryAfter * 1000, maxDelay) : backoffDelay;
+          
+          attempt++;
+          console.log(`[Socket] Rate limited, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+          
+          retryTimeout = setTimeout(attemptSend, delay);
+        };
+        
+        // Set up success listener
+        const successHandler = (data: SocketEvents['chat:message_received']) => {
+          if (data.clientMessageId !== messageId && data.serverMessageId) {
+            cleanup();
+            resolve();
+          }
+        };
+        
+        const completeHandler = (data: SocketEvents['chat:message_complete']) => {
+          if (data.conversationId === conversationId) {
+            cleanup();
+            resolve();
+          }
+        };
+        
+        const cleanup = () => {
+          if (retryTimeout) {
+            clearTimeout(retryTimeout);
+            retryTimeout = null;
+          }
+          this.socket?.off('chat:error', errorHandler);
+          this.socket?.off('chat:message_received', successHandler);
+          this.socket?.off('chat:message_complete', completeHandler);
+        };
+        
+        // Register listeners
+        this.socket?.on('chat:error', errorHandler);
+        this.socket?.on('chat:message_received', successHandler);
+        this.socket?.on('chat:message_complete', completeHandler);
+        
+        // Send the message
+        this.sendMessage(conversationId, content, {
+          ...options,
+          messageId,
+        });
+      };
+      
+      attemptSend();
+    });
+  }
+
+  /**
+   * Send typing indicator
+   */
+  sendTyping(conversationId: string, isTyping: boolean): void {
+    this.emit('chat:typing', { conversationId, isTyping });
+  }
+
+  /**
+   * Cancel generation
+   */
+  cancelGeneration(conversationId: string, messageId?: string): void {
+    this.emit('chat:cancel_generation', { conversationId, messageId });
+  }
+
+  /**
+   * Request reconnection with stream resumption
+   */
+  requestReconnection(conversationId?: string): void {
+    if (this.socket?.connected) {
+      this.socket.emit('reconnection:request', { conversationId });
+    }
+  }
+
+  /**
+   * Clear message queue
+   */
+  clearMessageQueue(): void {
+    this.persistMessageQueue([]);
+  }
+
+  /**
+   * Get queued messages count
+   */
+  getQueuedMessagesCount(): number {
+    return this.getPersistedMessageQueue().length;
+  }
+}
+
+// Singleton instance
+let socketClient: SocketClient | null = null;
+
+/**
+ * Get socket client instance
+ */
+export function getSocketClient(): SocketClient {
+  if (!socketClient) {
+    socketClient = new SocketClient();
+  }
+  return socketClient;
+}
+
+/**
+ * Initialize socket client with callbacks
+ */
+export function initializeSocketClient(callbacks: SocketCallbacks): SocketClient {
+  const client = getSocketClient();
+  client.setCallbacks(callbacks);
+  return client;
+}
+
+/**
+ * Disconnect socket client
+ */
+export function disconnectSocketClient(): void {
+  if (socketClient) {
+    socketClient.disconnect();
+    socketClient = null;
+  }
+}
+
+export default SocketClient;

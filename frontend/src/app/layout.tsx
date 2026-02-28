@@ -1,11 +1,26 @@
+/**
+ * Root Layout
+ * Wraps the entire application with providers
+ * US-27: Includes LanguageProvider for language toggle
+ * 
+ * Note: This layout provides AuthProvider for pages NOT under [locale]
+ * The [locale]/layout.tsx provides the same for locale-aware pages
+ */
+
 import { Inter } from 'next/font/google';
+import { AuthProvider } from '@/lib/auth-context';
+import { ClientProviders } from '@/components/client-providers';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ 
+  subsets: ['latin', 'cyrillic'], // Support Bulgarian Cyrillic
+  variable: '--font-inter',
+});
 
 export const metadata = {
-  title: 'AstroLogAI - Your Personal AI Astrologer',
-  description: 'Personal AI astrologer with persistent memory of your birth chart',
+  title: 'AstroLogAI - Вашият личен AI астролог',
+  description: 'Персонализиран AI астролог с постоянна памет за вашата натална карта',
+  keywords: ['astrology', 'AI', 'natal chart', 'horoscope', 'астрология', 'натална карта'],
 };
 
 export default function RootLayout({
@@ -14,11 +29,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="bg">
-      <body className={inter.className}>
-        <div className="min-h-screen bg-gradient-to-b from-indigo-950 to-purple-900">
-          {children}
-        </div>
+    <html lang="bg" className={inter.variable} suppressHydrationWarning>
+      <body 
+        className={`${inter.className} antialiased`}
+        style={{ 
+          background: '#050510',
+          color: '#F8FAFC',
+        }}
+      >
+        <AuthProvider>
+          <ClientProviders>
+            {children}
+          </ClientProviders>
+        </AuthProvider>
       </body>
     </html>
   );

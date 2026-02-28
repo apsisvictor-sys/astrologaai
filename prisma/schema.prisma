@@ -1,3 +1,11 @@
+// AstroLogAI Database Schema
+// Prisma Schema for PostgreSQL (Supabase)
+// 
+// US-01: User Registration
+// - User model with email, passwordHash, tier, language
+// - Profile model with fullName, birthData
+// - Preferences model
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -19,15 +27,30 @@ model User {
   tier              Tier      @default(FREE)
   language          String    @default("bg")
   emailVerified     Boolean   @default(false) @map("email_verified")
+  
+  // US-28: Email change verification
+  pendingEmail      String?   @unique @map("pending_email")       // New email awaiting verification
+  pendingEmailToken String?   @map("pending_email_token")        // Verification token
+  
+  // US-04: OAuth fields
+  oauthProvider     String?   @map("oauth_provider") // 'google', 'apple', etc.
+  oauthId           String?   @map("oauth_id")       // Supabase auth user ID
+  avatarUrl         String?   @map("avatar_url")
+  
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
+  // Relations
   profile           Profile?
-  birthChart        BirthChart? @relation("UserBirthChart")
-  messages           Message[]
-  partners           Partner[]
+  birthData         BirthData?
+  birthProfiles     BirthProfile[] // US-05: Multi-profile support
+  birthChart        BirthChart?
+  chatSessions      ChatSession[] // US-07: Chat sessions
+  messages          Message[]
+  partners          Partner[]
   subscription      Subscription?
   usageRecords      UsageRecord[]
+  notificationPreference NotificationPreference? // US-29: Notification Preferences
 
   @@map("users")
 }
@@ -36,8 +59,6 @@ model Profile {
   id                String    @id @default(uuid())
   userId            String    @unique @map("user_id")
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  birthDataId       String?   @unique @map("birth_data_id")
-  birthData         BirthData? @relation(fields: [birthDataId], references: [id])
   onboardingComplete Boolean   @default(false) @map("onboarding_complete")
   notificationPrefs  Json?     @map("notification_prefs")
   createdAt         DateTime  @default(now()) @map("created_at")
@@ -46,9 +67,34 @@ model Profile {
   @@map("profiles")
 }
 
+// US-05: Birth Profile (multi-profile support)
+// Users can have multiple birth profiles for family members
+model BirthProfile {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String    // Profile name, e.g., "My Chart", "Partner's Chart"
+  birthDate         DateTime  @map("birth_date")
+  birthTime         String?   @map("birth_time") // "HH:MM" format, null if unknown
+  locationName      String    @map("location_name") // City, Country
+  latitude          Float
+  longitude         Float
+  timezone          String
+  isUnknownTime     Boolean   @default(false) @map("is_unknown_time")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  birthChart        BirthChart?
+
+  @@index([userId])
+  @@map("birth_profiles")
+}
+
+// Legacy BirthData model (deprecated - keeping for backward compatibility)
 model BirthData {
   id                String    @id @default(uuid())
   userId            String    @unique @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   date              DateTime
   time              String    // "HH:MM" format
   place             String
@@ -59,7 +105,6 @@ model BirthData {
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  profile           Profile?
   birthChart        BirthChart?
 
   @@map("birth_data")
@@ -68,20 +113,85 @@ model BirthData {
 model BirthChart {
   id                String    @id @default(uuid())
   userId            String    @unique @map("user_id")
-  user              User      @relation("UserBirthChart", fields: [userId], references: [id], onDelete: Cascade)
-  birthDataId       String    @unique @map("birth_data_id")
-  birthData         BirthData @relation(fields: [birthDataId], references: [id])
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  birthDataId       String?   @unique @map("birth_data_id") // Legacy field, nullable
+  birthData         BirthData? @relation(fields: [birthDataId], references: [id])
+  birthProfileId    String?   @unique @map("birth_profile_id") // US-05: Link to BirthProfile
+  birthProfile      BirthProfile? @relation(fields: [birthProfileId], references: [id])
   chartData         Json      @map("chart_data") // Full chart calculation result
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
+  
+  // US-30: Chart history for archiving
+  historyEntries    ChartHistory[]
 
   @@map("birth_charts")
+}
+
+// US-30: Chart History for archiving old charts when birth data changes
+model ChartHistory {
+  id                String    @id @default(uuid())
+  chartId           String    @map("chart_id")
+  chart             BirthChart @relation(fields: [chartId], references: [id], onDelete: Cascade)
+  
+  // Snapshot of the chart data at time of archival
+  chartData         Json      @map("chart_data")
+  
+  // Birth data snapshot that produced this chart
+  birthDate         DateTime  @map("birth_date")
+  birthTime         String?   @map("birth_time")
+  locationName      String    @map("location_name")
+  latitude          Float
+  longitude         Float
+  timezone          String
+  
+  // Archival metadata
+  reason            String    // "birth_data_update" | "manual_archive" | "system"
+  archivedAt        DateTime  @default(now()) @map("archived_at")
+  
+  // User can add notes to historical charts
+  notes             String?
+
+  @@index([chartId])
+  @@index([archivedAt])
+  @@map("chart_history")
 }
 
 // ============================================
 // CHAT & MESSAGES
 // ============================================
 
+// US-07: Chat Session for conversation management
+model ChatSession {
+  id                String    @id @default(uuid())
+  userId            String    @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title             String?   // Auto-generated or user-defined
+  summary           String?   // Session summary for context compression (after 20+ messages)
+  birthProfileId    String?   @map("birth_profile_id") // Optional: which chart to use
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  messages          ChatMessage[]
+
+  @@index([userId])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id                String    @id @default(uuid())
+  sessionId         String    @map("session_id")
+  session           ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role              MessageRole
+  content           String
+  metadata          Json?     // { tokensUsed, model, processingTime, chartReferenced }
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([sessionId])
+  @@map("chat_messages")
+}
+
+// Legacy Message model (keeping for backward compatibility)
 model Message {
   id                String    @id @default(uuid())
   userId            String    @map("user_id")
@@ -101,18 +211,46 @@ enum MessageRole {
 }
 
 // ============================================
-// RELATIONSHIPS
+// RELATIONSHIPS (US-18: Add Partner)
 // ============================================
 
-model Partner {
-  id                String    @id @default(uuid())
-  userId            String    @map("user_id")
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name              String
-  birthDataId       String    @unique @map("birth_data_id")
-  birthData         BirthData @relation(fields: [birthDataId], references: [id])
-  createdAt         DateTime  @default(now()) @map("created_at")
+enum RelationshipType {
+  ROMANTIC
+  FRIEND
+  FAMILY
+  BUSINESS
+  OTHER
+}
 
+model Partner {
+  id                String          @id @default(uuid())
+  userId            String          @map("user_id")
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Partner identification
+  name              String
+  label             String?         @map("label") // Custom label: "Spouse", "Boyfriend", "Crush", etc.
+  relationshipType  RelationshipType @default(ROMANTIC) @map("relationship_type")
+  
+  // Birth data (stored directly for privacy)
+  birthDate         DateTime        @map("birth_date")
+  birthTime         String?         @map("birth_time") // "HH:MM" format, null if unknown
+  locationName      String          @map("location_name") // City, Country
+  latitude          Float
+  longitude         Float
+  timezone          String
+  isUnknownTime     Boolean         @default(false) @map("is_unknown_time")
+  
+  // Optional calculated chart data (cached)
+  chartSummary      Json?           @map("chart_summary") // { sunSign, moonSign, risingSign }
+  
+  // User notes
+  notes             String?         // Personal notes about the partner
+  
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
+
+  @@index([userId])
   @@map("partners")
 }
 
@@ -131,6 +269,7 @@ model Subscription {
   currentPeriodStart DateTime? @map("current_period_start")
   currentPeriodEnd   DateTime? @map("current_period_end")
   cancelAtPeriodEnd Boolean   @default(false) @map("cancel_at_period_end")
+  scheduledDowngrade Tier?    @map("scheduled_downgrade")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
@@ -160,6 +299,39 @@ model UsageRecord {
 
   @@unique([userId, month])
   @@map("usage_records")
+}
+
+// ============================================
+// NOTIFICATION PREFERENCES (US-29)
+// ============================================
+
+model NotificationPreference {
+  id                String    @id @default(uuid())
+  userId            String    @unique @map("user_id")
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Notification types (each type can be enabled/disabled)
+  dailyHoroscope    Boolean   @default(true) @map("daily_horoscope")
+  weeklyForecast    Boolean   @default(true) @map("weekly_forecast")
+  newReading        Boolean   @default(true) @map("new_reading")
+  partnerUpdates    Boolean   @default(false) @map("partner_updates")
+  marketing         Boolean   @default(false)
+  
+  // Channels (which delivery methods are enabled)
+  emailEnabled      Boolean   @default(true) @map("email_enabled")
+  pushEnabled       Boolean   @default(false) @map("push_enabled")
+  smsEnabled        Boolean   @default(false) @map("sms_enabled")
+  
+  // Phone number for SMS (optional)
+  phoneNumber       String?   @map("phone_number")
+  
+  // Unsubscribe token for email links
+  unsubscribeToken  String?   @unique @map("unsubscribe_token")
+  
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@map("notification_preferences")
 }
 
 // ============================================
