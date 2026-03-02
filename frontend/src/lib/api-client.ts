@@ -11,7 +11,7 @@
  */
 
 // API base URL
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
 
 // Storage keys
 const ACCESS_TOKEN_KEY = 'astrologaai_access_token';

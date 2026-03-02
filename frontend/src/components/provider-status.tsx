@@ -90,7 +90,7 @@ export function ProviderStatusBadge() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
       const response = await fetch(`${apiUrl}/api/v1/providers/status`);
       
       if (!response.ok) {
@@ -275,7 +275,7 @@ export function ProviderStatusDashboard() {
 
   const fetchStatus = useCallback(async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
       const response = await fetch(`${apiUrl}/api/v1/providers/status`);
       const data: ProviderStatusResponse = await response.json();
       if (data.success) {
@@ -299,7 +299,7 @@ export function ProviderStatusDashboard() {
     
     setIsOverriding(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
       await fetch(`${apiUrl}/api/v1/llm/override`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -317,7 +317,7 @@ export function ProviderStatusDashboard() {
 
   const handleClearOverride = async () => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
       await fetch(`${apiUrl}/api/v1/llm/override`, { method: 'DELETE' });
       await fetchStatus();
     } catch (err) {

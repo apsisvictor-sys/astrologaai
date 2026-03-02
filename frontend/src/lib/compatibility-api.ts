@@ -3,7 +3,7 @@
  * US-20: Compatibility Analysis - Frontend API client
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
 
 // Types
 export interface CompatibilityAnalysis {

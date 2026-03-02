@@ -61,7 +61,7 @@ export default function ProfessionalPDFExport({
   const [showEmailInput, setShowEmailInput] = useState(false);
   
   const isBulgarian = language === 'bg';
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
 
   const translations = {
     downloadPDF: isBulgarian ? 'Изтегли PDF' : 'Download PDF',

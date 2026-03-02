@@ -26,7 +26,7 @@ import { useRouter, Link } from '@/i18n/routing';
 import { useAuth } from '@/lib/auth-context';
 
 // API URL
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
 
 // Design System Colors (from 06-ux-ui-design.md)
 const COLORS = {

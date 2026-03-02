@@ -45,7 +45,7 @@ export default function ChartShare({
   const [isPublic, setIsPublic] = useState(false);
   
   const isBulgarian = language === 'bg';
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
   
   // Generate shareable link
   const generateShareLink = useCallback(async () => {

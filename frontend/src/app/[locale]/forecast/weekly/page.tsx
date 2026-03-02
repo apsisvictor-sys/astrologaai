@@ -98,7 +98,7 @@ export default function WeeklyForecastPage() {
   const fetchForecast = useCallback(async (weekStart?: string) => {
     try {
       const token = localStorage.getItem('astrologaai_access_token');
-      let url = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/v1/forecasts/weekly`;
+      let url = `${process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app'}/api/v1/forecasts/weekly`;
 
       if (weekStart) {
         url += `?weekStart=${weekStart}`;

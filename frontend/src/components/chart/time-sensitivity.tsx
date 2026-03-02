@@ -102,7 +102,7 @@ export default function TimeSensitivity({
   const [timeRange, setTimeRange] = useState(30);
   const [interval, setInterval] = useState(5);
   
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
   
   const translations = {
     en: {

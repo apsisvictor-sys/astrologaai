@@ -52,7 +52,7 @@ export default function BirthProfileList() {
     try {
       const token = localStorage.getItem('astrologaai_access_token');
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/v1/birth-data`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app'}/api/v1/birth-data`,
         {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -90,7 +90,7 @@ export default function BirthProfileList() {
     try {
       const token = localStorage.getItem('astrologaai_access_token');
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'}/api/v1/birth-data/${id}`,
+        `${process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app'}/api/v1/birth-data/${id}`,
         {
           method: 'DELETE',
           headers: {

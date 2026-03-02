@@ -42,7 +42,7 @@ const COLORS = {
   border: 'rgba(124, 58, 237, 0.3)',
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
 
 // Language option config
 const LANGUAGES = [

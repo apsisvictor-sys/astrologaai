@@ -213,7 +213,7 @@ export default function ChartInterpretation({
   const [error, setError] = useState<string | null>(null);
   const [selectedPlanet, setSelectedPlanet] = useState<string | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
   const isBulgarian = language === 'bg';
 
   useEffect(() => {
