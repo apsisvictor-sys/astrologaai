@@ -63,6 +63,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
+  const localePath = (path: string): string => {
+    if (typeof window === 'undefined') return path;
+    const parts = window.location.pathname.split('/').filter(Boolean);
+    const currentLocale = parts[0] === 'en' ? 'en' : 'bg';
+    return currentLocale === 'en' ? `/en${path}` : path;
+  };
+
   // Load user from storage on mount
   useEffect(() => {
     const storedUser = localStorage.getItem(USER_KEY);
@@ -120,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData);
       
       // Redirect to dashboard or onboarding
-      router.push('/dashboard');
+      router.push(localePath('/dashboard'));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Registration failed';
       setError(message);
@@ -178,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData);
       
       // Redirect to dashboard
-      router.push('/dashboard');
+      router.push(localePath('/dashboard'));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';
       setError(message);
@@ -259,7 +266,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData);
       
       // Redirect to dashboard
-      router.push('/dashboard');
+      router.push(localePath('/dashboard'));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'OAuth login failed';
       setError(message);
@@ -277,7 +284,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
     setUser(null);
-    router.push('/login');
+    router.push(localePath('/login'));
   };
 
   /**
