@@ -63,7 +63,7 @@ export async function generateChartPDF(req: Request, res: Response): Promise<voi
     });
 
     if (existingChart) {
-      chart = existingChart.chartData as NatalChart;
+      chart = existingChart.chartData as unknown as NatalChart;
     } else {
       // Generate chart if not exists
       const birthDate = new Date(birthProfile.birthDate);
@@ -188,7 +188,7 @@ export async function emailChartPDF(req: Request, res: Response): Promise<void> 
     });
 
     if (existingChart) {
-      chart = existingChart.chartData as NatalChart;
+      chart = existingChart.chartData as unknown as NatalChart;
     } else {
       const birthDate = new Date(birthProfile.birthDate);
       const birthTime = birthProfile.birthTime || '12:00';

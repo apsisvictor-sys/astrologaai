@@ -6,15 +6,16 @@
  */
 
 import { Readable } from 'stream';
+import { NatalChart } from './astrology';
 
 // Stub for PDF generation when dependencies are not available
 export async function generateNatalChartPDF(data: {
-  fullName?: string;
-  birthDate: Date;
-  birthTime: string;
-  birthLocation: string;
-  chartData: Record<string, unknown>;
-  language?: string;
+  chart: NatalChart;
+  profileName: string;
+  birthDate: string;
+  birthTime: string | null;
+  locationName: string;
+  language: 'en' | 'bg';
 }): Promise<Buffer> {
   throw new Error('PDF generation requires pdfkit and canvas dependencies. Please install them to enable this feature.');
 }

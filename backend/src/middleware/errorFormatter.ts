@@ -47,7 +47,7 @@ export interface AppError extends Error {
  * Detect user's preferred language from request
  * Priority: user preference > Accept-Language header > default (bg)
  */
-function detectLanguage(req: Request): SupportedLanguage {
+export function detectLanguage(req: Request): SupportedLanguage {
   // Priority 1: User's stored language preference
   if (req.user?.language) {
     const userLang = req.user.language.toLowerCase();
@@ -148,25 +148,25 @@ function logError(
   const errorCode = error.code as ErrorCode || 'SERVER_INTERNAL_ERROR';
   const statusCode = error.statusCode || ErrorHttpStatus[errorCode] || 500;
   
-  errorLogger.error({
-    timestamp: new Date().toISOString(),
+  errorLogger.error(
+    error.message || 'Unknown error',
     errorCode,
-    severity: 'error',
-    message: error.message || 'Unknown error',
-    userId: req.user?.id,
-    requestId,
-    userAgent: req.headers['user-agent'],
-    ipAddress: req.ip,
-    method: req.method,
-    url: req.url,
-    statusCode,
-    language,
-    context: {
-      ...error.context,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
-    },
-    response: process.env.NODE_ENV === 'development' ? response : undefined,
-  });
+    {
+      userId: req.user?.id,
+      requestId,
+      userAgent: req.headers['user-agent'],
+      ipAddress: req.ip,
+      method: req.method,
+      url: req.url,
+      statusCode,
+      language,
+      context: {
+        ...error.context,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+        response: process.env.NODE_ENV === 'development' ? response : undefined,
+      },
+    }
+  );
 }
 
 // ============================================
@@ -258,20 +258,21 @@ export function notFoundMiddleware(req: Request, res: Response, next: NextFuncti
   });
   
   // Log 404 (as warning, not error)
-  errorLogger.warn({
-    timestamp: new Date().toISOString(),
-    errorCode: 'NOTFOUND_RESOURCE',
-    severity: 'warn',
-    message: notFoundError.message,
-    userId: req.user?.id,
-    requestId,
-    userAgent: req.headers['user-agent'],
-    ipAddress: req.ip,
-    method: req.method,
-    url: req.url,
-    statusCode: 404,
-    language,
-  });
+  errorLogger.warn(
+    notFoundError.message,
+    {
+      timestamp: new Date().toISOString(),
+      errorCode: 'NOTFOUND_RESOURCE',
+      userId: req.user?.id,
+      requestId,
+      userAgent: req.headers['user-agent'],
+      ipAddress: req.ip,
+      method: req.method,
+      url: req.url,
+      statusCode: 404,
+      language,
+    }
+  );
   
   res.setHeader('X-Request-ID', requestId);
   res.setHeader('Content-Language', language);

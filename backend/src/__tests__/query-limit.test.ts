@@ -302,7 +302,7 @@ describe('Error Messages', () => {
   });
 
   it('should provide English message for monthly limit', () => {
-    const language = 'en';
+    const language: 'en' | 'bg' = 'en' as 'en' | 'bg';
     const limit = 10;
     const message = language === 'bg'
       ? `Достигнахте лимита от ${limit} въпроса за този месец. Надградете до Pro за неограничени въпроси.`

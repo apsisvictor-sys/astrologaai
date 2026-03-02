@@ -231,7 +231,7 @@ function generateCacheKey(birthData: BirthDataInput): string {
  * Groups charts with identical planetary positions regardless of birth minute
  * Format: Sun:Cap20|Moon:Leo12|Mer:Cap5|Ven:Pis18|...
  */
-function generatePositionBasedCacheKey(chart: NatalChart): string {
+export function generatePositionBasedCacheKey(chart: NatalChart): string {
   // Planet abbreviation mapping
   const planetAbbr: Record<string, string> = {
     sun: 'Sun',

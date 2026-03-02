@@ -26,7 +26,8 @@ export interface ErrorMessage {
   retryAfter?: number; // seconds
 }
 
-export interface ErrorMessageWithContext extends Omit<ErrorMessage, 'description' | 'action'> {
+export interface ErrorMessageWithContext extends Omit<ErrorMessage, 'title' | 'description' | 'action'> {
+  title: string;
   description: string;
   action: string;
 }

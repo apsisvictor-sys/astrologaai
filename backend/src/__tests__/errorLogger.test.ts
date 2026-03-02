@@ -109,10 +109,7 @@ describe('Error Logger', () => {
     });
 
     test('fatal should log fatal error', () => {
-      errorLogger.fatal('System crash', 'SERVER_INTERNAL_ERROR', {
-        component: 'database',
-        reason: 'connection lost',
-      });
+      errorLogger.fatal('System crash', 'SERVER_INTERNAL_ERROR');
       
       expect(mockWinstonLogger.error).toHaveBeenCalledWith(
         'System crash',
@@ -160,7 +157,6 @@ describe('Error Logger', () => {
         userId: 'user-123',
         ipAddress: '10.0.0.1',
         userAgent: 'Mozilla/5.0',
-        email: 'test@example.com',
       });
       
       expect(mockWinstonLogger.warn).toHaveBeenCalledWith(
@@ -182,7 +178,6 @@ describe('Error Logger', () => {
         userId: 'user-123',
         ipAddress: '192.168.1.100',
         retryAfter: 60,
-        endpoint: '/api/chat',
       });
       
       expect(mockWinstonLogger.info).toHaveBeenCalledWith(
@@ -203,7 +198,6 @@ describe('Error Logger', () => {
         query: 'SELECT * FROM users',
         table: 'users',
         operation: 'read',
-        error: 'Connection timeout',
       });
       
       expect(mockWinstonLogger.error).toHaveBeenCalledWith(
@@ -227,7 +221,6 @@ describe('Error Logger', () => {
         socketId: 'ws-abc123',
         eventType: 'disconnect',
         userId: 'user-456',
-        reason: 'heartbeat timeout',
       });
       
       expect(mockWinstonLogger.error).toHaveBeenCalledWith(
@@ -422,7 +415,7 @@ describe('Error Logger', () => {
     });
     
     test('should include error code when provided', () => {
-      errorLogger.error('Error message', 'SERVER_INTERNAL_ERROR', { test: 'data' });
+      errorLogger.error('Error message', 'SERVER_INTERNAL_ERROR');
       
       const logEntry = (mockWinstonLogger.error as jest.Mock).mock.calls[0][1];
       expect(logEntry).toHaveProperty('errorCode', 'SERVER_INTERNAL_ERROR');

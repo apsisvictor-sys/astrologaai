@@ -198,7 +198,7 @@ describe('Position-Based Cache Key Generation', () => {
     
     // Should not have trailing or leading pipes
     const parts = key.split('|');
-    parts.forEach(part => {
+    parts.forEach((part: string) => {
       expect(part).not.toMatch(/^\|/);
       expect(part).not.toMatch(/\|$/);
     });

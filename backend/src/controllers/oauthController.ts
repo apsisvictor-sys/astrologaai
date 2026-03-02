@@ -34,7 +34,7 @@ function generateAccessToken(userId: string, email: string, tier: Tier): string 
   return jwt.sign(
     { sub: userId, email, tier },
     JWT_SECRET,
-    { expiresIn: JWT_CONFIG.expiresIn }
+    { expiresIn: JWT_CONFIG.expiresIn } as jwt.SignOptions
   );
 }
 
@@ -45,7 +45,7 @@ function generateRefreshToken(userId: string): string {
   return jwt.sign(
     { sub: userId, type: 'refresh' },
     JWT_SECRET,
-    { expiresIn: JWT_CONFIG.refreshExpiresIn }
+    { expiresIn: JWT_CONFIG.refreshExpiresIn } as jwt.SignOptions
   );
 }
 

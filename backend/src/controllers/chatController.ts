@@ -967,12 +967,12 @@ export async function getUsage(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const limits = RATE_LIMITS[userTier] || RATE_LIMITS.FREE;
+    const limits = getTierLimits(userTier);
     const month = getCurrentMonth();
     const monthKey = `ratelimit:monthly:${userId}:${month}`;
     
     const used = parseInt(await redisClient.get(monthKey) || '0', 10);
-    const remaining = limits.monthly === Infinity ? Infinity : limits.monthly - used;
+    const remaining = limits.monthlyQueries === Infinity ? Infinity : limits.monthlyQueries - used;
 
     res.json({
       success: true,
@@ -980,7 +980,7 @@ export async function getUsage(req: Request, res: Response): Promise<void> {
         tier: userTier,
         usage: {
           used,
-          limit: limits.monthly === Infinity ? 'unlimited' : limits.monthly,
+          limit: limits.monthlyQueries === Infinity ? 'unlimited' : limits.monthlyQueries,
           remaining: remaining === Infinity ? 'unlimited' : remaining,
           resetAt: getMonthResetDate(),
         },
