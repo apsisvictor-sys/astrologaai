@@ -9,6 +9,8 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketIOServer, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
+// SECURITY FIX: Import validated JWT secret (no insecure fallbacks)
+import { JWT_SECRET } from '../utils/jwt';
 
 // Re-export chat handlers for external use
 export { registerChatHandlers } from './chat-handler';
@@ -46,9 +48,6 @@ interface SocketData {
 // Socket.io server instance
 let io: SocketIOServer | null = null;
 
-// JWT secret (same as express auth)
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
 // CORS configuration
 const CORS_ORIGIN = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -84,14 +83,16 @@ export function initializeSocketServer(httpServer: HttpServer): SocketIOServer {
       }
 
       // Verify JWT token
+      // SECURITY FIX: HTTP tokens use 'sub' claim for userId, not 'userId'
       const decoded = jwt.verify(token, JWT_SECRET) as {
-        userId: string;
+        sub: string;  // userId is in 'sub' claim (standard JWT claim)
         email: string;
         tier?: string;
         language?: string;
       };
 
-      socket.userId = decoded.userId;
+      // Map 'sub' claim to userId for socket authentication
+      socket.userId = decoded.sub;
       socket.userEmail = decoded.email;
       socket.userTier = decoded.tier || 'FREE';
       socket.userLanguage = decoded.language || 'bg';

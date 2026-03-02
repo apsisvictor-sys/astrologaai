@@ -19,11 +19,8 @@ import { Tier } from '@prisma/client';
 import prisma from '../utils/prisma';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-
-// JWT configuration
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
-const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+// SECURITY FIX: Import validated JWT secret (no insecure fallbacks)
+import { JWT_SECRET, JWT_CONFIG } from '../utils/jwt';
 
 // Supabase configuration
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -37,7 +34,7 @@ function generateAccessToken(userId: string, email: string, tier: Tier): string 
   return jwt.sign(
     { sub: userId, email, tier },
     JWT_SECRET,
-    { expiresIn: '15m' }
+    { expiresIn: JWT_CONFIG.expiresIn }
   );
 }
 
@@ -48,7 +45,7 @@ function generateRefreshToken(userId: string): string {
   return jwt.sign(
     { sub: userId, type: 'refresh' },
     JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: JWT_CONFIG.refreshExpiresIn }
   );
 }
 
@@ -341,7 +338,7 @@ export async function oauthCallback(req: Request, res: Response, next: NextFunct
         tokens: {
           accessToken,
           refreshToken,
-          expiresIn: JWT_EXPIRES_IN,
+          expiresIn: JWT_CONFIG.expiresIn,
         },
         message: 'Login successful',
       },

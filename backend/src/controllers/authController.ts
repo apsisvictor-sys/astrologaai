@@ -10,11 +10,8 @@ import { Tier } from '@prisma/client';
 import prisma from '../utils/prisma';
 import { registerSchema, formatZodErrors, RegisterInput } from '../utils/validation';
 import { detectLanguageFromHeader, SupportedLanguage } from '../middleware/languageDetection';
-
-// JWT configuration
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
-const JWT_REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
+// SECURITY FIX: Import validated JWT secret (no insecure fallbacks)
+import { JWT_SECRET, JWT_CONFIG } from '../utils/jwt';
 
 /**
  * Generate access token
@@ -23,7 +20,7 @@ function generateAccessToken(userId: string, email: string, tier: Tier): string 
   return jwt.sign(
     { sub: userId, email, tier },
     JWT_SECRET,
-    { expiresIn: '15m' }
+    { expiresIn: JWT_CONFIG.expiresIn }
   );
 }
 
@@ -34,7 +31,7 @@ function generateRefreshToken(userId: string): string {
   return jwt.sign(
     { sub: userId, type: 'refresh' },
     JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: JWT_CONFIG.refreshExpiresIn }
   );
 }
 
@@ -160,7 +157,7 @@ export async function register(req: Request, res: Response, next: NextFunction):
         tokens: {
           accessToken,
           refreshToken,
-          expiresIn: JWT_EXPIRES_IN,
+          expiresIn: JWT_CONFIG.expiresIn,
         },
         message: 'Registration successful. Please check your email for verification.',
       },
@@ -273,7 +270,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
         },
         tokens: {
           accessToken,
-          expiresIn: JWT_EXPIRES_IN,
+          expiresIn: JWT_CONFIG.expiresIn,
         },
       },
     });
@@ -286,10 +283,13 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 /**
  * Refresh access token
  * POST /api/v1/auth/refresh
+ * 
+ * SECURITY FIX: Read refresh token from httpOnly cookie
  */
 export async function refresh(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { refreshToken } = req.body;
+    // SECURITY FIX: Read refresh token from cookie first, fallback to body for backward compatibility
+    const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
 
     if (!refreshToken) {
       res.status(401).json({
@@ -339,7 +339,7 @@ export async function refresh(req: Request, res: Response, next: NextFunction): 
       success: true,
       data: {
         accessToken,
-        expiresIn: JWT_EXPIRES_IN,
+        expiresIn: JWT_CONFIG.expiresIn,
       },
     });
   } catch (error) {
@@ -371,10 +371,21 @@ export async function refresh(req: Request, res: Response, next: NextFunction): 
 /**
  * Logout user
  * POST /api/v1/auth/logout
+ * 
+ * SECURITY FIX: Clear refresh token cookie
  */
 export async function logout(req: Request, res: Response): Promise<void> {
-  // In a production environment, you would invalidate the refresh token
+  // Clear the refresh token cookie
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    path: '/',
+  });
+
+  // In a production environment, you would also invalidate the refresh token
   // by adding it to a blacklist in Redis
+
   res.status(200).json({
     success: true,
     data: {

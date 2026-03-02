@@ -625,6 +625,8 @@ export async function updateNotificationPreferences(req: Request, res: Response,
  * 
  * US-29: Notification Preferences
  * Public endpoint accessed via unsubscribe link in emails
+ * 
+ * SECURITY FIX: Uses JWT token instead of base64-encoded userId
  */
 export async function unsubscribeFromEmails(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -642,11 +644,27 @@ export async function unsubscribeFromEmails(req: Request, res: Response, next: N
       return;
     }
 
-    // Decode token to get user ID
-    // Token format: base64(userId):timestamp:signature
-    // For simplicity, we'll accept userId directly in token for now
-    // In production, this should use JWT or similar
-    const userId = Buffer.from(token, 'base64').toString('utf-8');
+    // SECURITY FIX: Verify JWT token instead of decoding base64
+    // This prevents token forgery
+    const jwt = await import('jsonwebtoken');
+    const { JWT_SECRET } = await import('../utils/jwt');
+    
+    let decoded: { userId: string; type: string; iat: number };
+    
+    try {
+      decoded = jwt.verify(token, JWT_SECRET) as { userId: string; type: string; iat: number };
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_TOKEN',
+          message: 'Invalid or expired unsubscribe token',
+        },
+      });
+      return;
+    }
+
+    const userId = decoded.userId;
 
     if (!userId) {
       res.status(400).json({

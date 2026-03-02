@@ -11,6 +11,9 @@
 
 import { Router, Request, Response } from 'express';
 import { getLLMOrchestrator } from '../services/llm/index';
+// SECURITY FIX: Import auth middleware for admin endpoints
+import { authMiddleware } from '../middleware/auth';
+import { adminAuthMiddleware } from '../middleware/adminAuth';
 
 const router = Router();
 
@@ -229,9 +232,9 @@ router.get('/history', async (req: Request, res: Response): Promise<void> => {
  * POST /api/v1/llm/health/check
  * Force a health check on all providers
  * 
- * Requires authentication (admin only in production)
+ * SECURITY FIX: Requires authentication and admin role
  */
-router.post('/health/check', async (req: Request, res: Response): Promise<void> => {
+router.post('/health/check', authMiddleware, adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     const orchestrator = getLLMOrchestrator();
     const results = await orchestrator.forceRefreshHealth();
@@ -268,9 +271,9 @@ router.post('/health/check', async (req: Request, res: Response): Promise<void> 
  * - provider: string - Provider name to switch to
  * - reason?: string - Optional reason for override
  * 
- * Requires authentication (admin only in production)
+ * SECURITY FIX: Requires authentication and admin role
  */
-router.post('/override', async (req: Request, res: Response): Promise<void> => {
+router.post('/override', authMiddleware, adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     const { provider, reason } = req.body;
     
@@ -341,8 +344,10 @@ router.post('/override', async (req: Request, res: Response): Promise<void> => {
 /**
  * DELETE /api/v1/llm/override
  * Clear manual override and return to automatic selection (US-34 AC#7)
+ * 
+ * SECURITY FIX: Requires authentication and admin role
  */
-router.delete('/override', async (req: Request, res: Response): Promise<void> => {
+router.delete('/override', authMiddleware, adminAuthMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     const orchestrator = getLLMOrchestrator();
     orchestrator.clearOverride();

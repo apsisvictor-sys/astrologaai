@@ -6,9 +6,10 @@
 import { Request, Response, NextFunction } from 'express';
 import * as jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+// SECURITY FIX: Import validated JWT secret (no insecure fallbacks)
+import { JWT_SECRET } from '../utils/jwt';
 
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
 
 // Authenticated request type for use in routes
 export interface AuthenticatedRequest extends Request {

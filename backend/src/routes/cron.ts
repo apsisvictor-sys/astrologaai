@@ -7,6 +7,8 @@
 
 import { Router, Request, Response } from 'express';
 import { resetMonthlyQueryCounters, isResetDay, archiveOldUsageRecords } from '../services/monthly-reset';
+// SECURITY FIX: Import validated CRON_SECRET (required at startup)
+import { CRON_SECRET } from '../utils/cron';
 
 const router = Router();
 
@@ -21,11 +23,10 @@ const router = Router();
  */
 router.post('/monthly-reset', async (req: Request, res: Response) => {
   try {
-    // Verify cron secret
+    // SECURITY FIX: Always require cron secret (no optional fallback)
     const cronSecret = req.headers['x-cron-secret'];
-    const expectedSecret = process.env.CRON_SECRET;
     
-    if (expectedSecret && cronSecret !== expectedSecret) {
+    if (cronSecret !== CRON_SECRET) {
       return res.status(401).json({
         success: false,
         error: {
@@ -79,11 +80,10 @@ router.post('/monthly-reset', async (req: Request, res: Response) => {
  */
 router.post('/archive-old-records', async (req: Request, res: Response) => {
   try {
-    // Verify cron secret
+    // SECURITY FIX: Always require cron secret (no optional fallback)
     const cronSecret = req.headers['x-cron-secret'];
-    const expectedSecret = process.env.CRON_SECRET;
     
-    if (expectedSecret && cronSecret !== expectedSecret) {
+    if (cronSecret !== CRON_SECRET) {
       return res.status(401).json({
         success: false,
         error: {
