@@ -54,8 +54,10 @@ const httpServer = createServer(app);
 app.use(helmet());
 
 // CORS configuration
+const FRONTEND_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:3000';
+
 app.use(cors({
-  origin: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000',
+  origin: [FRONTEND_ORIGIN, 'http://localhost:3000'],
   credentials: true,
 }));
 

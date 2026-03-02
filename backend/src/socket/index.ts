@@ -49,7 +49,7 @@ interface SocketData {
 let io: SocketIOServer | null = null;
 
 // CORS configuration
-const CORS_ORIGIN = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const CORS_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 /**
  * Initialize Socket.io server
