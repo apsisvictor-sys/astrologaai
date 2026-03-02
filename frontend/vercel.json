@@ -1,10 +1,6 @@
 {
   "version": 2,
-  "rewrites": [
-    { "source": "/bg/:path*", "destination": "/bg/:path*" },
-    { "source": "/en/:path*", "destination": "/en/:path*" },
-    { "source": "/:path*", "destination": "/bg/:path*" }
-  ],
+  "rewrites": [],
   "headers": [
     {
       "source": "/:path*",
