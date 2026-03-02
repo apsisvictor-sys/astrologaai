@@ -2,6 +2,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import prisma from '../utils/prisma';
 import { RegisterInput } from '../utils/validation';
+// SECURITY FIX: Import validated JWT secret (no insecure fallbacks)
+import { JWT_SECRET, JWT_CONFIG } from '../utils/jwt';
 
 const SALT_ROUNDS = 12;
 
@@ -105,19 +107,24 @@ export class AuthService {
 
   /**
    * Generate JWT access and refresh tokens
+   * SECURITY FIX: Uses 'sub' claim for userId (standard JWT claim) and validated JWT_SECRET
    */
   static generateTokens(userId: string, email: string) {
-    const jwtSecret = process.env.JWT_SECRET || 'default-secret-change-in-production';
-    const jwtExpiresIn = process.env.JWT_EXPIRES_IN || '15m';
-    const jwtRefreshExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
-
     // @ts-expect-error - Type mismatch between string and StringValue from ms
-    const accessToken = jwt.sign({ userId, email }, jwtSecret, { expiresIn: jwtExpiresIn });
+    const accessToken = jwt.sign(
+      { sub: userId, email }, // Use 'sub' claim for consistency with HTTP/WebSocket auth
+      JWT_SECRET,
+      { expiresIn: JWT_CONFIG.expiresIn }
+    );
     // @ts-expect-error - Type mismatch between string and StringValue from ms  
-    const refreshToken = jwt.sign({ userId, email, type: 'refresh' }, jwtSecret, { expiresIn: jwtRefreshExpiresIn });
+    const refreshToken = jwt.sign(
+      { sub: userId, email, type: 'refresh' }, // Use 'sub' claim for consistency
+      JWT_SECRET,
+      { expiresIn: JWT_CONFIG.refreshExpiresIn }
+    );
 
     // Calculate expiration time in seconds
-    const expiresIn = this.parseExpiresIn(jwtExpiresIn);
+    const expiresIn = this.parseExpiresIn(JWT_CONFIG.expiresIn);
 
     return {
       accessToken,
@@ -156,12 +163,13 @@ export class AuthService {
 
   /**
    * Verify JWT token
+   * SECURITY FIX: Uses validated JWT_SECRET and expects 'sub' claim
    */
   static verifyToken(token: string): { userId: string; email: string } | null {
     try {
-      const jwtSecret = process.env.JWT_SECRET || 'default-secret-change-in-production';
-      const decoded = jwt.verify(token, jwtSecret) as { userId: string; email: string };
-      return decoded;
+      const decoded = jwt.verify(token, JWT_SECRET) as { sub: string; email: string };
+      // Map 'sub' back to 'userId' for backward compatibility with callers
+      return { userId: decoded.sub, email: decoded.email };
     } catch {
       return null;
     }
