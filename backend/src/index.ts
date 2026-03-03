@@ -193,13 +193,47 @@ app.use((req: Request, res: Response) => {
 // Global error handler
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   console.error('[Error]', err.stack);
-  
+
+  // Check for infrastructure-related errors (database, connection, etc.)
+  const message = err.message || String(err);
+  const isInfraError = /\b(connect|connection|database|prisma|timeout|pool|P1001|P1002|P1017|ECONNREFUSED)\b/i.test(message);
+
+  if (isInfraError) {
+    console.error('[Error] Infrastructure error detected:', message);
+    res.status(503).json({
+      success: false,
+      error: {
+        code: 'AUTH_SERVICE_UNAVAILABLE',
+        message: process.env.NODE_ENV === 'production'
+          ? 'Service temporarily unavailable'
+          : message,
+      },
+    });
+    return;
+  }
+
+  // Check for JWT-specific errors
+  if (message.includes('JWT_SECRET')) {
+    console.error('[Error] JWT configuration error:', message);
+    res.status(503).json({
+      success: false,
+      error: {
+        code: 'AUTH_SERVICE_UNAVAILABLE',
+        message: process.env.NODE_ENV === 'production'
+          ? 'Service temporarily unavailable'
+          : 'JWT not configured',
+      },
+    });
+    return;
+  }
+
+  // Generic error handler
   res.status(500).json({
     success: false,
     error: {
       code: 'INTERNAL_ERROR',
-      message: process.env.NODE_ENV === 'production' 
-        ? 'An unexpected error occurred' 
+      message: process.env.NODE_ENV === 'production'
+        ? 'An unexpected error occurred'
         : err.message,
     },
   });

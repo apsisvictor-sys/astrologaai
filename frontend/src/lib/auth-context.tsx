@@ -58,11 +58,33 @@ const ACCESS_TOKEN_KEY = 'astrologaai_access_token';
 const REFRESH_TOKEN_KEY = 'astrologaai_refresh_token';
 const USER_KEY = 'astrologaai_user';
 
-function friendlyAuthError(error: unknown): string {
+function friendlyAuthError(error: unknown, response?: Response | null): string {
+  // Handle fetch/Type errors (network issues)
   if (error instanceof TypeError && error.message.toLowerCase().includes('fetch')) {
     return 'Cannot reach AstroLogAI servers right now. Please check your connection and try again.';
   }
 
+  // Handle 500 errors specifically
+  if (response?.status === 500) {
+    return 'AstroLogAI servers are experiencing issues. Please try again in a few moments.';
+  }
+
+  // Handle 503 errors
+  if (response?.status === 503) {
+    return 'Authentication service is temporarily unavailable. Please try again shortly.';
+  }
+
+  // Handle 504 gateway timeout
+  if (response?.status === 504) {
+    return 'Request timed out. Please try again.';
+  }
+
+  // Handle 429 rate limiting
+  if (response?.status === 429) {
+    return 'Too many requests. Please wait a moment before trying again.';
+  }
+
+  // Handle regular errors
   if (error instanceof Error) {
     return error.message;
   }
@@ -124,12 +146,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
 
     // Get browser language for Accept-Language header
-    const acceptLanguage = typeof window !== 'undefined' 
+    const acceptLanguage = typeof window !== 'undefined'
       ? (navigator.language || 'bg')
       : 'bg';
 
+    let response: Response | null = null;
+
     try {
-      const response = await fetch(`${API_URL}/api/v1/auth/register`, {
+      response = await fetch(`${API_URL}/api/v1/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,22 +165,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await parseApiResponse(response);
 
       if (!response.ok) {
-        throw new Error(data?.error?.message || 'Registration failed');
+        throw new Error(data?.error?.message || friendlyAuthError(new Error('Registration failed'), response));
       }
 
       // Store tokens and user
       const { user: userData, tokens } = data.data;
-      
+
       localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
       localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
       localStorage.setItem(USER_KEY, JSON.stringify(userData));
 
       setUser(userData);
-      
+
       // Redirect to dashboard or onboarding
       router.push(localePath('/dashboard'));
     } catch (err) {
-      const message = friendlyAuthError(err) || 'Registration failed';
+      const message = friendlyAuthError(err, response) || 'Registration failed';
       setError(message);
       throw err;
     } finally {
@@ -186,8 +210,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return typeof window !== 'undefined' ? (navigator.language || 'bg') : 'bg';
     })();
 
+    let response: Response | null = null;
+
     try {
-      const response = await fetch(`${API_URL}/api/v1/auth/login`, {
+      response = await fetch(`${API_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -199,22 +225,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await parseApiResponse(response);
 
       if (!response.ok) {
-        throw new Error(data?.error?.message || 'Login failed');
+        throw new Error(data?.error?.message || friendlyAuthError(new Error('Login failed'), response));
       }
 
       // Store tokens and user
       const { user: userData, tokens } = data.data;
-      
+
       localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
       localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
       localStorage.setItem(USER_KEY, JSON.stringify(userData));
 
       setUser(userData);
-      
+
       // Redirect to dashboard
       router.push(localePath('/dashboard'));
     } catch (err) {
-      const message = friendlyAuthError(err) || 'Login failed';
+      const message = friendlyAuthError(err, response) || 'Login failed';
       setError(message);
       throw err;
     } finally {
@@ -268,8 +294,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setError(null);
 
+    let response: Response | null = null;
+
     try {
-      const response = await fetch(`${API_URL}/api/v1/auth/callback`, {
+      response = await fetch(`${API_URL}/api/v1/auth/callback`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -280,22 +308,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await parseApiResponse(response);
 
       if (!response.ok) {
-        throw new Error(data?.error?.message || 'OAuth login failed');
+        throw new Error(data?.error?.message || friendlyAuthError(new Error('OAuth login failed'), response));
       }
 
       // Store tokens and user
       const { user: userData, tokens } = data.data;
-      
+
       localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
       localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
       localStorage.setItem(USER_KEY, JSON.stringify(userData));
 
       setUser(userData);
-      
+
       // Redirect to dashboard
       router.push(localePath('/dashboard'));
     } catch (err) {
-      const message = friendlyAuthError(err) || 'OAuth login failed';
+      const message = friendlyAuthError(err, response) || 'OAuth login failed';
       setError(message);
       throw err;
     } finally {
