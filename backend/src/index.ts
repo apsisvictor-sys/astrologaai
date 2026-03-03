@@ -12,6 +12,7 @@ import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
 import { createServer } from 'http';
 import { runtimeConfig, isOriginAllowed } from './config/runtime';
+import { getEnvValidationReport } from './config/envValidation';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -100,6 +101,14 @@ app.get('/health', (req: Request, res: Response) => {
     timestamp: new Date().toISOString(),
     version: '1.0.0',
     websocket: 'enabled',
+  });
+});
+
+app.get('/health/env', (_req: Request, res: Response) => {
+  const report = getEnvValidationReport();
+  res.status(report.ok ? 200 : 503).json({
+    status: report.ok ? 'ok' : 'degraded',
+    env: report,
   });
 });
 
@@ -212,12 +221,18 @@ io.on('connection', (socket: AuthenticatedSocket) => {
 // ============================================
 
 httpServer.listen(PORT, () => {
+  const envReport = getEnvValidationReport();
+
   console.log(`🚀 AstroLogAI API running on port ${PORT}`);
   console.log(`📚 Health check: http://localhost:${PORT}/health`);
+  console.log(`🧪 Env validation: http://localhost:${PORT}/health/env (${envReport.ok ? 'ok' : 'degraded'})`);
   console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/v1/auth`);
   console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
   console.log(`🌐 Allowed origins: ${runtimeConfig.allowedOrigins.join(', ') || '(none configured)'}`);
-  
+  if (!envReport.ok) {
+    console.warn(`⚠️ Missing required env vars: ${envReport.missingRequired.join(', ')}`);
+  }
+
   // US-30: Start background chart regeneration processor
   startRegenerationProcessor();
   console.log(`⚡ Chart regeneration processor started`);

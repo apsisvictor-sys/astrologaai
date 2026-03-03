@@ -1,29 +1,23 @@
 /**
  * Cron Configuration Utilities
- * SECURITY: Validates CRON_SECRET at startup - no open endpoints
+ *
+ * Production reliability hardening:
+ * - Do NOT crash whole API when CRON_SECRET is missing.
+ * - Keep cron endpoints closed when secret is not configured.
  */
 
 /**
- * Get cron secret with validation
- * SECURITY FIX: Fails at startup if CRON_SECRET is not set
- * 
- * @throws Error if CRON_SECRET is not configured
+ * Get cron secret from environment.
+ * Returns null when not configured.
  */
-export function getCronSecret(): string {
-  const secret = process.env.CRON_SECRET;
-  
-  if (!secret) {
-    throw new Error(
-      'SECURITY ERROR: CRON_SECRET environment variable is not set. ' +
-      'Please configure CRON_SECRET before starting the server. ' +
-      'Generate a secure secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
-    );
-  }
-  
-  return secret;
+export function getCronSecret(): string | null {
+  const secret = process.env.CRON_SECRET?.trim();
+  return secret || null;
 }
 
 /**
- * Validated cron secret (computed once at startup)
+ * Whether cron authentication is configured.
  */
-export const CRON_SECRET = getCronSecret();
+export function hasCronSecret(): boolean {
+  return !!getCronSecret();
+}

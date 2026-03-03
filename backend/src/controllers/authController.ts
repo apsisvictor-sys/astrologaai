@@ -6,7 +6,7 @@
 import { Request, Response, NextFunction } from 'express';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
-import { Tier } from '@prisma/client';
+import { Prisma, Tier } from '@prisma/client';
 import prisma from '../utils/prisma';
 import { registerSchema, loginSchema, formatZodErrors, RegisterInput } from '../utils/validation';
 import { detectLanguageFromHeader, SupportedLanguage } from '../middleware/languageDetection';
@@ -33,6 +33,31 @@ function generateRefreshToken(userId: string): string {
     JWT_SECRET,
     { expiresIn: JWT_CONFIG.refreshExpiresIn } as jwt.SignOptions
   );
+}
+
+function handleAuthInfraError(error: unknown, res: Response): boolean {
+  const isPrismaInfraError =
+    error instanceof Prisma.PrismaClientKnownRequestError ||
+    error instanceof Prisma.PrismaClientUnknownRequestError ||
+    error instanceof Prisma.PrismaClientRustPanicError ||
+    error instanceof Prisma.PrismaClientInitializationError;
+
+  const message = error instanceof Error ? error.message : String(error);
+  const looksLikeInfraFailure = /\b(connect|connection|database|prisma|timeout|pool|P1001|P1002|P1017)\b/i.test(message);
+
+  if (isPrismaInfraError || looksLikeInfraFailure) {
+    console.error('[Auth] Infrastructure error:', message);
+    res.status(503).json({
+      success: false,
+      error: {
+        code: 'AUTH_SERVICE_UNAVAILABLE',
+        message: 'Authentication service temporarily unavailable',
+      },
+    });
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -163,6 +188,9 @@ export async function register(req: Request, res: Response, next: NextFunction):
       },
     });
   } catch (error) {
+    if (handleAuthInfraError(error, res)) {
+      return;
+    }
     console.error('[Auth] Registration error:', error);
     next(error);
   }
@@ -227,7 +255,13 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
       return;
     }
 
-    // Verify password
+    // Verify password (defensive guard for legacy OAuth/incomplete records)
+    if (!user.passwordHash) {
+      console.log(`[Auth] Failed login attempt for user without password hash: ${user.id} from IP: ${clientIp}`);
+      res.status(401).json(invalidCredentialsError);
+      return;
+    }
+
     const isValidPassword = await bcrypt.compare(password, user.passwordHash);
 
     if (!isValidPassword) {
@@ -290,6 +324,9 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
       },
     });
   } catch (error) {
+    if (handleAuthInfraError(error, res)) {
+      return;
+    }
     console.error('[Auth] Login error:', error);
     next(error);
   }
@@ -376,6 +413,9 @@ export async function refresh(req: Request, res: Response, next: NextFunction): 
           message: 'Invalid refresh token',
         },
       });
+      return;
+    }
+    if (handleAuthInfraError(error, res)) {
       return;
     }
     console.error('[Auth] Refresh error:', error);

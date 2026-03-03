@@ -6,17 +6,17 @@ function normalizeUrl(url: string): string {
 
 export function getApiBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL?.trim();
-  const isProd = process.env.NODE_ENV === 'production';
 
   if (configured) {
     return normalizeUrl(configured);
   }
 
-  if (isProd) {
-    return PROD_API_FALLBACK;
+  if (typeof window !== 'undefined') {
+    const isLocalHost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+    return isLocalHost ? 'http://localhost:4000' : PROD_API_FALLBACK;
   }
 
-  return 'http://localhost:4000';
+  return process.env.NODE_ENV === 'production' ? PROD_API_FALLBACK : 'http://localhost:4000';
 }
 
 export function getFrontendBaseUrl(): string {

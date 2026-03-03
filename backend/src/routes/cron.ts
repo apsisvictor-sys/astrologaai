@@ -7,8 +7,7 @@
 
 import { Router, Request, Response } from 'express';
 import { resetMonthlyQueryCounters, isResetDay, archiveOldUsageRecords } from '../services/monthly-reset';
-// SECURITY FIX: Import validated CRON_SECRET (required at startup)
-import { CRON_SECRET } from '../utils/cron';
+import { getCronSecret } from '../utils/cron';
 
 const router = Router();
 
@@ -23,10 +22,19 @@ const router = Router();
  */
 router.post('/monthly-reset', async (req: Request, res: Response) => {
   try {
-    // SECURITY FIX: Always require cron secret (no optional fallback)
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'CRON_NOT_CONFIGURED',
+          message: 'Cron secret is not configured on this environment',
+        },
+      });
+    }
+
     const cronSecret = req.headers['x-cron-secret'];
-    
-    if (cronSecret !== CRON_SECRET) {
+    if (cronSecret !== configuredSecret) {
       return res.status(401).json({
         success: false,
         error: {
@@ -80,10 +88,19 @@ router.post('/monthly-reset', async (req: Request, res: Response) => {
  */
 router.post('/archive-old-records', async (req: Request, res: Response) => {
   try {
-    // SECURITY FIX: Always require cron secret (no optional fallback)
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'CRON_NOT_CONFIGURED',
+          message: 'Cron secret is not configured on this environment',
+        },
+      });
+    }
+
     const cronSecret = req.headers['x-cron-secret'];
-    
-    if (cronSecret !== CRON_SECRET) {
+    if (cronSecret !== configuredSecret) {
       return res.status(401).json({
         success: false,
         error: {
