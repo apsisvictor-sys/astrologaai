@@ -11,6 +11,7 @@ import { Server as SocketIOServer, Socket } from 'socket.io';
 import jwt from 'jsonwebtoken';
 // SECURITY FIX: Import validated JWT secret (no insecure fallbacks)
 import { JWT_SECRET } from '../utils/jwt';
+import { isOriginAllowed } from '../config/runtime';
 
 // Re-export chat handlers for external use
 export { registerChatHandlers } from './chat-handler';
@@ -49,7 +50,6 @@ interface SocketData {
 let io: SocketIOServer | null = null;
 
 // CORS configuration
-const CORS_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 /**
  * Initialize Socket.io server
@@ -61,9 +61,16 @@ export function initializeSocketServer(httpServer: HttpServer): SocketIOServer {
 
   io = new SocketIOServer(httpServer, {
     cors: {
-      origin: CORS_ORIGIN,
-      methods: ['GET', 'POST'],
+      origin: (origin, callback) => {
+        if (isOriginAllowed(origin)) {
+          return callback(null, true);
+        }
+
+        return callback(new Error(`Socket CORS blocked for origin: ${origin || 'unknown'}`));
+      },
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language'],
     },
     // Ping/pong for connection health
     pingTimeout: 60000, // 60 seconds

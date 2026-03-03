@@ -11,6 +11,7 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
 import { createServer } from 'http';
+import { runtimeConfig, isOriginAllowed } from './config/runtime';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -41,7 +42,7 @@ import { startRegenerationProcessor } from './services/chart-regeneration';
 config();
 
 const app: Express = express();
-const PORT = process.env.PORT || 4000;
+const PORT = runtimeConfig.port;
 
 // Create HTTP server for Socket.io
 const httpServer = createServer(app);
@@ -54,11 +55,18 @@ const httpServer = createServer(app);
 app.use(helmet());
 
 // CORS configuration
-const FRONTEND_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:3000';
-
 app.use(cors({
-  origin: [FRONTEND_ORIGIN, 'http://localhost:3000'],
+  origin: (origin, callback) => {
+    if (isOriginAllowed(origin)) {
+      return callback(null, true);
+    }
+
+    return callback(new Error(`CORS blocked for origin: ${origin || 'unknown'}`));
+  },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language', 'X-Requested-With'],
+  optionsSuccessStatus: 204,
 }));
 
 // Body parsing
@@ -206,6 +214,7 @@ httpServer.listen(PORT, () => {
   console.log(`📚 Health check: http://localhost:${PORT}/health`);
   console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/v1/auth`);
   console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
+  console.log(`🌐 Allowed origins: ${runtimeConfig.allowedOrigins.join(', ') || '(none configured)'}`);
   
   // US-30: Start background chart regeneration processor
   startRegenerationProcessor();

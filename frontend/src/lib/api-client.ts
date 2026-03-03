@@ -10,8 +10,10 @@
  * - Exponential backoff retry logic for 429 responses
  */
 
+import { getApiBaseUrl } from './runtime-config';
+
 // API base URL
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
+const API_URL = getApiBaseUrl();
 
 // Storage keys
 const ACCESS_TOKEN_KEY = 'astrologaai_access_token';

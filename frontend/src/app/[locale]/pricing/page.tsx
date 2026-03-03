@@ -24,9 +24,10 @@ import React, { useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter, Link } from '@/i18n/routing';
 import { useAuth } from '@/lib/auth-context';
+import { getApiBaseUrl, getFrontendBaseUrl } from '@/lib/runtime-config';
 
 // API URL
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
+const API_URL = getApiBaseUrl();
 
 // Design System Colors (from 06-ux-ui-design.md)
 const COLORS = {
@@ -148,8 +149,8 @@ export default function PricingPage() {
         body: JSON.stringify({
           tier,
           billingPeriod,
-          successUrl: `${process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'}/${locale === 'en' ? 'en/' : ''}dashboard?checkout=success`,
-          cancelUrl: `${process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000'}/${locale === 'en' ? 'en/' : ''}pricing?checkout=cancel`,
+          successUrl: `${getFrontendBaseUrl()}/${locale === 'en' ? 'en/' : ''}dashboard?checkout=success`,
+          cancelUrl: `${getFrontendBaseUrl()}/${locale === 'en' ? 'en/' : ''}pricing?checkout=cancel`,
         }),
       });
       

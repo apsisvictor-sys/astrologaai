@@ -13,6 +13,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { signInWithGoogle, signInWithApple } from './supabase-browser';
+import { getApiBaseUrl } from './runtime-config';
 
 // Types
 interface User {
@@ -50,12 +51,38 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
+const API_URL = getApiBaseUrl();
 
 // Storage keys
 const ACCESS_TOKEN_KEY = 'astrologaai_access_token';
 const REFRESH_TOKEN_KEY = 'astrologaai_refresh_token';
 const USER_KEY = 'astrologaai_user';
+
+function friendlyAuthError(error: unknown): string {
+  if (error instanceof TypeError && error.message.toLowerCase().includes('fetch')) {
+    return 'Cannot reach AstroLogAI servers right now. Please check your connection and try again.';
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return 'Authentication request failed. Please try again.';
+}
+
+async function parseApiResponse(response: Response): Promise<any> {
+  const text = await response.text();
+
+  if (!text) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { error: { message: `Unexpected server response (${response.status})` } };
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -111,10 +138,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ email, password, fullName }),
       });
 
-      const data = await response.json();
+      const data = await parseApiResponse(response);
 
       if (!response.ok) {
-        throw new Error(data.error?.message || 'Registration failed');
+        throw new Error(data?.error?.message || 'Registration failed');
       }
 
       // Store tokens and user
@@ -129,7 +156,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Redirect to dashboard or onboarding
       router.push(localePath('/dashboard'));
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Registration failed';
+      const message = friendlyAuthError(err) || 'Registration failed';
       setError(message);
       throw err;
     } finally {
@@ -169,10 +196,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
+      const data = await parseApiResponse(response);
 
       if (!response.ok) {
-        throw new Error(data.error?.message || 'Login failed');
+        throw new Error(data?.error?.message || 'Login failed');
       }
 
       // Store tokens and user
@@ -187,7 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Redirect to dashboard
       router.push(localePath('/dashboard'));
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Login failed';
+      const message = friendlyAuthError(err) || 'Login failed';
       setError(message);
       throw err;
     } finally {
@@ -250,10 +277,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ code, provider }),
       });
 
-      const data = await response.json();
+      const data = await parseApiResponse(response);
 
       if (!response.ok) {
-        throw new Error(data.error?.message || 'OAuth login failed');
+        throw new Error(data?.error?.message || 'OAuth login failed');
       }
 
       // Store tokens and user
@@ -268,7 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Redirect to dashboard
       router.push(localePath('/dashboard'));
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'OAuth login failed';
+      const message = friendlyAuthError(err) || 'OAuth login failed';
       setError(message);
       throw err;
     } finally {
@@ -307,7 +334,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ refreshToken }),
       });
 
-      const data = await response.json();
+      const data = await parseApiResponse(response);
 
       if (!response.ok) {
         signOut();
@@ -336,10 +363,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
 
-      const data = await response.json();
+      const data = await parseApiResponse(response);
 
       if (!response.ok) {
-        console.warn('[Auth] Failed to refresh user:', data.error?.message);
+        console.warn('[Auth] Failed to refresh user:', data?.error?.message);
         return;
       }
 
@@ -384,10 +411,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ language }),
       });
 
-      const data = await response.json();
+      const data = await parseApiResponse(response);
 
       if (!response.ok) {
-        throw new Error(data.error?.message || 'Failed to update language');
+        throw new Error(data?.error?.message || 'Failed to update language');
       }
 
       // Update local user state
