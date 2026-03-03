@@ -57,11 +57,13 @@ app.use(helmet());
 // CORS configuration
 app.use(cors({
   origin: (origin, callback) => {
-    if (isOriginAllowed(origin)) {
-      return callback(null, true);
+    const allowed = isOriginAllowed(origin);
+
+    if (!allowed) {
+      console.warn(`[CORS] Blocked origin: ${origin || 'unknown'}`);
     }
 
-    return callback(new Error(`CORS blocked for origin: ${origin || 'unknown'}`));
+    return callback(null, allowed);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

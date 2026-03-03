@@ -1,4 +1,5 @@
 const DEFAULT_DEV_FRONTEND = 'http://localhost:3000';
+const DEFAULT_PROD_FRONTEND = 'https://frontend-rust-nu-20.vercel.app';
 
 function normalizeOrigin(origin: string): string {
   return origin.trim().replace(/\/+$/, '');
@@ -19,7 +20,9 @@ function buildAllowedOrigins(): string[] {
     configured.push(...splitOrigins(process.env.FRONTEND_URL));
   }
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV === 'production') {
+    configured.push(DEFAULT_PROD_FRONTEND);
+  } else {
     configured.push(DEFAULT_DEV_FRONTEND);
   }
 

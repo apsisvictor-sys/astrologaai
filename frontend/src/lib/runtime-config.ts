@@ -1,7 +1,7 @@
 const PROD_API_FALLBACK = 'https://astrologaai-backend-production.up.railway.app';
 
 function normalizeUrl(url: string): string {
-  return url.replace(/\/+$/, '');
+  return url.replace(/\/+$/, '').replace(/\/api\/v1$/i, '');
 }
 
 export function getApiBaseUrl(): string {

@@ -8,7 +8,7 @@ import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
 import { Tier } from '@prisma/client';
 import prisma from '../utils/prisma';
-import { registerSchema, formatZodErrors, RegisterInput } from '../utils/validation';
+import { registerSchema, loginSchema, formatZodErrors, RegisterInput } from '../utils/validation';
 import { detectLanguageFromHeader, SupportedLanguage } from '../middleware/languageDetection';
 // SECURITY FIX: Import validated JWT secret (no insecure fallbacks)
 import { JWT_SECRET, JWT_CONFIG } from '../utils/jwt';
@@ -183,13 +183,28 @@ export async function register(req: Request, res: Response, next: NextFunction):
  */
 export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { email, password, deviceInfo } = req.body;
+    const validationResult = loginSchema.safeParse(req.body);
+
+    if (!validationResult.success) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid login data',
+          details: formatZodErrors(validationResult.error),
+        },
+      });
+      return;
+    }
+
+    const { email, password } = validationResult.data;
+    const { deviceInfo } = req.body || {};
     const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
     const userAgent = req.get('user-agent') || 'unknown';
 
     // Find user
     const user = await prisma.user.findUnique({
-      where: { email: email?.toLowerCase().trim() },
+      where: { email },
       include: {
         profile: true,
         subscription: true,
