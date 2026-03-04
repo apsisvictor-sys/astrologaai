@@ -10,9 +10,9 @@ export default function RootPage() {
         </div>
         <h1 className="text-4xl sm:text-6xl font-bold mb-4">AstroLogAI</h1>
         <p className="text-lg mb-8" style={{ color: '#CBD5E1' }}>Вашият личен AI астролог за по-ясни решения в любов, кариера и ежедневие.</p>
-        <div className="flex gap-4">
-          <Link href="/register" className="px-6 py-3 rounded-xl font-semibold" style={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)' }}>Регистрация</Link>
-          <Link href="/login" className="px-6 py-3 rounded-xl border" style={{ borderColor: '#1A1A3A', color: '#CBD5E1' }}>Вход</Link>
+        <div className="flex gap-4 animate-fade-up" style={{ animationDelay: '0.2s' }}>
+          <Link href="/register" className="btn-primary">Регистрация</Link>
+          <Link href="/login" className="btn-secondary">Вход</Link>
         </div>
       </div>
     </main>
