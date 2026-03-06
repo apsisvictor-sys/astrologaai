@@ -12,19 +12,19 @@ const config: Config = {
       colors: {
         // Synthesis of Void Prism, Deep Nebula, and Ethereal Aura 
         primary: {
-          DEFAULT: '#e41aff', // The exact Electric Purple/Magenta from Void Prism
-          light: '#e668f5',
-          dark: '#a21cb5',
-          glow: 'rgba(228, 26, 255, 0.4)',
+          DEFAULT: '#FF00FF', // Pure Neon Magenta
+          light: '#FF55FF',
+          dark: '#B300B3',
+          glow: 'rgba(255, 0, 255, 0.5)',
         },
         secondary: {
-          DEFAULT: '#E81CFF',
-          light: '#FF73FF',
+          DEFAULT: '#FF00FF',
+          light: '#FF55FF',
         },
         accent: {
           orange: '#FF5500',
-          blue: '#00f0ff', // Vivid Cyan from Void Prism
-          pink: '#ff0080', // Deep pink accent from Void Prism
+          blue: '#00FFFF', // Pure Neon Electric Blue / Cyan
+          pink: '#FF00AA', // Vibrant pink
         },
         background: {
           light: '#f8f5f8',
@@ -51,14 +51,14 @@ const config: Config = {
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
-        'vibrant-glow': 'radial-gradient(circle at center, rgba(228, 26, 255, 0.25) 0%, transparent 70%)',
+        'vibrant-glow': 'radial-gradient(circle at center, rgba(255, 0, 255, 0.35) 0%, transparent 70%)',
         'cosmic-mesh': 'linear-gradient(to bottom right, #050510, #1a0b1c)',
       },
       boxShadow: {
         'panel': '0 8px 32px rgba(0, 0, 0, 0.8)',
-        'glow-primary': '0 0 15px rgba(228, 26, 255, 0.4)',
-        'glow-blue': '0 0 15px rgba(0, 240, 255, 0.4)',
-        'glow-orange': '0 0 40px rgba(255, 85, 0, 0.6)',
+        'glow-primary': '0 0 25px rgba(255, 0, 255, 0.6)',
+        'glow-blue': '0 0 25px rgba(0, 255, 255, 0.6)',
+        'glow-orange': '0 0 40px rgba(255, 85, 0, 0.7)',
       },
       animation: {
         'fade-in-up': 'fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards',
