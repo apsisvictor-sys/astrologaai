@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Void Prism: Natal Chart Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#bc13fe", // Neon Purple/Magenta
+                        "accent-blue": "#067ff9",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#000000",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            background-color: #000000;
+            font-family: 'Space Grotesk', sans-serif;
+            overflow-x: hidden;
+        }
+        .cosmic-orb-1 {
+            position: fixed;
+            top: -10%;
+            right: -20%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(188, 19, 254, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+            filter: blur(60px);
+            z-index: -1;
+        }
+        .cosmic-orb-2 {
+            position: fixed;
+            bottom: 20%;
+            left: -20%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(6, 127, 249, 0.1) 0%, rgba(0, 0, 0, 0) 70%);
+            filter: blur(80px);
+            z-index: -1;
+        }
+        .glass-card {
+            background: rgba(10, 10, 15, 0.8);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(188, 19, 254, 0.1);
+        }
+        .chart-glow {
+            filter: drop-shadow(0 0 15px rgba(188, 19, 254, 0.4));
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-dark text-slate-100 min-h-screen">
+<div class="cosmic-orb-1"></div>
+<div class="cosmic-orb-2"></div>
+<!-- Header -->
+<header class="flex items-center justify-between px-6 pt-8 pb-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-900/50 border border-slate-800">
+<span class="material-symbols-outlined text-slate-100">menu</span>
+</button>
+<h1 class="text-xl font-bold tracking-tight text-white">Void Prism</h1>
+<button class="w-10 h-10 flex items-center justify-center rounded-full bg-slate-900/50 border border-slate-800 text-primary">
+<span class="material-symbols-outlined">auto_awesome</span>
+</button>
+</header>
+<main class="px-4 pb-24">
+<!-- Interactive Natal Chart Section -->
+<section class="relative flex flex-col items-center py-8">
+<div class="relative w-72 h-72 md:w-80 md:h-80 flex items-center justify-center chart-glow">
+<!-- Circular Chart Background -->
+<div class="absolute inset-0 rounded-full border-[0.5px] border-primary/30 opacity-50"></div>
+<div class="absolute inset-4 rounded-full border-[0.5px] border-accent-blue/30 opacity-40"></div>
+<div class="absolute inset-12 rounded-full border-[0.5px] border-slate-800/80"></div>
+<!-- Chart Image Placeholder -->
+<div class="z-10 w-full h-full bg-contain bg-center bg-no-repeat opacity-90" data-alt="Intricate glowing neon purple astrological natal chart map" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBXTVFRvFR0p1iRDyT9Fb2gdkDQNfIVWNAVY4KhPJlI2PtJyFzNT6zQmkSB42EeTcN3MzQIf_sE14sMT314uGvUOPIwgTM2S_-S0oYXlOOlPFZI1JT926mAEzSAoIEpqEkNTQWVI3tCiLxUIA499ROek8QrV2EhrOUPUJapQV_uw-fd2VssxuOdz_fbO8ydW_BRuRoL_A2EL9WFi2kcslrbAhhSGaXne0YI3THmzVMwaVz1z3KRH-4O-FMJ-ZE6IaaPpn-xUjozr1yx');">
+</div>
+<!-- Pulse effect -->
+<div class="absolute w-2 h-2 bg-primary rounded-full blur-[2px] top-1/4 left-1/4"></div>
+<div class="absolute w-1.5 h-1.5 bg-accent-blue rounded-full blur-[2px] bottom-1/3 right-1/4"></div>
+</div>
+<div class="mt-6 text-center">
+<p class="text-xs uppercase tracking-[0.2em] text-primary font-bold">Personal Alignment</p>
+<h2 class="text-2xl font-bold mt-1">Cosmic Blueprint</h2>
+</div>
+</section>
+<!-- Summary Cards -->
+<section class="grid grid-cols-3 gap-3 mb-8">
+<div class="glass-card rounded-xl p-4 flex flex-col items-center text-center">
+<span class="material-symbols-outlined text-amber-400 mb-2">wb_sunny</span>
+<p class="text-[10px] uppercase text-slate-400 tracking-wider">Sun</p>
+<p class="text-sm font-bold">Leo</p>
+</div>
+<div class="glass-card rounded-xl p-4 flex flex-col items-center text-center border-primary/20">
+<span class="material-symbols-outlined text-indigo-300 mb-2">dark_mode</span>
+<p class="text-[10px] uppercase text-slate-400 tracking-wider">Moon</p>
+<p class="text-sm font-bold">Scorpio</p>
+</div>
+<div class="glass-card rounded-xl p-4 flex flex-col items-center text-center">
+<span class="material-symbols-outlined text-accent-blue mb-2">north_east</span>
+<p class="text-[10px] uppercase text-slate-400 tracking-wider">Rising</p>
+<p class="text-sm font-bold">Libra</p>
+</div>
+</section>
+<!-- Current Transits -->
+<section class="mb-8">
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-lg font-bold">Current Transits</h3>
+<span class="text-xs text-slate-500">Live Update</span>
+</div>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-4 rounded-xl border border-primary/20 bg-slate-900/20">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center border border-primary/30">
+<span class="material-symbols-outlined text-primary text-xl">electric_bolt</span>
+</div>
+<div>
+<p class="text-sm font-medium text-slate-200">Mars Square Uranus</p>
+<p class="text-[10px] text-slate-500 uppercase">Intense energy &amp; change</p>
+</div>
+</div>
+<span class="text-[10px] font-bold text-primary">ACTIVE</span>
+</div>
+<div class="flex items-center justify-between p-4 rounded-xl border border-slate-800/50 bg-slate-900/10">
+<div class="flex items-center gap-4">
+<div class="w-10 h-10 rounded-full bg-accent-blue/10 flex items-center justify-center border border-accent-blue/30">
+<span class="material-symbols-outlined text-accent-blue text-xl">water_drop</span>
+</div>
+<div>
+<p class="text-sm font-medium text-slate-200">Venus Trine Neptune</p>
+<p class="text-[10px] text-slate-500 uppercase">Romantic alignment</p>
+</div>
+</div>
+<span class="text-[10px] font-bold text-slate-600">PENDING</span>
+</div>
+</div>
+</section>
+<!-- Compatibility Score -->
+<section class="glass-card rounded-xl p-6 relative overflow-hidden">
+<div class="flex justify-between items-start mb-2">
+<div>
+<h3 class="text-lg font-bold">Compatibility Score</h3>
+<p class="text-sm text-slate-400">Void Resonance Analysis</p>
+</div>
+<div class="text-3xl font-bold text-accent-blue">88%</div>
+</div>
+<!-- Radial Gauge Visual -->
+<div class="w-full h-2 bg-slate-800 rounded-full mt-4 overflow-hidden">
+<div class="h-full bg-gradient-to-r from-accent-blue to-primary w-[88%] rounded-full shadow-[0_0_10px_rgba(6,127,249,0.5)]"></div>
+</div>
+<p class="text-[10px] text-slate-500 mt-4 leading-relaxed">Your current alignment with the collective consciousness is highly resonant. A great time for strategic manifestations.</p>
+</section>
+</main>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 right-0 z-50">
+<div class="mx-4 mb-6 rounded-full glass-card border-t border-white/5 flex items-center justify-around px-2 py-2">
+<a class="flex flex-col items-center justify-center w-12 h-12 rounded-full bg-primary/20 text-primary" href="#">
+<span class="material-symbols-outlined">explore</span>
+</a>
+<a class="flex flex-col items-center justify-center w-12 h-12 rounded-full text-slate-500" href="#">
+<span class="material-symbols-outlined">query_stats</span>
+</a>
+<a class="flex flex-col items-center justify-center w-12 h-12 rounded-full text-slate-500" href="#">
+<span class="material-symbols-outlined">favorite</span>
+</a>
+<a class="flex flex-col items-center justify-center w-12 h-12 rounded-full text-slate-500" href="#">
+<span class="material-symbols-outlined">person</span>
+</a>
+</div>
+</nav>
+</body></html>

@@ -28,6 +28,12 @@ model User {
   language          String    @default("bg")
   emailVerified     Boolean   @default(false) @map("email_verified")
   
+  // Custom usage tracking for limits
+  monthlyQueryCount Int       @default(0) @map("monthly_query_count")
+  dailyQueryCount   Int       @default(0) @map("daily_query_count")
+  lastQueryDate     DateTime? @map("last_query_date")
+  bonusQueries      Int       @default(0) @map("bonus_queries")
+  
   // US-28: Email change verification
   pendingEmail      String?   @unique @map("pending_email")       // New email awaiting verification
   pendingEmailToken String?   @map("pending_email_token")        // Verification token

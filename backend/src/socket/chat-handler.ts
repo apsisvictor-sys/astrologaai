@@ -9,9 +9,9 @@
 import { AuthenticatedSocket, getSocketServer, emitToSocket } from './index';
 import { PrismaClient, Tier } from '@prisma/client';
 import { redisClient, storeSessionContext, getSessionContext } from '../utils/redis';
-import { 
-  streamChatCompletion, 
-  buildSystemPrompt, 
+import {
+  streamChatCompletion,
+  buildSystemPrompt,
   generateChartSummary,
 } from '../services/llm';
 import type { ChatMessage } from '../services/llm';
@@ -50,16 +50,16 @@ function getMonthResetDate(): Date {
 }
 
 // US-36: Rate limit checking now uses centralized middleware
-async function checkRateLimit(userId: string, tier: Tier): Promise<{ 
-  allowed: boolean; 
-  remaining: number; 
+async function checkRateLimit(userId: string, tier: Tier): Promise<{
+  allowed: boolean;
+  remaining: number;
   resetAt?: Date;
   limit: number;
-  limitType?: 'monthly' | 'burst';
+  limitType?: 'monthly' | 'burst' | 'daily';
 }> {
   // Use centralized query limit checker
   const status = await checkQueryLimit(userId, tier);
-  
+
   return {
     allowed: status.allowed,
     remaining: typeof status.monthlyRemaining === 'number' ? status.monthlyRemaining : 999,
@@ -172,16 +172,16 @@ export async function handleChatSendMessage(
 
     // Check rate limit
     const rateLimit = await checkRateLimit(userId, userTier);
-    
+
     if (!rateLimit.allowed) {
       socket.emit('chat:error', {
         code: 'RATE_LIMIT_EXCEEDED',
-        message: userLanguage === 'bg' 
+        message: userLanguage === 'bg'
           ? 'Достигнахте лимита на заявките. Моля, опитайте по-късно.'
           : 'Rate limit exceeded. Please try again later.',
         conversationId,
-        retryAfter: rateLimit.resetAt ? 
-          Math.floor((rateLimit.resetAt.getTime() - Date.now()) / 1000) : 
+        retryAfter: rateLimit.resetAt ?
+          Math.floor((rateLimit.resetAt.getTime() - Date.now()) / 1000) :
           undefined,
         limit: rateLimit.limit,
       });
@@ -225,7 +225,7 @@ export async function handleChatSendMessage(
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
-    
+
     if (userChart?.chartData) {
       const chart = userChart.chartData as any;
       chartSummary = generateChartSummary(chart, userLanguage);
@@ -312,7 +312,17 @@ export async function handleChatSendMessage(
     let hasError = false;
 
     try {
-      for await (const chunk of streamChatCompletion(messages)) {
+      for await (const chunk of streamChatCompletion(messages, { tier: userTier }, {
+        onToolCall: (name: string, args: any) => {
+          // Send a live UI indicator to the Next.js frontend
+          socket.emit('chat:tool_call', {
+            conversationId,
+            toolName: name,
+            args,
+            message: `Consulting ${name.replace(/_/g, ' ')}...`
+          });
+        }
+      })) {
         // Check if stream was cancelled
         if (abortController.signal.aborted) {
           console.log(`[Socket] Stream ${streamId} was cancelled`);
@@ -329,15 +339,17 @@ export async function handleChatSendMessage(
           break;
         }
 
-        fullResponse += chunk.content;
+        // Pass through standard text chunks
+        if (chunk.content) {
+          fullResponse += chunk.content;
 
-        // Emit chunk
-        socket.emit('chat:message_chunk', {
-          messageId: null,
-          chunk: chunk.content,
-          index: chunkIndex++,
-          isComplete: chunk.done,
-        });
+          socket.emit('chat:message_chunk', {
+            messageId: null,
+            chunk: chunk.content,
+            index: chunkIndex++,
+            isComplete: chunk.done,
+          });
+        }
 
         if (chunk.done) {
           break;
@@ -373,7 +385,7 @@ export async function handleChatSendMessage(
           role: 'ASSISTANT',
           content: fullResponse,
           metadata: {
-            model: process.env.LLM_MODEL || 'glm-5',
+            model: process.env.ANTHROPIC_API_KEY ? 'claude-3.5-agent' : 'gpt-4o-agent',
             tokensUsed: Math.ceil(fullResponse.length / 4),
           },
         },
@@ -391,7 +403,7 @@ export async function handleChatSendMessage(
         { role: 'user', content: content.trim() },
         { role: 'assistant', content: fullResponse },
       ];
-      
+
       await storeSessionContext(conversationId, userId, updatedMessages, sessionSummary || undefined);
 
       // Emit completion
@@ -400,7 +412,7 @@ export async function handleChatSendMessage(
         conversationId,
         content: fullResponse,
         metadata: {
-          model: process.env.LLM_MODEL || 'glm-5',
+          model: process.env.ANTHROPIC_API_KEY ? 'claude-3.5-agent' : 'gpt-4o-agent',
           tokensUsed: Math.ceil(fullResponse.length / 4),
           processingTime: 0, // TODO: Track actual time
           finishReason: 'stop',
@@ -452,12 +464,12 @@ export async function handleChatCancelGeneration(
     if (stream.conversationId === conversationId && stream.userId === userId) {
       stream.abortController.abort();
       activeStreams.delete(streamId);
-      
+
       socket.emit('chat:generation_cancelled', {
         conversationId,
         message: 'Generation cancelled',
       });
-      
+
       console.log(`[Socket] Cancelled generation for user ${userId} in conversation ${conversationId}`);
       return;
     }

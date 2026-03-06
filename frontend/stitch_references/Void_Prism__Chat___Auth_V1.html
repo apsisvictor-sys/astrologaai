@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Void Prism: Chat &amp; Auth V1</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#7f06f9",
+                        "background-light": "#f7f5f8",
+                        "background-dark": "#0A0A0F",
+                        "accent-magenta": "#ff00ff",
+                        "accent-blue": "#00d4ff",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .nebula-glow {
+            background: radial-gradient(circle at 50% 50%, rgba(127, 6, 249, 0.15) 0%, rgba(0, 212, 255, 0.05) 50%, transparent 100%);
+        }
+        .user-bubble-gradient {
+            background: linear-gradient(135deg, #ff00ff 0%, #7f06f9 50%, #00d4ff 100%);
+        }
+        .thinking-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #7f06f9;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #7f06f9;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-dark font-display text-slate-100 antialiased overflow-x-hidden min-h-screen">
+<div class="relative flex h-screen w-full flex-col bg-background-dark nebula-glow overflow-hidden">
+<!-- Header -->
+<header class="flex items-center justify-between px-6 pt-12 pb-4 bg-background-dark/80 backdrop-blur-md z-10">
+<button class="flex items-center justify-center size-10 rounded-full border border-primary/20 bg-primary/10">
+<span class="material-symbols-outlined text-primary">menu</span>
+</button>
+<h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-accent-magenta to-accent-blue bg-clip-text text-transparent">VOID PRISM</h1>
+<div class="size-10 rounded-full border border-primary/20 bg-cover bg-center" data-alt="Abstract celestial avatar with neon highlights" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAu9kcnsKuwAbID5_CY5cVB6eFhoZHvrPqp6HHrIn2Uq00qXb4bpWN-zAHZ1_9HOkgdEtlcfiXuoQn-zoGU6ktZgTZsmlh0YaYU2YoqsmTCoPzg7jmzuasBgJsMGtoFy_3jb5loXebhcmjFL7Xim6NdV30UNmITwl44y68CcwYdPzWQCTX2ps56a--Pxom2YpE1sfQ6SkJI4imvgZPFTzq3pAhvX0vks8PbndtEH0RFGMs8i50jh58l-cbIKiQRY3fV-DJ_AEpf3Tp7')"></div>
+</header>
+<!-- Chat Area -->
+<main class="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+<!-- Auth Section (Social Login) -->
+<div class="flex flex-col gap-3 mb-8">
+<p class="text-center text-xs font-medium text-slate-400 uppercase tracking-widest mb-2">Sync your cosmic profile</p>
+<div class="flex flex-col gap-3 px-4">
+<button class="flex items-center justify-center gap-3 w-full py-3.5 bg-slate-900 border border-primary/30 rounded-full transition-all active:scale-95">
+<img alt="Google Logo" class="size-5" data-alt="Google icon logo" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCh4zOX1gahYczzzT0PeH-6AoIgFmwHwC0YhoGLXMvHonhYKgPoxOq8Q8fYLc2dyN_eewrT13QoEzQwnHo_vxT-S5Qd8Ij7ZEeBCzZ7fW_JRys3MJivhMUeCOVcDzeU2SPpCHCE2h_z9DefuXz1xWHtTAN16Y0G7B3xp842AZkqB6wdyEywqHt8oS30eLsIXL492RIxTHgt489kK0hFqs0NlI-kIiUTvG_bkVpnPzJUZfQwDJ0aKHKbloiU8iSnGjqr8yUDoa0klIoH"/>
+<span class="text-sm font-semibold">Continue with Google</span>
+</button>
+<button class="flex items-center justify-center gap-3 w-full py-3.5 bg-slate-900 border border-primary/30 rounded-full transition-all active:scale-95">
+<span class="material-symbols-outlined text-xl">ios</span>
+<span class="text-sm font-semibold">Continue with Apple</span>
+</button>
+</div>
+</div>
+<!-- User Message -->
+<div class="flex flex-col items-end gap-1 px-2">
+<p class="text-[11px] font-medium text-primary uppercase tracking-tighter mr-2">Seeker</p>
+<div class="user-bubble-gradient px-5 py-3 rounded-2xl rounded-tr-none text-white shadow-lg shadow-primary/20 max-w-[85%]">
+<p class="text-sm font-medium leading-relaxed">What does my chart say about my career for the next lunar cycle?</p>
+</div>
+</div>
+<!-- Oracle Message -->
+<div class="flex flex-col items-start gap-1 px-2">
+<p class="text-[11px] font-medium text-accent-blue uppercase tracking-tighter ml-2">Oracle</p>
+<div class="bg-background-dark border border-slate-800 px-5 py-3 rounded-2xl rounded-tl-none text-slate-100 shadow-xl max-w-[85%]">
+<p class="text-sm font-medium leading-relaxed">The stars indicate a significant shift in your professional house. I am analyzing the planetary alignments across your midheaven...</p>
+</div>
+</div>
+<!-- Thinking Indicator -->
+<div class="flex items-center gap-4 px-4 py-2">
+<div class="flex gap-1.5 items-center">
+<div class="thinking-dot"></div>
+<div class="thinking-dot opacity-60"></div>
+<div class="thinking-dot opacity-30"></div>
+</div>
+<p class="text-xs font-medium text-primary/80 italic">Oracle is consulting the void...</p>
+</div>
+</main>
+<!-- Input Area & Quick Replies -->
+<footer class="bg-background-dark/90 backdrop-blur-xl border-t border-slate-800/50 pb-8">
+<!-- Quick Replies -->
+<div class="flex gap-2 overflow-x-auto px-4 py-4 no-scrollbar">
+<button class="whitespace-nowrap px-4 py-2 rounded-full border border-primary/30 bg-primary/5 text-xs font-semibold text-slate-300 hover:bg-primary/10">My Moon Sign?</button>
+<button class="whitespace-nowrap px-4 py-2 rounded-full border border-primary/30 bg-primary/5 text-xs font-semibold text-slate-300 hover:bg-primary/10">Retrograde impact</button>
+<button class="whitespace-nowrap px-4 py-2 rounded-full border border-primary/30 bg-primary/5 text-xs font-semibold text-slate-300 hover:bg-primary/10">Love compatibility</button>
+</div>
+<!-- Main Input -->
+<div class="px-4 flex items-center gap-3">
+<div class="flex-1 relative">
+<input class="w-full bg-slate-900/50 border border-slate-700 rounded-full py-4 px-6 text-sm focus:outline-none focus:border-primary/50 transition-colors placeholder:text-slate-600" placeholder="Whisper to the void..." type="text"/>
+</div>
+<button class="size-12 rounded-full bg-primary flex items-center justify-center shadow-lg shadow-primary/40 active:scale-90 transition-transform">
+<span class="material-symbols-outlined text-white text-2xl">send</span>
+</button>
+</div>
+</footer>
+<!-- Bottom Navigation -->
+<nav class="flex justify-around items-center px-6 py-3 bg-background-dark border-t border-slate-800/50">
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">chat_bubble</span>
+<span class="text-[10px] font-bold uppercase tracking-widest">Chat</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-500" href="#">
+<span class="material-symbols-outlined">auto_graph</span>
+<span class="text-[10px] font-bold uppercase tracking-widest">Charts</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-500" href="#">
+<span class="material-symbols-outlined">explore</span>
+<span class="text-[10px] font-bold uppercase tracking-widest">Insight</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-slate-500" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[10px] font-bold uppercase tracking-widest">Config</span>
+</a>
+</nav>
+</div>
+</body></html>

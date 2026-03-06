@@ -121,6 +121,41 @@ export interface SynastryData {
   aspects: Aspect[];
 }
 
+export interface ProgressionData {
+  progressedDate: string;
+  planets: PlanetPosition[];
+  houses: HouseCusp[];
+  aspects: Aspect[];
+  moonPhase: { phase: string; illumination: number; age: number; angle: number; };
+}
+
+export interface SolarReturnData {
+  returnDate: string;
+  exactTime: string;
+  planets: PlanetPosition[];
+  houses: HouseCusp[];
+  aspects: Aspect[];
+}
+
+export interface RelocationData {
+  targetLocation: { city: string; latitude: number; longitude: number; };
+  lines: Array<{ planet: string; angle: string; meaning: string; }>;
+}
+
+export interface CompositeData {
+  midpointDate: string;
+  midpointLocation: { latitude: number; longitude: number; };
+  planets: PlanetPosition[];
+  houses: HouseCusp[];
+  aspects: Aspect[];
+}
+
+export interface VenusReturnData {
+  returnDate: string;
+  exactTime: string;
+  themes: string[];
+}
+
 export interface ProviderHealth {
   status: AstrologyProviderStatus;
   latencyMs: number;
@@ -173,79 +208,86 @@ export interface CircuitBreakerState {
 }
 
 // ============================================
-// Astrology Provider Interface
+// Provider Interfaces
 // ============================================
 
 export interface AstrologyProvider {
-  /**
-   * Unique identifier for this provider
-   */
-  readonly name: string;
-  
-  /**
-   * Provider type (primary, secondary, tertiary)
-   */
-  readonly type: AstrologyProviderType;
-  
-  /**
-   * API endpoint URL
-   */
-  readonly endpoint: string;
-  
-  /**
-   * Check if this provider is available and configured
-   */
+  /** Provider identifier */
+  name: string;
+
+  /** Check if provider is configured and available */
   isAvailable(): boolean;
-  
-  /**
-   * Perform a health check on this provider
-   */
-  healthCheck(): Promise<ProviderHealth>;
-  
-  /**
-   * Get current latency in milliseconds
-   */
-  getLatency(): number;
-  
-  /**
-   * Get provider metrics
-   */
+
+  /** Get current provider metrics */
   getMetrics(): ProviderMetrics;
-  
-  /**
-   * Calculate natal chart
-   */
+
+  /** Get circuit breaker state */
+  getCircuitBreakerState(): CircuitBreakerState; // Changed from CircuitBreakerData to CircuitBreakerState
+
+  /** Perform health check (throws if unhealthy) */
+  healthCheck(): Promise<ProviderHealth>;
+
+  /** Update health status manually */
+  updateHealth(status: AstrologyProviderStatus, latencyMs: number, error?: string): void;
+
+  /** Calculate a complete natal chart */
   calculateNatalChart(
     birthData: BirthDataInput,
     options?: AstrologyCalculationOptions
   ): Promise<NatalChart>;
-  
-  /**
-   * Get current transits
-   */
+
+  /** Get planetary transits for a specific date and location */
   getTransits(
     date: string,
     options?: { latitude?: number; longitude?: number }
   ): Promise<TransitData>;
-  
-  /**
-   * Calculate synastry between two charts
-   */
+
+  /** Calculate relationship synastry between two people */
   calculateSynastry(
-    birthData1: BirthDataInput,
-    birthData2: BirthDataInput
+    person1: BirthDataInput,
+    person2: BirthDataInput
   ): Promise<SynastryData>;
-  
-  /**
-   * Update provider health status
-   */
-  updateHealth(status: AstrologyProviderStatus, latencyMs: number, error?: string): void;
-  
+
+  /** Calculate secondary progressions for internal evolution */
+  getProgressions(
+    birthData: BirthDataInput,
+    progressedDate: string,
+    options?: AstrologyCalculationOptions
+  ): Promise<ProgressionData>;
+
+  /** Calculate solar return chart */
+  getSolarReturn(
+    birthData: BirthDataInput,
+    returnYear: number,
+    options?: AstrologyCalculationOptions
+  ): Promise<SolarReturnData>;
+
+  /** Calculate relocation chart */
+  getRelocation(
+    birthData: BirthDataInput,
+    targetLocation: { latitude: number; longitude: number },
+    options?: AstrologyCalculationOptions
+  ): Promise<RelocationData>;
+
+  /** Calculate composite chart for two people */
+  getCompositeChart(
+    person1: BirthDataInput,
+    person2: BirthDataInput,
+    options?: AstrologyCalculationOptions
+  ): Promise<CompositeData>;
+
+  /** Calculate Venus return chart */
+  getVenusReturn(
+    birthData: BirthDataInput,
+    returnYear: number,
+    options?: AstrologyCalculationOptions
+  ): Promise<VenusReturnData>;
+
   /**
    * Get circuit breaker state
    */
   getCircuitBreakerState(): CircuitBreakerState;
-  
+
   /**
    * Reset circuit breaker (manual override)
    */
@@ -260,7 +302,7 @@ export abstract class BaseAstrologyProvider implements AstrologyProvider {
   abstract readonly name: string;
   abstract readonly type: AstrologyProviderType;
   abstract readonly endpoint: string;
-  
+
   protected health: ProviderHealth = {
     status: AstrologyProviderStatus.UNKNOWN,
     latencyMs: 0,
@@ -268,14 +310,14 @@ export abstract class BaseAstrologyProvider implements AstrologyProvider {
     errorCount: 0,
     successCount: 0,
   };
-  
+
   protected metrics = {
     totalRequests: 0,
     successfulRequests: 0,
     failedRequests: 0,
     latencies: [] as number[],
   };
-  
+
   // Circuit breaker configuration
   protected circuitBreaker: CircuitBreakerState = {
     state: CircuitState.CLOSED,
@@ -283,10 +325,10 @@ export abstract class BaseAstrologyProvider implements AstrologyProvider {
     lastFailureTime: null,
     nextRetryTime: null,
   };
-  
+
   protected readonly CIRCUIT_BREAKER_THRESHOLD = 3; // Open after 3 failures
   protected readonly CIRCUIT_BREAKER_RESET_TIMEOUT = 30000; // 30 seconds
-  
+
   abstract isAvailable(): boolean;
   abstract calculateNatalChart(
     birthData: BirthDataInput,
@@ -300,10 +342,35 @@ export abstract class BaseAstrologyProvider implements AstrologyProvider {
     birthData1: BirthDataInput,
     birthData2: BirthDataInput
   ): Promise<SynastryData>;
-  
+  abstract getProgressions(
+    birthData: BirthDataInput,
+    progressedDate: string,
+    options?: AstrologyCalculationOptions
+  ): Promise<ProgressionData>;
+  abstract getSolarReturn(
+    birthData: BirthDataInput,
+    returnYear: number,
+    options?: AstrologyCalculationOptions
+  ): Promise<SolarReturnData>;
+  abstract getRelocation(
+    birthData: BirthDataInput,
+    targetLocation: { latitude: number; longitude: number },
+    options?: AstrologyCalculationOptions
+  ): Promise<RelocationData>;
+  abstract getCompositeChart(
+    person1: BirthDataInput,
+    person2: BirthDataInput,
+    options?: AstrologyCalculationOptions
+  ): Promise<CompositeData>;
+  abstract getVenusReturn(
+    birthData: BirthDataInput,
+    returnYear: number,
+    options?: AstrologyCalculationOptions
+  ): Promise<VenusReturnData>;
+
   async healthCheck(): Promise<ProviderHealth> {
     const startTime = Date.now();
-    
+
     try {
       // Use a simple natal chart calculation as health check
       const testBirthData: BirthDataInput = {
@@ -316,36 +383,36 @@ export abstract class BaseAstrologyProvider implements AstrologyProvider {
         longitude: 0,
         timezone: 'UTC'
       };
-      
+
       const chart = await this.calculateNatalChart(testBirthData);
       const latencyMs = Date.now() - startTime;
-      
+
       if (chart && chart.sun) {
         this.updateHealth(AstrologyProviderStatus.HEALTHY, latencyMs);
       } else {
         this.updateHealth(AstrologyProviderStatus.DEGRADED, latencyMs, 'Invalid response');
       }
-      
+
       return this.health;
     } catch (error) {
       const latencyMs = Date.now() - startTime;
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
+
       this.updateHealth(AstrologyProviderStatus.UNHEALTHY, latencyMs, errorMessage);
-      
+
       return this.health;
     }
   }
-  
+
   getLatency(): number {
     return this.health.latencyMs;
   }
-  
+
   getMetrics(): ProviderMetrics {
     const avgLatency = this.metrics.latencies.length > 0
       ? this.metrics.latencies.reduce((a, b) => a + b, 0) / this.metrics.latencies.length
       : 0;
-    
+
     return {
       providerName: this.name,
       type: this.type,
@@ -357,7 +424,7 @@ export abstract class BaseAstrologyProvider implements AstrologyProvider {
       health: this.health,
     };
   }
-  
+
   updateHealth(status: AstrologyProviderStatus, latencyMs: number, error?: string): void {
     this.health = {
       status,
@@ -367,12 +434,12 @@ export abstract class BaseAstrologyProvider implements AstrologyProvider {
       successCount: error ? this.health.successCount : this.health.successCount + 1,
       lastError: error,
     };
-    
+
     // Update circuit breaker
     if (status === AstrologyProviderStatus.UNHEALTHY) {
       this.circuitBreaker.failureCount++;
       this.circuitBreaker.lastFailureTime = new Date();
-      
+
       if (this.circuitBreaker.failureCount >= this.CIRCUIT_BREAKER_THRESHOLD) {
         this.circuitBreaker.state = CircuitState.OPEN;
         this.circuitBreaker.nextRetryTime = new Date(Date.now() + this.CIRCUIT_BREAKER_RESET_TIMEOUT);
@@ -383,14 +450,14 @@ export abstract class BaseAstrologyProvider implements AstrologyProvider {
       this.circuitBreaker.lastFailureTime = null;
       this.circuitBreaker.nextRetryTime = null;
     }
-    
+
     // Track metrics
     this.metrics.latencies.push(latencyMs);
     if (this.metrics.latencies.length > 100) {
       this.metrics.latencies.shift();
     }
   }
-  
+
   protected recordRequest(success: boolean, latencyMs: number): void {
     this.metrics.totalRequests++;
     if (success) {
@@ -403,7 +470,7 @@ export abstract class BaseAstrologyProvider implements AstrologyProvider {
       this.metrics.latencies.shift();
     }
   }
-  
+
   /**
    * Check if circuit breaker allows requests
    */
@@ -411,7 +478,7 @@ export abstract class BaseAstrologyProvider implements AstrologyProvider {
     if (this.circuitBreaker.state === CircuitState.CLOSED) {
       return true;
     }
-    
+
     if (this.circuitBreaker.state === CircuitState.OPEN) {
       // Check if we should transition to half-open
       if (this.circuitBreaker.nextRetryTime && new Date() >= this.circuitBreaker.nextRetryTime) {
@@ -420,15 +487,15 @@ export abstract class BaseAstrologyProvider implements AstrologyProvider {
       }
       return false;
     }
-    
+
     // Half-open: allow one request to test
     return true;
   }
-  
+
   getCircuitBreakerState(): CircuitBreakerState {
     return { ...this.circuitBreaker };
   }
-  
+
   resetCircuitBreaker(): void {
     this.circuitBreaker = {
       state: CircuitState.CLOSED,
@@ -449,22 +516,22 @@ export interface AstrologyOrchestratorInterface {
    * Get the active provider
    */
   getActiveProvider(): AstrologyProvider;
-  
+
   /**
    * Get all providers with their status
    */
   getAllProviders(): AstrologyProvider[];
-  
+
   /**
    * Get provider metrics for all providers
    */
   getAllMetrics(): ProviderMetrics[];
-  
+
   /**
    * Get provider switch history
    */
   getSwitchHistory(): ProviderSwitchEvent[];
-  
+
   /**
    * Calculate natal chart with automatic failover
    */
@@ -472,7 +539,7 @@ export interface AstrologyOrchestratorInterface {
     birthData: BirthDataInput,
     options?: AstrologyCalculationOptions
   ): Promise<NatalChart>;
-  
+
   /**
    * Get transits with automatic failover
    */
@@ -480,7 +547,7 @@ export interface AstrologyOrchestratorInterface {
     date: string,
     options?: { latitude?: number; longitude?: number }
   ): Promise<TransitData>;
-  
+
   /**
    * Calculate synastry with automatic failover
    */
@@ -488,27 +555,27 @@ export interface AstrologyOrchestratorInterface {
     birthData1: BirthDataInput,
     birthData2: BirthDataInput
   ): Promise<SynastryData>;
-  
+
   /**
    * Force health check on all providers
    */
   checkAllHealth(): Promise<ProviderHealth[]>;
-  
+
   /**
    * Start periodic health check polling
    */
   startHealthCheckPolling(intervalMs?: number): void;
-  
+
   /**
    * Stop health check polling
    */
   stopHealthCheckPolling(): void;
-  
+
   /**
    * Manually set active provider
    */
   setActiveProvider(providerName: string, reason: string): void;
-  
+
   /**
    * Clear manual override
    */

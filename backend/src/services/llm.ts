@@ -12,12 +12,15 @@
  * - Provider switch logging
  */
 
-import {
-  getLLMOrchestrator,
-  type ChatMessage,
-  type StreamChunk,
-  ProviderStatus,
-} from './llm/index';
+/**
+ * LLM Service (Autonomous Agent Edition)
+ * Rebuilt using Vercel AI SDK to support dynamic tool calling
+ */
+
+import { streamText, generateText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+import { anthropic } from '@ai-sdk/anthropic';
+import { astrologyTools } from './agent-tools';
 
 // Re-export types for backward compatibility
 export {
@@ -27,134 +30,177 @@ export {
   buildEnhancedContext,
 } from './llm-legacy';
 
-// Re-export ChatMessage type from interface
+// Re-export ChatMessage type
 export { type ChatMessage } from './llm/llm-provider.interface';
 
-// Import types needed from legacy
-import type { ChatContext, LLMConfig as LegacyLLMConfig } from './llm-legacy';
+// Map our legacy ChatMessage format to any[] to bypass strict typs mismatch with specific ai versions
+import type { ChatMessage as LegacyChatMessage } from './llm/llm-provider.interface';
+import type { LLMConfig as LegacyLLMConfig } from './llm-legacy';
 
-// ============================================
-// Orchestrator-based Functions
-// ============================================
+export interface StreamChunk {
+  content: string;
+  done: boolean;
+  error?: string;
+  toolCall?: { name: string; args: any };
+  toolResult?: { name: string; result: any };
+}
 
 /**
- * Stream chat completion with automatic failover
- * Uses the LLM Orchestrator for provider management
+ * Maps the legacy chat message format to Vercel AI SDK's format.
+ */
+function mapToCoreMessages(messages: LegacyChatMessage[]): any[] {
+  // If we already have complex agent loops cached in redis, return as is.
+  return messages.map((m: any) => {
+    if (m.toolCalls || m.toolInvocations) return m;
+
+    if (m.role === 'system') {
+      return { role: 'system', content: m.content || '' };
+    }
+    if (m.role === 'user') {
+      return { role: 'user', content: m.content || '' };
+    }
+    return { role: 'assistant', content: m.content || '' };
+  });
+}
+
+/**
+ * Select the appropriate AI Provider (Anthropic preferred for reasoning, OpenAI fallback)
+ */
+function getProviderModel(requestedModel?: string) {
+  // If Anthropic API key is available, default to Claude 3.5 Sonnet for superior reasoning
+  if (process.env.ANTHROPIC_API_KEY) {
+    return anthropic('claude-3-5-sonnet-20240620');
+  }
+
+  // Fallback to OpenAI
+  if (process.env.OPENAI_API_KEY) {
+    return openai('gpt-4o');
+  }
+
+  throw new Error('No valid LLM API Key found (Anthropic or OpenAI required for Tool Calling).');
+}
+
+/**
+ * Stream chat completion using an Autonomous Agent Reasoning Loop via Vercel AI SDK
  */
 export async function* streamChatCompletion(
-  messages: ChatMessage[],
-  config: Partial<LegacyLLMConfig> = {}
+  messages: LegacyChatMessage[],
+  config: Partial<LegacyLLMConfig & { tier?: string }> = {},
+  callbacks?: {
+    onToolCall?: (name: string, args: any) => void;
+  }
 ): AsyncGenerator<StreamChunk> {
-  const orchestrator = getLLMOrchestrator();
-  
-  // Map legacy config to new config
-  const newConfig = {
-    model: config.model,
-    temperature: config.temperature,
-    maxTokens: config.maxTokens,
-    stream: config.stream,
-  };
-  
-  for await (const chunk of orchestrator.streamChat(messages, newConfig)) {
-    // Filter out system messages (used for provider switch notifications)
-    if (chunk.provider === 'system') {
-      // Log the switch but don't yield to client
-      console.log(`[LLM] ${chunk.error}`);
-      continue;
+  try {
+    const coreMessages = mapToCoreMessages(messages);
+    const model = getProviderModel(config.model);
+
+    // Gating Tools based on User Subscription Tier
+    const tier = config.tier || 'FREE';
+    const activeTools: Record<string, any> = {};
+
+    // Everyone gets Natal Chart
+    activeTools['get_natal_chart'] = astrologyTools.get_natal_chart;
+
+    // PRO and PREMIUM get Transits
+    if (tier === 'PRO' || tier === 'PREMIUM') {
+      activeTools['get_transits'] = astrologyTools.get_transits;
     }
-    
+
+    // Only PREMIUM gets Synastry and advanced elite tools
+    if (tier === 'PREMIUM') {
+      activeTools['get_synastry'] = astrologyTools.get_synastry;
+      activeTools['get_progressions'] = astrologyTools.get_progressions;
+      activeTools['get_solar_return'] = astrologyTools.get_solar_return;
+      activeTools['get_relocation'] = astrologyTools.get_relocation;
+      activeTools['get_composite'] = astrologyTools.get_composite;
+      activeTools['get_venus_return'] = astrologyTools.get_venus_return;
+    }
+
+    // Inject Subscription Tier Context into the System Prompt
+    const systemPromptContext = tier === 'FREE' ?
+      "The user is on the FREE tier ('The Seeker' / 'Търсачът'). You ONLY have access to get_natal_chart and get_transits (basic only). If they ask about relationship destiny, exact timing, or deep transit analysis, DO NOT hallucinate. Instead, tell them in Bulgarian: 'За да разгледам дълбоко вашата любовна съвместимост или точното време на събитията, моля, преминете към план Pro (Навигаторът).'" :
+      tier === 'PRO' ?
+        "The user is on the PRO tier ('The Navigator' / 'Навигаторът'). You have access to Natal, Transits, Solar Return, and Relocation tools. If they ask about relationship compatibility or peak romance timing, DO NOT hallucinate. Tell them in Bulgarian: 'За анализ на сродни души и точно време за върхова романтика, моля, преминете към план Premium (Оракулът).'" :
+        "The user is on the PREMIUM tier ('The Oracle' / 'Оракулът'). You have unrestricted access to all astrological tools. Answer any question deeply and accurately.";
+
+    if (coreMessages.length > 0 && coreMessages[0].role === 'system') {
+      coreMessages[0].content += `\n\n[TIER SYSTEM INSTRUCTION]\n${systemPromptContext}`;
+    }
+
+    const result = await streamText({
+      model,
+      messages: coreMessages,
+      tools: activeTools,
+      temperature: config.temperature ?? 0.7,
+      onStepFinish({ text, toolCalls, toolResults }) {
+        // hook
+      }
+    });
+
+    for await (const chunk of result.fullStream) {
+      if (chunk.type === 'text-delta') {
+        yield { content: (chunk as any).text || '', done: false };
+      } else if (chunk.type === 'tool-call') {
+        // Build generic arguments
+        const args = (chunk as any).args;
+        const toolName = (chunk as any).toolName;
+        if (callbacks?.onToolCall) {
+          callbacks.onToolCall(toolName, args);
+        }
+        yield { content: '', done: false, toolCall: { name: toolName, args: args } };
+      } else if (chunk.type === 'tool-result') {
+        const resultVal = (chunk as any).result;
+        const toolName = (chunk as any).toolName;
+        yield { content: '', done: false, toolResult: { name: toolName, result: resultVal } };
+      } else if (chunk.type === 'finish') {
+        yield { content: '', done: true };
+      }
+    }
+  } catch (error) {
+    console.error('[Agent LLM Engine] Stream error:', error);
     yield {
-      content: chunk.content,
-      done: chunk.done,
-      error: chunk.error,
+      content: '',
+      done: true,
+      error: error instanceof Error ? error.message : 'Unknown streaming error'
     };
   }
 }
 
 /**
- * Non-streaming chat completion with automatic failover
+ * Non-streaming chat completion
  */
 export async function chatCompletion(
-  messages: ChatMessage[],
+  messages: LegacyChatMessage[],
   config: Partial<LegacyLLMConfig> = {}
 ): Promise<string> {
-  let fullResponse = '';
-  
-  for await (const chunk of streamChatCompletion(messages, { ...config, stream: false })) {
-    if (chunk.error) {
-      throw new Error(chunk.error);
-    }
-    fullResponse += chunk.content;
-    if (chunk.done) break;
-  }
-  
-  return fullResponse;
+  const coreMessages = mapToCoreMessages(messages);
+  const model = getProviderModel(config.model);
+
+  const result = await generateText({
+    model,
+    messages: coreMessages,
+    tools: astrologyTools,
+    temperature: config.temperature ?? 0.7,
+  });
+
+  return result.text;
 }
 
-/**
- * Check which LLM providers are available
- */
+// Stubs for backward compatibility with the orchestrator UI dashboard
 export function getAvailableProviders(): string[] {
-  const orchestrator = getLLMOrchestrator();
-  return orchestrator.getAllProviders()
-    .filter(p => p.isAvailable())
-    .map(p => p.name);
+  const providers = [];
+  if (process.env.ANTHROPIC_API_KEY) providers.push('Anthropic Claude');
+  if (process.env.OPENAI_API_KEY) providers.push('OpenAI GPT-4o');
+  return providers;
 }
-
-/**
- * Get provider health status
- */
 export function getProviderHealth(): Record<string, { status: string; latencyMs: number }> {
-  const orchestrator = getLLMOrchestrator();
-  const metrics = orchestrator.getAllMetrics();
-  
-  const result: Record<string, { status: string; latencyMs: number }> = {};
-  
-  for (const m of metrics) {
-    result[m.providerName] = {
-      status: m.health.status,
-      latencyMs: m.health.latencyMs,
-    };
-  }
-  
-  return result;
+  return { 'primary-agent': { status: 'healthy', latencyMs: 0 } };
 }
-
-/**
- * Get orchestrator status summary
- */
-export function getOrchestratorStatus(): {
-  activeProvider: string;
-  totalProviders: number;
-  healthyProviders: number;
-  lastSwitch?: { timestamp: Date; fromProvider: string; toProvider: string; reason: string };
-} {
-  const orchestrator = getLLMOrchestrator();
-  const status = orchestrator.getStatus();
-  
-  return {
-    ...status,
-    lastSwitch: status.lastSwitch ? {
-      timestamp: status.lastSwitch.timestamp,
-      fromProvider: status.lastSwitch.fromProvider,
-      toProvider: status.lastSwitch.toProvider,
-      reason: status.lastSwitch.reason,
-    } : undefined,
-  };
+export function getOrchestratorStatus(): any {
+  return { activeProvider: 'agent-framework', totalProviders: 2, healthyProviders: 2 };
 }
-
-/**
- * Get provider switch history
- */
-export function getSwitchHistory(limit: number = 10): Array<{
-  timestamp: Date;
-  fromProvider: string;
-  toProvider: string;
-  reason: string;
-  error?: string;
-}> {
-  const orchestrator = getLLMOrchestrator();
-  return orchestrator.getSwitchHistory().slice(-limit);
+export function getSwitchHistory(limit: number = 10): any[] {
+  return [];
 }
 
 export default {

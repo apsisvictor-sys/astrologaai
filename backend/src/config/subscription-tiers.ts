@@ -12,6 +12,7 @@ export interface TierLimits {
   tier: Tier;
   name: { bg: string; en: string };
   monthlyQueries: number; // -1 = unlimited
+  dailyQueries?: number; // Daily cap for retention loops
   burstLimit: number; // Requests per minute, -1 = unlimited
   features: string[];
   price: {
@@ -23,7 +24,7 @@ export interface TierLimits {
 
 /**
  * Tier configuration with query limits
- * US-36: FREE tier = 10 queries/month
+ * US-36: FREE tier = 10 queries/month, 4 queries/day
  * US-37: Burst limits based on OpenAI provider limits:
  *   - FREE: 3 req/min (matches OpenAI free tier)
  *   - PRO: 30 req/min (10x free - gives paying users more headroom)
@@ -33,12 +34,13 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
   FREE: {
     tier: 'FREE',
     name: { bg: 'Безплатен', en: 'Free' },
-    monthlyQueries: 10, // US-36: 10 queries per month (BMAD specification)
-    burstLimit: 3, // US-37: 3 requests per minute (matches OpenAI free tier)
+    monthlyQueries: 10,
+    dailyQueries: 4,
+    burstLimit: 3,
     features: [
       '10_queries_month',
-      'basic_horoscope',
-      'limited_chart_access',
+      '4_queries_day',
+      'tool:get_natal_chart', // Free users can only ask about their static birth chart
     ],
     price: {
       monthly: 0,
@@ -50,19 +52,15 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
     tier: 'PRO',
     name: { bg: 'Про', en: 'Pro' },
     monthlyQueries: -1, // unlimited
-    burstLimit: 30, // US-37: 30 requests per minute (10x free tier)
+    burstLimit: 30,
     features: [
       'unlimited_queries',
-      'core_astrology',
-      'vedic_astrology',
-      'relationship_analysis',
-      'daily_forecast',
-      'weekly_forecast',
-      'full_chart_access',
+      'tool:get_natal_chart',
+      'tool:get_transits', // Pro users get live transit timing predictions
     ],
     price: {
       monthly: 10,
-      yearly: 96, // 20% discount
+      yearly: 96,
       currency: 'EUR',
     },
   },
@@ -70,18 +68,22 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
     tier: 'PREMIUM',
     name: { bg: 'Премиум', en: 'Premium' },
     monthlyQueries: -1, // unlimited
-    burstLimit: 60, // US-37: 60 requests per minute (matches OpenAI Tier 1)
+    burstLimit: 60,
     features: [
       'everything_in_pro',
-      'business_astrology',
-      'tarot_readings',
-      'numerology',
-      'chinese_astrology',
+      'tool:get_natal_chart',
+      'tool:get_transits',
+      'tool:get_synastry', // Premium users unlock relationship compatibility
+      'tool:get_progressions', // Advanced Psychological Timing
+      'tool:get_solar_return', // Year Ahead Forecast
+      'tool:get_relocation', // Astrocartography / Moving
+      'tool:get_composite', // Destiny of Relationship
+      'tool:get_venus_return', // Precise Love timing
       'priority_support',
     ],
     price: {
       monthly: 20,
-      yearly: 192, // 20% discount
+      yearly: 192,
       currency: 'EUR',
     },
   },
@@ -137,7 +139,7 @@ export function hasFeature(tier: Tier, feature: string): boolean {
  */
 export function getEffectiveMonthlyLimit(tier: Tier): number {
   const configLimit = getMonthlyQueryLimit(tier);
-  
+
   // Allow environment variable override for FREE tier
   if (tier === 'FREE' && process.env.FREE_TIER_MONTHLY_LIMIT) {
     const envLimit = parseInt(process.env.FREE_TIER_MONTHLY_LIMIT, 10);
@@ -145,7 +147,7 @@ export function getEffectiveMonthlyLimit(tier: Tier): number {
       return envLimit;
     }
   }
-  
+
   return configLimit;
 }
 

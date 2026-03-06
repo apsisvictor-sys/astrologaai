@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AstroLogAI System: Deep Nebula</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#e41aff",
+                        "background-light": "#f8f5f8",
+                        "background-dark": "#050510",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen pb-20">
+<!-- Header -->
+<header class="flex items-center justify-between p-4 sticky top-0 z-10 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md">
+<h1 class="text-xl font-bold bg-gradient-to-r from-primary to-blue-500 bg-clip-text text-transparent flex-1 text-center pr-8">AstroLogAI</h1>
+<button class="w-8 h-8 flex items-center justify-center rounded-full bg-primary/20 text-primary">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</header>
+<main class="px-4 pb-24 @container flex flex-col gap-6">
+<!-- Zodiac Profile Card -->
+<section class="flex flex-col items-center gap-4 bg-primary/10 rounded-2xl p-6 relative overflow-hidden border border-primary/20">
+<!-- Decorative Glow -->
+<div class="absolute top-0 left-0 w-full h-full bg-gradient-to-br from-blue-600/20 to-primary/20 pointer-events-none"></div>
+<div class="relative w-32 h-32 rounded-full p-1 bg-gradient-to-tr from-blue-500 to-primary">
+<div class="w-full h-full rounded-full bg-background-dark flex items-center justify-center overflow-hidden">
+<img alt="Abstract glowing nebula pattern" class="w-full h-full object-cover opacity-80 mix-blend-screen" data-alt="Abstract glowing nebula pattern" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDFzJsdR18NTCb2Mj4f2xxzUgWbHvGjhxg6RGNXoLWMT1gwqo-AZtsFezeia2Bq1zpdyUY5XfOxNTijWcU6__uvPJFFHJVViNsCWJmvWMZ9j84kVFWz0o637yQdqHS2m5xaODvjApGH42q0z60ceqOEs8ppOxkwRsMngGBIRLE3Dygf0cdZlgWyNXbPHQOWTDdCvxqmnQWYo0W45agvvh3oZknt4DDFR17VHOYC6vAKJZLHyn9UN-1qUOHkUZyeK8tSOi5_o9ukreIZ"/>
+</div>
+</div>
+<div class="flex flex-col items-center z-10">
+<h2 class="text-2xl font-bold">Deep Nebula Profile</h2>
+<p class="text-primary font-medium mt-1 text-sm tracking-wide uppercase">Your Cosmic Consultant</p>
+<div class="flex gap-2 mt-3">
+<span class="px-3 py-1 rounded-full bg-blue-500/20 text-blue-400 text-xs font-semibold">Scorpio Sun</span>
+<span class="px-3 py-1 rounded-full bg-primary/20 text-primary text-xs font-semibold">Cancer Moon</span>
+</div>
+</div>
+</section>
+<!-- Lunar Phase Toggle -->
+<section class="bg-background-dark border border-primary/20 rounded-2xl p-4 flex items-center justify-between shadow-[0_0_15px_rgba(228,26,255,0.1)]">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">dark_mode</span>
+</div>
+<div>
+<h3 class="font-semibold">Lunar Mode</h3>
+<p class="text-xs text-slate-400">Enhance nighttime insights</p>
+</div>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox" value=""/>
+<div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-[0_0_10px_rgba(228,26,255,0.5)]"></div>
+</label>
+</section>
+<!-- Input Field -->
+<section>
+<div class="relative w-full">
+<input class="w-full bg-[#050510] border border-primary/30 text-slate-100 rounded-xl px-4 py-3 pl-12 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary shadow-[inset_0_0_10px_rgba(228,26,255,0.05)] placeholder-slate-500" placeholder="Ask your celestial question..." type="text"/>
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-primary/70">auto_awesome</span>
+</div>
+</section>
+<!-- Daily Transit Timeline -->
+<section class="mt-2">
+<h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-blue-400">timeline</span>
+                Daily Transit
+            </h3>
+<div class="grid grid-cols-[30px_1fr] gap-x-4">
+<!-- Transit Item 1 -->
+<div class="flex flex-col items-center">
+<div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center shadow-[0_0_10px_rgba(59,130,246,0.8)] z-10">
+<div class="w-2 h-2 bg-white rounded-full"></div>
+</div>
+<div class="w-0.5 bg-gradient-to-b from-blue-500 to-primary/50 grow my-1"></div>
+</div>
+<div class="pb-6 pt-0.5">
+<p class="font-medium text-blue-100">Moon enters Aries</p>
+<p class="text-sm text-blue-400/80 mt-1">08:00 AM • Energy Shift</p>
+<div class="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 mt-2 text-sm text-slate-300">
+                        A surge of initiative and courage marks the morning. Perfect time for bold actions.
+                    </div>
+</div>
+<!-- Transit Item 2 -->
+<div class="flex flex-col items-center">
+<div class="w-6 h-6 rounded-full bg-primary flex items-center justify-center shadow-[0_0_10px_rgba(228,26,255,0.8)] z-10">
+<div class="w-2 h-2 bg-white rounded-full"></div>
+</div>
+<div class="w-0.5 bg-gradient-to-b from-primary/50 to-purple-600/50 grow my-1"></div>
+</div>
+<div class="pb-6 pt-0.5">
+<p class="font-medium text-primary-100">Mars trine Saturn</p>
+<p class="text-sm text-primary/80 mt-1">02:30 PM • Strategic Alignment</p>
+</div>
+<!-- Transit Item 3 -->
+<div class="flex flex-col items-center">
+<div class="w-6 h-6 rounded-full bg-purple-600 flex items-center justify-center shadow-[0_0_10px_rgba(147,51,234,0.8)] z-10">
+<div class="w-2 h-2 bg-white rounded-full"></div>
+</div>
+</div>
+<div class="pb-2 pt-0.5">
+<p class="font-medium text-purple-100">Mercury Retrograde Begins</p>
+<p class="text-sm text-purple-400/80 mt-1">11:45 PM • Reflection Period</p>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation -->
+<div class="fixed bottom-0 left-0 right-0 z-50">
+<!-- Glow effect behind nav -->
+<div class="absolute bottom-0 w-full h-16 bg-primary/20 blur-xl pointer-events-none"></div>
+<nav class="flex gap-2 border-t border-primary/20 bg-background-dark/95 backdrop-blur-lg px-4 pb-6 pt-3 relative">
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined text-[28px]">home</span>
+<p class="text-[10px] font-medium tracking-wide">Home</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[28px]">insights</span>
+<p class="text-[10px] font-medium tracking-wide">Transits</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[28px]">account_circle</span>
+<p class="text-[10px] font-medium tracking-wide">Profile</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400 hover:text-primary transition-colors" href="#">
+<span class="material-symbols-outlined text-[28px]">settings</span>
+<p class="text-[10px] font-medium tracking-wide">Settings</p>
+</a>
+</nav>
+</div>
+</body></html>

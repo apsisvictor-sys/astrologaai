@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Void Prism: Celestial Tiers V1</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f906f9",
+                        "background-light": "#f8f5f8",
+                        "background-dark": "#0A0A0F",
+                        "void-black": "#050508",
+                        "nebula-blue": "#1e40af",
+                        "cosmic-violet": "#6a2f6a"
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .glow-magenta {
+            box-shadow: 0 0 20px 2px rgba(249, 6, 249, 0.4);
+        }
+        .cosmic-orb {
+            position: fixed;
+            top: 20%;
+            left: -20%;
+            width: 150%;
+            height: 60%;
+            background: radial-gradient(circle, rgba(30, 64, 175, 0.15) 0%, rgba(10, 10, 15, 0) 70%);
+            filter: blur(80px);
+            z-index: -1;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen flex flex-col overflow-x-hidden">
+<div class="cosmic-orb" data-alt="Massive blurred blue cosmic orb background pattern"></div>
+<header class="flex items-center bg-transparent p-4 justify-between sticky top-0 z-50 backdrop-blur-md">
+<div class="flex size-12 shrink-0 items-center justify-start">
+<span class="material-symbols-outlined text-slate-100">arrow_back_ios</span>
+</div>
+<h2 class="text-slate-100 text-lg font-bold leading-tight tracking-tight flex-1 text-center">Celestial Tiers</h2>
+<div class="flex w-12 items-center justify-end">
+<button class="flex items-center justify-center rounded-full size-12 bg-transparent text-slate-100">
+<span class="material-symbols-outlined">help_outline</span>
+</button>
+</div>
+</header>
+<main class="flex-1 px-4 pb-24">
+<div class="pt-6 pb-8 text-center">
+<h1 class="text-slate-100 tracking-tight text-4xl font-bold leading-tight mb-2">Void Prism</h1>
+<p class="text-slate-400 text-sm">Choose your path through the stars</p>
+</div>
+<div class="flex flex-col gap-6">
+<div class="flex flex-col gap-4 rounded-xl border border-slate-800 bg-void-black p-6 transition-all">
+<div class="flex flex-col gap-1">
+<h3 class="text-slate-400 text-sm font-medium uppercase tracking-widest">The Seeker</h3>
+<div class="flex items-baseline gap-1">
+<span class="text-slate-200 text-4xl font-bold tracking-tight">Free</span>
+<span class="text-slate-500 text-sm">forever</span>
+</div>
+</div>
+<button class="w-full flex items-center justify-center rounded-full h-12 px-4 bg-slate-800 text-slate-200 text-sm font-bold">
+                    Current Path
+                </button>
+<div class="flex flex-col gap-3 pt-2">
+<div class="text-sm font-normal flex gap-3 text-slate-400">
+<span class="material-symbols-outlined text-slate-500 text-lg">check_circle</span>
+                        Daily Horoscope
+                    </div>
+<div class="text-sm font-normal flex gap-3 text-slate-400">
+<span class="material-symbols-outlined text-slate-500 text-lg">check_circle</span>
+                        Basic Natal Chart
+                    </div>
+</div>
+</div>
+<div class="flex flex-col gap-4 rounded-xl border-2 border-primary bg-background-dark p-6 glow-magenta relative overflow-hidden">
+<div class="absolute top-0 right-0">
+<p class="text-white text-[10px] font-bold uppercase tracking-wider rounded-bl-xl bg-primary px-4 py-2">Most Sacred</p>
+</div>
+<div class="flex flex-col gap-1">
+<h3 class="text-primary text-sm font-medium uppercase tracking-widest">The Oracle</h3>
+<div class="flex items-baseline gap-1">
+<span class="text-slate-100 text-4xl font-bold tracking-tight">$19.99</span>
+<span class="text-slate-400 text-sm">per moon</span>
+</div>
+</div>
+<button class="w-full flex items-center justify-center rounded-full h-12 px-4 bg-gradient-to-r from-primary to-nebula-blue text-white text-sm font-bold shadow-lg shadow-primary/20">
+                    Choose Plan
+                </button>
+<div class="flex flex-col gap-3 pt-2">
+<div class="text-sm font-normal flex gap-3 text-slate-200">
+<span class="material-symbols-outlined text-primary text-lg">auto_awesome</span>
+                        Unlimited Synastry Reports
+                    </div>
+<div class="text-sm font-normal flex gap-3 text-slate-200">
+<span class="material-symbols-outlined text-primary text-lg">psychology</span>
+                        AI Oracle Chat 24/7
+                    </div>
+<div class="text-sm font-normal flex gap-3 text-slate-200">
+<span class="material-symbols-outlined text-primary text-lg">stars</span>
+                        Celestial Transit Predictions
+                    </div>
+<div class="text-sm font-normal flex gap-3 text-slate-200">
+<span class="material-symbols-outlined text-primary text-lg">history_edu</span>
+                        Deep Karmic Analysis
+                    </div>
+</div>
+</div>
+</div>
+<div class="mt-12">
+<h2 class="text-slate-100 text-xl font-bold mb-6">Manifestation Details</h2>
+<div class="flex flex-col gap-4">
+<div class="rounded-xl border border-primary/40 bg-void-black/50 overflow-hidden">
+<button class="w-full flex items-center justify-between p-5 text-left">
+<span class="text-slate-100 font-medium">What are Synastry reports?</span>
+<span class="material-symbols-outlined text-primary">expand_less</span>
+</button>
+<div class="px-5 pb-5 pt-0">
+<p class="text-slate-400 text-sm leading-relaxed">
+                            Synastry reports analyze the interaction between two natal charts to determine compatibility and growth potential in relationships. Our Oracle AI interprets planetary aspects with celestial precision to reveal the karmic bonds between souls.
+                        </p>
+</div>
+</div>
+<div class="rounded-xl border border-slate-800 bg-void-black/50">
+<button class="w-full flex items-center justify-between p-5 text-left">
+<span class="text-slate-400 font-medium">Can I cancel my transcendence?</span>
+<span class="material-symbols-outlined text-slate-600">expand_more</span>
+</button>
+</div>
+<div class="rounded-xl border border-slate-800 bg-void-black/50">
+<button class="w-full flex items-center justify-between p-5 text-left">
+<span class="text-slate-400 font-medium">Data privacy in the void?</span>
+<span class="material-symbols-outlined text-slate-600">expand_more</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+<nav class="fixed bottom-0 left-0 right-0 border-t border-slate-800 bg-void-black/80 backdrop-blur-xl px-4 pb-6 pt-3 flex justify-between items-center z-50">
+<a class="flex flex-1 flex-col items-center gap-1 text-slate-500" href="#">
+<span class="material-symbols-outlined text-[24px]">explore</span>
+<span class="text-[10px] font-medium">Explore</span>
+</a>
+<a class="flex flex-1 flex-col items-center gap-1 text-slate-500" href="#">
+<span class="material-symbols-outlined text-[24px]">auto_graph</span>
+<span class="text-[10px] font-medium">Charts</span>
+</a>
+<a class="flex flex-1 flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined text-[24px] fill-1">shield_moon</span>
+<span class="text-[10px] font-medium">Tiers</span>
+</a>
+<a class="flex flex-1 flex-col items-center gap-1 text-slate-500" href="#">
+<span class="material-symbols-outlined text-[24px]">person_outline</span>
+<span class="text-[10px] font-medium">Profile</span>
+</a>
+</nav>
+</body></html>

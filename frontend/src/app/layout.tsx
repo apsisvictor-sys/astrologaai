@@ -7,19 +7,24 @@
  * The [locale]/layout.tsx provides the same for locale-aware pages
  */
 
-import { Inter } from 'next/font/google';
+import { Inter, Outfit } from 'next/font/google';
 import { AuthProvider } from '@/lib/auth-context';
 import { ClientProviders } from '@/components/client-providers';
 import './globals.css';
 
-const inter = Inter({ 
-  subsets: ['latin', 'cyrillic'], // Support Bulgarian Cyrillic
+const inter = Inter({
+  subsets: ['latin', 'cyrillic'],
   variable: '--font-inter',
 });
 
+const outfit = Outfit({
+  subsets: ['latin'],
+  variable: '--font-outfit',
+});
+
 export const metadata = {
-  title: 'AstroLogAI - Вашият личен AI астролог',
-  description: 'Персонализиран AI астролог с постоянна памет за вашата натална карта',
+  title: 'The Oracle | Ethereal Astrology AI',
+  description: 'Your personal AI astrologer with perfect Swiss Ephemeris mathematical accuracy.',
   keywords: ['astrology', 'AI', 'natal chart', 'horoscope', 'астрология', 'натална карта'],
 };
 
@@ -29,13 +34,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="bg" className={inter.variable} suppressHydrationWarning>
-      <body 
-        className={`${inter.className} antialiased`}
-        style={{ 
-          background: '#050510',
-          color: '#F8FAFC',
-        }}
+    <html lang="en" className={`${inter.variable} ${outfit.variable} dark`} suppressHydrationWarning>
+      <body
+        className={`${inter.className} antialiased min-h-screen selection:bg-primary-glow selection:text-white`}
       >
         <AuthProvider>
           <ClientProviders>

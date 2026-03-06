@@ -1,331 +1,77 @@
-/**
- * AstroLogAI Global Styles
- * Design System from 06-ux-ui-design.md
- * 
- * Color Palette:
- * - Background: #050510 (Cosmic Black)
- * - Surface: #0A0A1F (Nebula Dark)
- * - Surface Elevated: #12122A (Nebula Medium)
- * - Border: #1A1A3A (Nebula Light)
- * - Primary CTA: #8B5CF6 (Stellar Purple)
- * - Secondary: #EC4899 (Nebula Pink)
- * - Text Primary: #F8FAFC
- * - Text Secondary: #CBD5E1
- * - Text Muted: #64748B
- * - Error: #EF4444
- * - Success: #10B981
- * 
- * Gradients:
- * - Primary CTA: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)
- * - Card Glow: radial-gradient(circle at 50% 0%, rgba(139,92,246,0.15) 0%, transparent 60%)
- */
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  /* Colors */
-  --color-bg-primary: #050510;
-  --color-bg-secondary: #0A0A1F;
-  --color-bg-tertiary: #12122A;
-  --color-surface: #1A1A3A;
-  --color-surface-elevated: #252532;
-  
-  --color-primary: #8B5CF6;
-  --color-primary-dark: #5B21B6;
-  --color-secondary: #EC4899;
-  --color-secondary-light: #F472B6;
-  
-  --color-text-primary: #F8FAFC;
-  --color-text-secondary: #CBD5E1;
-  --color-text-muted: #64748B;
-  --color-text-subtle: #52525B;
-  
-  --color-success: #10B981;
-  --color-warning: #F59E0B;
-  --color-error: #EF4444;
-  --color-info: #3B82F6;
-  
-  /* Typography */
-  --font-display: 'Playfair Display', Georgia, serif;
-  --font-body: 'Inter', -apple-system, system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', Consolas, monospace;
-  
-  /* Spacing (4px base unit) */
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-5: 1.25rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --space-10: 2.5rem;
-  --space-12: 3rem;
-  --space-16: 4rem;
-  --space-20: 5rem;
-  --space-24: 6rem;
-  
-  /* Border Radius */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 20px;
-  --radius-full: 9999px;
-  
-  /* Shadows */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 40px rgba(139, 92, 246, 0.3);
-  
-  /* Transitions */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --duration-fast: 150ms;
-  --duration-normal: 200ms;
-  --duration-slow: 300ms;
-}
-
-/* Base Styles */
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-html {
-  scroll-behavior: smooth;
-}
-
-body {
-  font-family: var(--font-body);
-  background-color: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Focus Styles */
-:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-}
-
-/* Typography */
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 700;
-  line-height: 1.2;
-  color: var(--color-text-primary);
-}
-
-h1 {
-  font-size: 3rem;
-}
-
-h2 {
-  font-size: 2.25rem;
-}
-
-h3 {
-  font-size: 1.75rem;
-}
-
-h4 {
-  font-size: 1.5rem;
-}
-
-p {
-  color: var(--color-text-secondary);
-}
-
-a {
-  color: var(--color-primary);
-  text-decoration: none;
-  transition: color var(--duration-fast) ease;
-}
-
-a:hover {
-  color: var(--color-secondary);
-}
-
-/* Custom Scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--color-bg-secondary);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--color-surface);
-  border-radius: var(--radius-full);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-primary);
-}
-
-/* Animations */
-@keyframes fadeUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
+@layer base {
+  :root {
+    --background: #050510;
+    --foreground: #f1f5f9;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    height: 100%;
+    background-color: var(--background);
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    min-height: max(100vh, 100dvh);
+    background-attachment: fixed;
+    /* Font smoothing */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Hide scrollbar for a cleaner app feel */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  body::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Selection styling */
+  ::selection {
+    background: rgba(228, 26, 255, 0.4);
+    color: white;
   }
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 10px rgba(228, 26, 255, 0.6);
   }
-  50% {
-    opacity: 0.5;
+
+  .neon-glow-primary {
+    box-shadow: 0 0 15px rgba(228, 26, 255, 0.1);
   }
-}
 
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
+  .neon-glow-blue {
+    box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
   }
-  to {
-    transform: rotate(360deg);
+
+  .blur-sphere {
+    border-radius: 50%;
+    filter: blur(100px);
+    mix-blend-mode: screen;
+    opacity: 0.3;
   }
-}
 
-@keyframes glow {
-  0%, 100% {
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
-  }
-  50% {
-    box-shadow: 0 0 40px rgba(139, 92, 246, 0.5);
-  }
-}
-
-/* Utility Classes */
-.animate-fade-up {
-  animation: fadeUp 0.5s var(--ease-out);
-}
-
-.animate-pulse {
-  animation: pulse 2s ease-in-out infinite;
-}
-
-.animate-spin {
-  animation: spin 1s linear infinite;
-}
-
-.animate-glow {
-  animation: glow 2s ease-in-out infinite;
-}
-
-/* Card Component */
-.card {
-  background: var(--color-bg-secondary);
-  border: 1px solid var(--color-surface);
-  border-radius: var(--radius-xl);
-  padding: var(--space-8);
-  transition: all var(--duration-slow) var(--ease-out);
-}
-
-.card:hover {
-  border-color: var(--color-primary);
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg), 0 0 20px rgba(139, 92, 246, 0.1);
-}
-
-/* Button Components */
-.btn-primary {
-  background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%);
-  color: white;
-  font-weight: 600;
-  padding: 14px 28px;
-  border-radius: var(--radius-lg);
-  border: none;
-  cursor: pointer;
-  transition: all var(--duration-normal) ease;
-}
-
-.btn-primary:hover {
-  transform: scale(1.02);
-  box-shadow: 0 0 30px rgba(139, 92, 246, 0.4);
-}
-
-.btn-primary:active {
-  transform: scale(0.98);
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.btn-secondary {
-  background: transparent;
-  color: var(--color-primary);
-  font-weight: 600;
-  padding: 14px 28px;
-  border-radius: var(--radius-lg);
-  border: 1.5px solid var(--color-primary);
-  cursor: pointer;
-  transition: all var(--duration-normal) ease;
-}
-
-.btn-secondary:hover {
-  background: rgba(139, 92, 246, 0.1);
-  border-color: var(--color-secondary);
-}
-
-/* Input Component */
-.input {
-  background: var(--color-bg-primary);
-  border: 1px solid var(--color-surface);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-  color: var(--color-text-primary);
-  font-size: 1rem;
-  transition: all var(--duration-normal) ease;
-}
-
-.input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.input:focus {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
-  outline: none;
-}
-
-.input:disabled {
-  background: var(--color-bg-secondary);
-  color: var(--color-text-muted);
-  cursor: not-allowed;
-}
-
-.input-error {
-  border-color: var(--color-error);
-}
-
-.input-success {
-  border-color: var(--color-success);
-}
-
-/* Reduced Motion */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+  .glass-panel {
+    background-color: rgba(26, 11, 28, 0.4);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 32px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(228, 26, 255, 0.05);
+    position: relative;
+    overflow: hidden;
   }
 }

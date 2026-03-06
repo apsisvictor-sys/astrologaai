@@ -32,12 +32,12 @@ function createMemoryFallbackClient() {
     del: async (...keys: string[]) => {
       keys.forEach(k => memoryCache.delete(k));
     },
-    lPush: async (_key: string, _value: string) => {},
-    lTrim: async (_key: string, _start: number, _stop: number) => {},
+    lPush: async (_key: string, _value: string) => { },
+    lTrim: async (_key: string, _start: number, _stop: number) => { },
     keys: async (_pattern: string) => [] as string[],
     ping: async () => 'PONG',
-    on: () => {},
-    connect: async () => {},
+    on: () => { },
+    connect: async () => { },
   } as unknown as ReturnType<typeof createClient>;
 }
 
@@ -89,16 +89,16 @@ const SUMMARY_THRESHOLD = 20; // Generate summary after 20 messages
 
 /**
  * Store chat session context in Redis
- * Stores last N messages for quick context retrieval
+ * Stores last N messages for quick context retrieval. Now supports Vercel SDK CoreMessages (tool calls).
  */
 export async function storeSessionContext(
   sessionId: string,
   userId: string,
-  messages: Array<{ role: string; content: string }>,
+  messages: Array<any>, // Changed to any to support complex CoreMessages (tool_calls, tool_results)
   summary?: string
 ): Promise<void> {
   const key = `chat_context:${sessionId}`;
-  
+
   const context = {
     sessionId,
     userId,
@@ -107,29 +107,29 @@ export async function storeSessionContext(
     summary: summary || null,
     lastUpdated: new Date().toISOString(),
   };
-  
+
   await redisClient.setEx(key, SESSION_CONTEXT_TTL, JSON.stringify(context));
 }
 
 /**
  * Get chat session context from Redis
- * Returns null if context doesn't exist or expired
+ * Returns null if context doesn't exist or expired. Supports CoreMessage arrays.
  */
 export async function getSessionContext(
   sessionId: string
 ): Promise<{
   sessionId: string;
   userId: string;
-  recentMessages: Array<{ role: string; content: string }>;
+  recentMessages: Array<any>;
   messageCount: number;
   summary: string | null;
   lastUpdated: string;
 } | null> {
   const key = `chat_context:${sessionId}`;
   const data = await redisClient.get(key);
-  
+
   if (!data) return null;
-  
+
   try {
     return JSON.parse(data);
   } catch {
@@ -145,7 +145,7 @@ export async function updateSessionSummary(
   summary: string
 ): Promise<void> {
   const existing = await getSessionContext(sessionId);
-  
+
   if (existing) {
     const key = `chat_context:${sessionId}`;
     existing.summary = summary;
@@ -170,7 +170,7 @@ export async function clearSessionContext(sessionId: string): Promise<void> {
 export async function clearUserSessionContexts(userId: string): Promise<void> {
   const pattern = `chat_context:*`;
   const keys = await redisClient.keys(pattern);
-  
+
   // Filter keys that belong to this user
   const userContextKeys: string[] = [];
   for (const key of keys) {
@@ -186,7 +186,7 @@ export async function clearUserSessionContexts(userId: string): Promise<void> {
       }
     }
   }
-  
+
   if (userContextKeys.length > 0) {
     await redisClient.del(userContextKeys);
   }
@@ -226,7 +226,7 @@ export async function invalidateUserSessions(userId: string): Promise<void> {
   // Get all session keys for user
   const pattern = `session:*:${userId}`;
   const keys = await redisClient.keys(pattern);
-  
+
   if (keys.length > 0) {
     await redisClient.del(keys);
   }

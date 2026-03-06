@@ -24,6 +24,9 @@ function buildAllowedOrigins(): string[] {
     configured.push(DEFAULT_PROD_FRONTEND);
   } else {
     configured.push(DEFAULT_DEV_FRONTEND);
+    configured.push('http://localhost:3001');
+    configured.push('http://localhost:3002');
+    configured.push('http://localhost:3003');
   }
 
   return Array.from(new Set(configured));

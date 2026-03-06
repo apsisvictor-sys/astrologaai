@@ -41,12 +41,12 @@ function getCurrentMonth(): string {
 function getNextResetDate(): Date {
   const now = new Date();
   const resetDay = getMonthlyResetDay();
-  
+
   // If we're past the reset day this month, next reset is next month
   if (now.getDate() >= resetDay) {
     return new Date(now.getFullYear(), now.getMonth() + 1, resetDay);
   }
-  
+
   // Otherwise, reset is this month
   return new Date(now.getFullYear(), now.getMonth(), resetDay);
 }
@@ -61,9 +61,9 @@ async function checkBurstLimit(
 ): Promise<{ allowed: boolean; remaining: number | 'unlimited'; resetAt: Date; retryAfter: number }> {
   // US-37: PREMIUM tier has unlimited burst
   if (isUnlimitedBurst(tier)) {
-    return { 
-      allowed: true, 
-      remaining: 'unlimited', 
+    return {
+      allowed: true,
+      remaining: 'unlimited',
       resetAt: new Date(Date.now() + 60000),
       retryAfter: 0,
     };
@@ -72,19 +72,19 @@ async function checkBurstLimit(
   const burstLimit = getBurstLimit(tier);
   const burstKey = `ratelimit:burst:${userId}`;
   const windowSeconds = 60;
-  
+
   const currentCount = parseInt(await redisClient.get(burstKey) || '0', 10);
-  
+
   if (currentCount >= burstLimit) {
     const ttl = await redisClient.ttl(burstKey);
     const retryAfter = ttl > 0 ? ttl : windowSeconds;
     const resetAt = new Date(Date.now() + retryAfter * 1000);
     return { allowed: false, remaining: 0, resetAt, retryAfter };
   }
-  
-  return { 
-    allowed: true, 
-    remaining: burstLimit - currentCount - 1, 
+
+  return {
+    allowed: true,
+    remaining: burstLimit - currentCount - 1,
     resetAt: new Date(Date.now() + windowSeconds * 1000),
     retryAfter: 0,
   };
@@ -101,7 +101,7 @@ async function incrementBurstCounter(userId: string, tier: Tier): Promise<void> 
 
   const burstKey = `ratelimit:burst:${userId}`;
   const count = await redisClient.incr(burstKey);
-  
+
   // Set expiry on first increment
   if (count === 1) {
     await redisClient.expire(burstKey, 60); // 60 seconds window
@@ -113,13 +113,13 @@ async function incrementBurstCounter(userId: string, tier: Tier): Promise<void> 
  */
 async function getOrCreateUsageRecord(userId: string): Promise<{ queryCount: number; month: string }> {
   const month = getCurrentMonth();
-  
+
   const record = await prisma.usageRecord.findUnique({
     where: {
       userId_month: { userId, month },
     },
   });
-  
+
   return {
     queryCount: record?.queryCount ?? 0,
     month,
@@ -131,7 +131,7 @@ async function getOrCreateUsageRecord(userId: string): Promise<{ queryCount: num
  */
 export async function incrementQueryCount(userId: string, tier: Tier): Promise<{ newCount: number; month: string }> {
   const month = getCurrentMonth();
-  
+
   const record = await prisma.usageRecord.upsert({
     where: {
       userId_month: { userId, month },
@@ -145,10 +145,37 @@ export async function incrementQueryCount(userId: string, tier: Tier): Promise<{
       queryCount: { increment: 1 },
     },
   });
-  
+
+  // Custom logic for daily limits and bonus queries on Free tier
+  if (tier === 'FREE') {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user) {
+      const now = new Date();
+      const last = user.lastQueryDate;
+      const isNewDay = !last || (last.getDate() !== now.getDate() || last.getMonth() !== now.getMonth() || last.getFullYear() !== now.getFullYear());
+      const currentDaily = isNewDay ? 0 : user.dailyQueryCount;
+
+      let nextDaily = currentDaily + 1;
+      let nextBonus = user.bonusQueries;
+
+      if (nextDaily > 4 && nextBonus > 0) {
+        nextBonus -= 1; // Used a bonus query
+      }
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          dailyQueryCount: isNewDay ? 1 : { increment: 1 },
+          lastQueryDate: now,
+          bonusQueries: nextBonus
+        }
+      });
+    }
+  }
+
   // Also increment burst counter
   await incrementBurstCounter(userId, tier);
-  
+
   return { newCount: record.queryCount, month };
 }
 
@@ -168,13 +195,13 @@ export async function checkQueryLimit(
   burstRemaining: number | 'unlimited';
   resetAt: Date;
   retryAfter: number;
-  limitType?: 'monthly' | 'burst';
+  limitType?: 'monthly' | 'burst' | 'daily';
   warningAt80Percent?: boolean; // US-36: Warning at 80% of limit
 }> {
   // Unlimited tiers always allowed (but still check burst if not unlimited)
   if (isUnlimitedTier(tier)) {
     const burst = await checkBurstLimit(userId, tier);
-    
+
     return {
       allowed: burst.allowed,
       monthlyUsed: 0,
@@ -187,12 +214,12 @@ export async function checkQueryLimit(
       warningAt80Percent: false, // No warning for unlimited tiers
     };
   }
-  
+
   // Check monthly limit
   const { queryCount } = await getOrCreateUsageRecord(userId);
   const monthlyLimit = getEffectiveMonthlyLimit(tier);
   const resetAt = getNextResetDate();
-  
+
   // Check burst limit first
   const burst = await checkBurstLimit(userId, tier);
   if (!burst.allowed) {
@@ -207,7 +234,35 @@ export async function checkQueryLimit(
       limitType: 'burst',
     };
   }
-  
+
+  // Check daily limit and bonus for FREE tier
+  if (tier === 'FREE') {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user) {
+      const now = new Date();
+      const last = user.lastQueryDate;
+      const isNewDay = !last || (last.getDate() !== now.getDate() || last.getMonth() !== now.getMonth() || last.getFullYear() !== now.getFullYear());
+      const currentDaily = isNewDay ? 0 : user.dailyQueryCount;
+      const bonus = user.bonusQueries;
+
+      if (currentDaily >= 4 && bonus <= 0) {
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+        return {
+          allowed: false,
+          monthlyUsed: queryCount,
+          monthlyLimit,
+          monthlyRemaining: Math.max(0, monthlyLimit - queryCount),
+          burstRemaining: burst.remaining,
+          resetAt: tomorrow,
+          retryAfter: Math.ceil((tomorrow.getTime() - now.getTime()) / 1000),
+          limitType: 'daily'
+        };
+      }
+    }
+  }
+
   // Check monthly limit
   if (queryCount >= monthlyLimit) {
     // Calculate retry after for monthly reset
@@ -223,7 +278,7 @@ export async function checkQueryLimit(
       limitType: 'monthly',
     };
   }
-  
+
   return {
     allowed: true,
     monthlyUsed: queryCount,
@@ -245,6 +300,10 @@ const RATE_LIMIT_MESSAGES = {
     bg: 'Твърде много заявки за кратко време. Моля, изчакайте малко преди да продължите.',
     en: 'Too many requests in a short time. Please wait a moment before continuing.',
   },
+  daily: {
+    bg: 'Звездите имат нужда от време, за да се подредят. Достигнахте дневния си космически лимит. Опитайте утре.',
+    en: 'The stars need time to align. You\'ve reached your daily cosmic limit. Check back tomorrow.',
+  },
   monthly: {
     bg: 'Достигнахте лимита от {limit} въпроса за този месец. Надградете до Pro за неограничени въпроси.',
     en: 'You\'ve reached your monthly limit of {limit} queries. Upgrade to Pro for unlimited queries.',
@@ -264,7 +323,7 @@ export async function queryLimitMiddleware(
     const userId = req.user?.id;
     const userTier = (req.user?.tier as Tier) || 'FREE';
     const userLanguage = req.user?.language || 'bg';
-    
+
     if (!userId) {
       res.status(401).json({
         success: false,
@@ -275,44 +334,46 @@ export async function queryLimitMiddleware(
       });
       return;
     }
-    
+
     const status = await checkQueryLimit(userId, userTier);
-    
+
     // Add limit info to request for downstream use
     (req as any).queryLimit = status;
-    
+
     // US-36: Add warning header when approaching limit (80% = 40 of 50 queries)
     if (status.warningAt80Percent && typeof status.monthlyLimit === 'number') {
       const lang = userLanguage === 'en' ? 'en' : 'bg';
-      const warningMessage = lang === 'bg' 
+      const warningMessage = lang === 'bg'
         ? `Предупреждение: Използвали сте ${status.monthlyUsed} от ${status.monthlyLimit} въпроса този месец.`
         : `Warning: You have used ${status.monthlyUsed} of ${status.monthlyLimit} queries this month.`;
       res.setHeader('X-Query-Warning', warningMessage);
     }
-    
+
     if (!status.allowed) {
       const tierConfig = getTierLimits(userTier);
       const isMonthlyLimit = status.limitType === 'monthly';
       const lang = userLanguage === 'en' ? 'en' : 'bg';
-      
+
       // US-37: Calculate retryAfter based on limit type
-      const retryAfter = status.retryAfter ?? 
+      const retryAfter = status.retryAfter ??
         (isMonthlyLimit
           ? Math.ceil((status.resetAt.getTime() - Date.now()) / 1000)
           : 60);
-      
+
       // US-37: Add rate limit headers
       res.setHeader(RATE_LIMIT_HEADERS.LIMIT, status.monthlyLimit);
       res.setHeader(RATE_LIMIT_HEADERS.REMAINING, status.monthlyRemaining);
       res.setHeader(RATE_LIMIT_HEADERS.RESET, Math.floor(status.resetAt.getTime() / 1000));
       res.setHeader(RATE_LIMIT_HEADERS.RETRY_AFTER, retryAfter);
       res.setHeader(RATE_LIMIT_HEADERS.TIER, userTier);
-      
+
       // US-37: Use localized messages
-      const message = isMonthlyLimit
+      const message = status.limitType === 'monthly'
         ? RATE_LIMIT_MESSAGES.monthly[lang].replace('{limit}', String(status.monthlyLimit))
-        : RATE_LIMIT_MESSAGES.burst[lang];
-      
+        : status.limitType === 'daily'
+          ? RATE_LIMIT_MESSAGES.daily[lang]
+          : RATE_LIMIT_MESSAGES.burst[lang];
+
       res.status(429).json({
         success: false,
         error: {
@@ -331,11 +392,11 @@ export async function queryLimitMiddleware(
       });
       return;
     }
-    
+
     next();
   } catch (error) {
     console.error('[Query Limit Middleware] Error:', error);
-    
+
     // On error, allow request through (fail open)
     // This prevents blocking users if there's a database issue
     console.warn('[Query Limit Middleware] Failing open due to error');
@@ -362,12 +423,12 @@ export async function getUserUsageStats(userId: string, tier: Tier): Promise<{
       percentage: null,
     };
   }
-  
+
   const { queryCount } = await getOrCreateUsageRecord(userId);
   const limit = getEffectiveMonthlyLimit(tier);
   const remaining = Math.max(0, limit - queryCount);
   const percentage = limit > 0 ? Math.round((queryCount / limit) * 100) : 0;
-  
+
   return {
     used: queryCount,
     limit,

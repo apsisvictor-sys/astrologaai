@@ -17,6 +17,11 @@ import {
   type NatalChart,
   type TransitData,
   type SynastryData,
+  type ProgressionData,
+  type SolarReturnData,
+  type RelocationData,
+  type CompositeData,
+  type VenusReturnData,
   type AstrologyCalculationOptions,
   type PlanetPosition,
   type HouseCusp,
@@ -112,16 +117,16 @@ function calculateJulianDay(year: number, month: number, day: number, hour: numb
     year -= 1;
     month += 12;
   }
-  
+
   const A = Math.floor(year / 100);
   const B = 2 - A + Math.floor(A / 4);
-  
+
   const decimalHour = hour + minute / 60;
-  
-  return Math.floor(365.25 * (year + 4716)) + 
-         Math.floor(30.6001 * (month + 1)) + 
-         day + B - 1524.5 + 
-         decimalHour / 24;
+
+  return Math.floor(365.25 * (year + 4716)) +
+    Math.floor(30.6001 * (month + 1)) +
+    day + B - 1524.5 +
+    decimalHour / 24;
 }
 
 /**
@@ -130,24 +135,24 @@ function calculateJulianDay(year: number, month: number, day: number, hour: numb
  */
 function calculateSunPosition(jd: number): number {
   const T = (jd - 2451545.0) / 36525; // Julian centuries from J2000.0
-  
+
   // Mean longitude of the Sun
   let L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T;
   L0 = L0 % 360;
-  
+
   // Mean anomaly of the Sun
   let M = 357.52911 + 35999.05029 * T - 0.0001537 * T * T;
   M = M % 360;
   const Mrad = M * Math.PI / 180;
-  
+
   // Equation of center
   const C = (1.914602 - 0.004817 * T - 0.000014 * T * T) * Math.sin(Mrad)
-          + (0.019993 - 0.000101 * T) * Math.sin(2 * Mrad)
-          + 0.000289 * Math.sin(3 * Mrad);
-  
+    + (0.019993 - 0.000101 * T) * Math.sin(2 * Mrad)
+    + 0.000289 * Math.sin(3 * Mrad);
+
   // True longitude
   const sunLong = L0 + C;
-  
+
   return sunLong;
 }
 
@@ -156,37 +161,37 @@ function calculateSunPosition(jd: number): number {
  */
 function calculateMoonPosition(jd: number): number {
   const T = (jd - 2451545.0) / 36525;
-  
+
   // Mean longitude of the Moon
   let Lm = 218.3164477 + 481267.88123421 * T - 0.0015786 * T * T;
   Lm = Lm % 360;
-  
+
   // Mean elongation of the Moon
   let D = 297.8501921 + 445267.1114034 * T - 0.0018819 * T * T;
   D = D % 360;
-  
+
   // Sun's mean anomaly
   let Ms = 357.5291092 + 35999.0502909 * T - 0.0001536 * T * T;
   Ms = Ms % 360;
-  
+
   // Moon's mean anomaly
   let Mm = 134.9633964 + 477198.8675055 * T + 0.0087414 * T * T;
   Mm = Mm % 360;
-  
+
   // Convert to radians
   const Drad = D * Math.PI / 180;
   const Msrad = Ms * Math.PI / 180;
   const Mmrad = Mm * Math.PI / 180;
-  
+
   // Major corrections
-  const corrections = 
+  const corrections =
     6.288774 * Math.sin(Mmrad) +
     1.274027 * Math.sin(2 * Drad - Mmrad) +
     0.658314 * Math.sin(2 * Drad) +
     0.213618 * Math.sin(2 * Mmrad) -
     0.185116 * Math.sin(Msrad) -
     0.114332 * Math.sin(2 * Drad);
-  
+
   return Lm + corrections;
 }
 
@@ -267,29 +272,29 @@ function calculatePlutoPosition(jd: number): number {
  */
 function calculateAscendant(jd: number, latitude: number, longitude: number): number {
   const T = (jd - 2451545.0) / 36525;
-  
+
   // Greenwich Mean Sidereal Time
   let GMST = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T;
   GMST = GMST % 360;
-  
+
   // Local Sidereal Time
   const LST = GMST + longitude;
-  
+
   // Calculate Ascendant
   const latRad = latitude * Math.PI / 180;
   const lstRad = LST * Math.PI / 180;
-  
+
   // Obliquity of ecliptic (simplified)
   const obliquity = 23.439291 - 0.0130042 * T;
   const oblRad = obliquity * Math.PI / 180;
-  
+
   // Ascendant calculation
   const y = -Math.cos(lstRad);
   const x = Math.sin(lstRad) * Math.cos(oblRad) + Math.tan(latRad) * Math.sin(oblRad);
-  
+
   let ascendant = Math.atan2(y, x) * 180 / Math.PI;
   if (ascendant < 0) ascendant += 360;
-  
+
   return ascendant;
 }
 
@@ -315,11 +320,11 @@ function getDegreeInSign(degree: number): number {
  */
 function calculateHouses(ascendantDegree: number): HouseCusp[] {
   const houses: HouseCusp[] = [];
-  
+
   for (let i = 0; i < 12; i++) {
     const cuspDegree = (ascendantDegree + i * 30) % 360;
     const sign = getSignFromDegree(cuspDegree);
-    
+
     houses.push({
       number: i + 1,
       sign,
@@ -327,7 +332,7 @@ function calculateHouses(ascendantDegree: number): HouseCusp[] {
       degree: getDegreeInSign(cuspDegree),
     });
   }
-  
+
   return houses;
 }
 
@@ -353,20 +358,20 @@ function calculateAspects(planets: Record<string, PlanetPosition>): Aspect[] {
     trine: 6,
     opposition: 8,
   };
-  
+
   for (let i = 0; i < planetList.length; i++) {
     for (let j = i + 1; j < planetList.length; j++) {
       const [name1, p1] = planetList[i];
       const [name2, p2] = planetList[j];
-      
+
       // Skip minor aspects for fallback
       if (name1 === 'lilith' || name2 === 'lilith') continue;
       if (name1 === 'chiron' || name2 === 'chiron') continue;
-      
+
       // Calculate angular difference
       const diff = Math.abs(p1.degree - p2.degree);
       const normalizedDiff = Math.min(diff, 360 - diff);
-      
+
       // Check for aspects
       const aspectTypes: Array<{ name: string; angle: number }> = [
         { name: 'conjunction', angle: 0 },
@@ -375,7 +380,7 @@ function calculateAspects(planets: Record<string, PlanetPosition>): Aspect[] {
         { name: 'trine', angle: 120 },
         { name: 'opposition', angle: 180 },
       ];
-      
+
       for (const aspectType of aspectTypes) {
         const orb = aspectOrbs[aspectType.name];
         if (Math.abs(normalizedDiff - aspectType.angle) <= orb) {
@@ -392,7 +397,7 @@ function calculateAspects(planets: Record<string, PlanetPosition>): Aspect[] {
       }
     }
   }
-  
+
   return aspects;
 }
 
@@ -401,14 +406,14 @@ function calculateAspects(planets: Record<string, PlanetPosition>): Aspect[] {
  */
 function calculateElementDistribution(planets: Record<string, PlanetPosition>): { fire: number; earth: number; air: number; water: number } {
   const elements = { fire: 0, earth: 0, air: 0, water: 0 };
-  
+
   Object.values(planets).forEach((planet) => {
     const element = SIGN_ELEMENTS[planet.sign];
     if (element) {
       elements[element]++;
     }
   });
-  
+
   return elements;
 }
 
@@ -417,14 +422,14 @@ function calculateElementDistribution(planets: Record<string, PlanetPosition>): 
  */
 function calculateModalityDistribution(planets: Record<string, PlanetPosition>): { cardinal: number; fixed: number; mutable: number } {
   const modalities = { cardinal: 0, fixed: 0, mutable: 0 };
-  
+
   Object.values(planets).forEach((planet) => {
     const modality = SIGN_MODALITIES[planet.sign];
     if (modality) {
       modalities[modality]++;
     }
   });
-  
+
   return modalities;
 }
 
@@ -436,21 +441,21 @@ export class SwissEphemerisProvider extends BaseAstrologyProvider {
   readonly name = 'swiss-ephemeris-fallback';
   readonly type = AstrologyProviderType.SECONDARY;
   readonly endpoint = 'local';
-  
+
   isAvailable(): boolean {
     // Always available as fallback
     return true;
   }
-  
+
   async calculateNatalChart(
     birthData: BirthDataInput,
     options?: AstrologyCalculationOptions
   ): Promise<NatalChart> {
     const startTime = Date.now();
-    
+
     // Check cache
     const cacheKey = `astrology:fallback:natal:${birthData.year}-${birthData.month}-${birthData.day}:${birthData.hour}:${birthData.minute}:${birthData.latitude.toFixed(4)}:${birthData.longitude.toFixed(4)}`;
-    
+
     try {
       const cached = await redisClient.get(cacheKey);
       if (cached) {
@@ -460,7 +465,7 @@ export class SwissEphemerisProvider extends BaseAstrologyProvider {
     } catch (error) {
       console.warn('[Swiss-Fallback] Cache read error:', error);
     }
-    
+
     // Calculate Julian Day
     const jd = calculateJulianDay(
       birthData.year,
@@ -469,7 +474,7 @@ export class SwissEphemerisProvider extends BaseAstrologyProvider {
       birthData.hour,
       birthData.minute
     );
-    
+
     // Calculate planet positions
     const sunDeg = calculateSunPosition(jd);
     const moonDeg = calculateMoonPosition(jd);
@@ -482,7 +487,7 @@ export class SwissEphemerisProvider extends BaseAstrologyProvider {
     const neptuneDeg = calculateNeptunePosition(jd);
     const plutoDeg = calculatePlutoPosition(jd);
     const ascendantDeg = calculateAscendant(jd, birthData.latitude, birthData.longitude);
-    
+
     // Create planet positions
     const createPosition = (name: string, degree: number, isRetrograde: boolean = false): PlanetPosition => {
       const sign = getSignFromDegree(degree);
@@ -496,17 +501,17 @@ export class SwissEphemerisProvider extends BaseAstrologyProvider {
         symbol: PLANET_SYMBOLS[name] || '',
       };
     };
-    
+
     // North Node calculation (simplified - based on 18.6 year cycle)
     const T = (jd - 2451545.0) / 36525;
     let northNodeDeg = 125.04452 - 1934.136261 * T;
     northNodeDeg = ((northNodeDeg % 360) + 360) % 360;
     const southNodeDeg = (northNodeDeg + 180) % 360;
-    
+
     // Chiron (simplified)
     let chironDeg = 207.5917 + 14.1594 * T;
     chironDeg = ((chironDeg % 360) + 360) % 360;
-    
+
     const planets: Record<string, PlanetPosition> = {
       sun: createPosition('sun', sunDeg),
       moon: createPosition('moon', moonDeg),
@@ -523,36 +528,36 @@ export class SwissEphemerisProvider extends BaseAstrologyProvider {
       southNode: createPosition('southNode', southNodeDeg),
       chiron: createPosition('chiron', chironDeg),
     };
-    
+
     // Calculate houses
     const houses = calculateHouses(ascendantDeg);
-    
+
     // Update house placements
     Object.keys(planets).forEach(name => {
       if (name !== 'rising') {
         planets[name].house = getHouseFromDegree(
           name === 'sun' ? sunDeg :
-          name === 'moon' ? moonDeg :
-          name === 'mercury' ? mercuryDeg :
-          name === 'venus' ? venusDeg :
-          name === 'mars' ? marsDeg :
-          name === 'jupiter' ? jupiterDeg :
-          name === 'saturn' ? saturnDeg :
-          name === 'uranus' ? uranusDeg :
-          name === 'neptune' ? neptuneDeg :
-          name === 'pluto' ? plutoDeg :
-          name === 'northNode' ? northNodeDeg :
-          name === 'southNode' ? southNodeDeg :
-          chironDeg,
+            name === 'moon' ? moonDeg :
+              name === 'mercury' ? mercuryDeg :
+                name === 'venus' ? venusDeg :
+                  name === 'mars' ? marsDeg :
+                    name === 'jupiter' ? jupiterDeg :
+                      name === 'saturn' ? saturnDeg :
+                        name === 'uranus' ? uranusDeg :
+                          name === 'neptune' ? neptuneDeg :
+                            name === 'pluto' ? plutoDeg :
+                              name === 'northNode' ? northNodeDeg :
+                                name === 'southNode' ? southNodeDeg :
+                                  chironDeg,
           houses
         );
       }
     });
     planets.rising.house = 1;
-    
+
     // Calculate aspects
     const aspects = calculateAspects(planets);
-    
+
     const chart: NatalChart = {
       sun: planets.sun,
       moon: planets.moon,
@@ -575,30 +580,30 @@ export class SwissEphemerisProvider extends BaseAstrologyProvider {
       calculatedAt: new Date().toISOString(),
       source: this.name,
     };
-    
+
     const latencyMs = Date.now() - startTime;
     this.updateHealth(AstrologyProviderStatus.HEALTHY, latencyMs);
     this.recordRequest(true, latencyMs);
-    
+
     // Cache the result
     try {
       await redisClient.setEx(cacheKey, CHART_CACHE_TTL, JSON.stringify(chart));
     } catch (error) {
       console.warn('[Swiss-Fallback] Cache write error:', error);
     }
-    
+
     return chart;
   }
-  
+
   async getTransits(
     date: string,
     options?: { latitude?: number; longitude?: number }
   ): Promise<TransitData> {
     const startTime = Date.now();
-    
+
     const [year, month, day] = date.split('-').map(Number);
     const jd = calculateJulianDay(year, month, day, 12, 0);
-    
+
     const transitData: TransitData = {
       date,
       planets: [
@@ -610,14 +615,14 @@ export class SwissEphemerisProvider extends BaseAstrologyProvider {
       ],
       aspects: [],
     };
-    
+
     const latencyMs = Date.now() - startTime;
     this.updateHealth(AstrologyProviderStatus.HEALTHY, latencyMs);
     this.recordRequest(true, latencyMs);
-    
+
     return transitData;
   }
-  
+
   async calculateSynastry(
     birthData1: BirthDataInput,
     birthData2: BirthDataInput
@@ -626,11 +631,11 @@ export class SwissEphemerisProvider extends BaseAstrologyProvider {
       this.calculateNatalChart(birthData1),
       this.calculateNatalChart(birthData2),
     ]);
-    
+
     // Simple compatibility calculation
     const sunSigns = [chart1.sun.sign, chart2.sun.sign];
     const moonSigns = [chart1.moon.sign, chart2.moon.sign];
-    
+
     // Element compatibility
     const elementCompatibility: Record<string, Record<string, number>> = {
       fire: { fire: 90, earth: 50, air: 80, water: 40 },
@@ -638,17 +643,17 @@ export class SwissEphemerisProvider extends BaseAstrologyProvider {
       air: { fire: 80, earth: 60, air: 90, water: 50 },
       water: { fire: 40, earth: 80, air: 50, water: 90 },
     };
-    
+
     const sun1Element = SIGN_ELEMENTS[chart1.sun.sign] || 'fire';
     const sun2Element = SIGN_ELEMENTS[chart2.sun.sign] || 'fire';
     const moon1Element = SIGN_ELEMENTS[chart1.moon.sign] || 'water';
     const moon2Element = SIGN_ELEMENTS[chart2.moon.sign] || 'water';
-    
+
     const overall = Math.round((
       elementCompatibility[sun1Element][sun2Element] +
       elementCompatibility[moon1Element][moon2Element]
     ) / 2);
-    
+
     return {
       person1: { chart: chart1 },
       person2: { chart: chart2 },
@@ -661,6 +666,16 @@ export class SwissEphemerisProvider extends BaseAstrologyProvider {
       aspects: [],
     };
   }
+
+  // ============================================
+  // Advanced Tools Fallbacks (Swiss Ephemeris does not support these)
+  // ============================================
+
+  async getProgressions(birthData: BirthDataInput, targetDate: string, options?: AstrologyCalculationOptions): Promise<ProgressionData> { throw new Error('Progressions not supported in offline fallback'); }
+  async getSolarReturn(birthData: BirthDataInput, returnYear: number, options?: AstrologyCalculationOptions): Promise<SolarReturnData> { throw new Error('Solar Return not supported in offline fallback'); }
+  async getRelocation(birthData: BirthDataInput, targetLocation: { latitude: number; longitude: number }, options?: AstrologyCalculationOptions): Promise<RelocationData> { throw new Error('Astrocartography not supported in offline fallback'); }
+  async getCompositeChart(person1: BirthDataInput, person2: BirthDataInput, options?: AstrologyCalculationOptions): Promise<CompositeData> { throw new Error('Composite charts not supported in offline fallback'); }
+  async getVenusReturn(birthData: BirthDataInput, returnYear: number, options?: AstrologyCalculationOptions): Promise<VenusReturnData> { throw new Error('Venus Return not supported in offline fallback'); }
 }
 
 // ============================================

@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AstroLogAI System: Void Prism</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#e41aff",
+                        "background-light": "#f8f5f8",
+                        "background-dark": "#1a0b1c",
+                        "surface-dark": "#2d1633",
+                        "surface-light": "#ffffff",
+                        "accent-blue": "#00f0ff",
+                        "accent-magenta": "#ff0080"
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .blur-sphere {
+            position: fixed;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.4;
+        }
+        .sphere-top-left { top: -100px; left: -100px; background: rgba(228, 26, 255, 0.4); }
+        .sphere-bottom-right { bottom: -100px; right: -100px; background: rgba(0, 240, 255, 0.3); }
+
+        .content-layer {
+            position: relative;
+            z-index: 10;
+        }
+
+        .gradient-button {
+            background: linear-gradient(135deg, #ff0080, #00f0ff);
+        }
+        
+        .glow-border {
+            box-shadow: 0 0 15px rgba(255, 0, 128, 0.3);
+            border: 1px solid rgba(255, 0, 128, 0.5);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display min-h-screen relative overflow-x-hidden">
+<div class="blur-sphere sphere-top-left"></div>
+<div class="blur-sphere sphere-bottom-right"></div>
+<div class="content-layer flex flex-col min-h-screen">
+<header class="flex items-center p-4 pt-12 pb-4 justify-between sticky top-0 bg-background-light/80 dark:bg-background-dark/80 backdrop-blur-md z-20 border-b border-primary/20">
+<button class="flex size-12 shrink-0 items-center justify-center text-slate-600 dark:text-slate-300 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">arrow_back</span>
+</button>
+<h2 class="text-xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent-blue flex-1 text-center pr-12">AstroLogAI</h2>
+</header>
+<main class="flex-1 flex flex-col pb-24 @container">
+<div class="px-4 py-4">
+<div class="bg-cover bg-center flex flex-col justify-end overflow-hidden bg-surface-dark rounded-xl min-h-64 shadow-lg border border-primary/10 relative" data-alt="Abstract deep space nebula visualization" style='background-image: linear-gradient(0deg, rgba(26, 11, 28, 0.8) 0%, rgba(26, 11, 28, 0) 100%), url("https://lh3.googleusercontent.com/aida-public/AB6AXuDnqSqXYOVp8dB9TRzPjkrJzAHrW6defT6tGt7Fc5JFfIKAF2S9M_LoxUne52ysd8C4c84nR-hBFIckrPUU2O2xJlhM13lt5CcP6uU6Rkkx-BHlFgFW6Y0KSNKpWJ0wVP_Pnk_V6gDyqcAMfOs2zig3viWAXB2LiobS6EcayfDYeZxzXX2rv1fl4GTGUe2RuvpDoHO8cIVsYuiznZKk6Z9NYBr6d7-DxyNcIvKf0ki7GLICI9fjrxG-yH_hPqBvQ3A5M82abS5UW_Hh");'>
+<div class="absolute inset-0 bg-gradient-to-t from-background-dark via-transparent to-transparent"></div>
+<div class="flex p-6 relative z-10 flex-col">
+<span class="text-accent-blue text-sm font-semibold tracking-wider uppercase mb-1 drop-shadow-md">Current Phase</span>
+<h1 class="text-white text-3xl font-bold leading-tight drop-shadow-lg">Void Prism</h1>
+</div>
+</div>
+</div>
+<div class="px-4 py-2">
+<h3 class="text-lg font-bold mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-accent-magenta">notifications_active</span>
+                    Celestial Notifications
+                </h3>
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between gap-4 rounded-xl bg-surface-light dark:bg-surface-dark p-4 glow-border transition-transform hover:scale-[1.02]">
+<div class="flex flex-col gap-1 flex-1">
+<p class="font-bold text-transparent bg-clip-text bg-gradient-to-r from-accent-magenta to-primary">Mercury Retrograde Alert</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm">Impacts your communication sector. Proceed with caution.</p>
+</div>
+<button class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+<div class="flex items-center justify-between gap-4 rounded-xl bg-surface-light dark:bg-surface-dark p-4 border border-primary/10 shadow-sm">
+<div class="flex flex-col gap-1 flex-1">
+<p class="font-bold text-slate-800 dark:text-slate-200">Lunar Eclipse Incoming</p>
+<p class="text-slate-500 dark:text-slate-400 text-sm">Emotional resets in your 4th house. Tap to explore.</p>
+</div>
+<button class="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+</div>
+</div>
+</div>
+<div class="px-4 py-6 mt-2">
+<h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-accent-blue">vital_signs</span>
+                    Compatibility Score
+                </h3>
+<div class="flex items-center justify-center p-6 bg-surface-light dark:bg-surface-dark rounded-xl border border-primary/20 shadow-md">
+<div class="relative w-40 h-40 flex items-center justify-center">
+<svg class="w-full h-full transform -rotate-90" viewbox="0 0 100 100">
+<circle class="text-primary/10" cx="50" cy="50" fill="none" r="45" stroke="currentColor" stroke-width="8"></circle>
+<circle class="text-accent-blue drop-shadow-[0_0_8px_rgba(0,240,255,0.6)]" cx="50" cy="50" fill="none" r="45" stroke="currentColor" stroke-dasharray="283" stroke-dashoffset="30" stroke-linecap="round" stroke-width="8"></circle>
+</svg>
+<div class="absolute flex flex-col items-center justify-center">
+<span class="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-accent-blue to-primary">89%</span>
+<span class="text-xs text-slate-400 uppercase tracking-widest mt-1">Synergy</span>
+</div>
+</div>
+</div>
+</div>
+<div class="px-4 py-2">
+<h3 class="text-lg font-bold mb-3 flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+                    Aspect List
+                </h3>
+<div class="flex flex-col gap-2">
+<details class="group bg-surface-light dark:bg-surface-dark rounded-lg border border-primary/20 overflow-hidden [&amp;_summary::-webkit-details-marker]:hidden">
+<summary class="flex cursor-pointer items-center justify-between p-4 font-semibold text-slate-300 hover:text-white transition-colors">
+<div class="flex items-center gap-3">
+<div class="p-2 rounded-full bg-primary/10 text-primary">
+<span class="material-symbols-outlined text-xl">sunny</span>
+</div>
+<span>Sun Trine Moon</span>
+</div>
+<span class="material-symbols-outlined transition duration-300 group-open:-rotate-180">expand_more</span>
+</summary>
+<div class="p-4 pt-0 text-sm text-slate-400 border-t border-primary/10">
+                            Harmonious connection between your core identity and emotional needs. Expect a period of inner peace and easy emotional expression.
+                        </div>
+</details>
+<details class="group bg-surface-light dark:bg-surface-dark rounded-lg border border-primary/20 overflow-hidden [&amp;_summary::-webkit-details-marker]:hidden">
+<summary class="flex cursor-pointer items-center justify-between p-4 font-semibold text-slate-300 hover:text-white transition-colors">
+<div class="flex items-center gap-3">
+<div class="p-2 rounded-full bg-accent-magenta/10 text-accent-magenta">
+<span class="material-symbols-outlined text-xl">change_history</span>
+</div>
+<span>Mars Square Saturn</span>
+</div>
+<span class="material-symbols-outlined transition duration-300 group-open:-rotate-180">expand_more</span>
+</summary>
+<div class="p-4 pt-0 text-sm text-slate-400 border-t border-primary/10">
+                            Friction between drive and restriction. Patience is required as you may face obstacles in achieving your immediate goals.
+                        </div>
+</details>
+</div>
+</div>
+<div class="px-4 py-8 flex justify-center">
+<button class="gradient-button text-white font-bold py-4 px-10 rounded-full shadow-[0_0_20px_rgba(255,0,128,0.4)] hover:shadow-[0_0_25px_rgba(0,240,255,0.5)] transition-all transform hover:-translate-y-1 w-full max-w-xs flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">explore</span>
+                    Calculate Transits
+                </button>
+</div>
+</main>
+<nav class="fixed bottom-0 w-full flex gap-2 border-t border-primary/20 bg-surface-light/90 dark:bg-surface-dark/90 backdrop-blur-lg px-4 pb-6 pt-3 z-30">
+<a class="flex flex-1 flex-col items-center justify-end gap-1 rounded-full text-primary" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined text-[28px]" style="font-variation-settings: 'FILL' 1">home</span>
+</div>
+<p class="text-xs font-medium leading-normal tracking-wide">Home</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-500 dark:text-slate-400 hover:text-primary transition-colors" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined text-[28px]">bar_chart</span>
+</div>
+<p class="text-xs font-medium leading-normal tracking-wide">Charts</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-500 dark:text-slate-400 hover:text-primary transition-colors" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined text-[28px]">favorite</span>
+</div>
+<p class="text-xs font-medium leading-normal tracking-wide">Synastry</p>
+</a>
+<a class="flex flex-1 flex-col items-center justify-end gap-1 text-slate-500 dark:text-slate-400 hover:text-primary transition-colors" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined text-[28px]">person</span>
+</div>
+<p class="text-xs font-medium leading-normal tracking-wide">Profile</p>
+</a>
+</nav>
+</div>
+</body></html>

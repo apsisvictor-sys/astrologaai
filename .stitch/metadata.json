@@ -1,0 +1,27 @@
+{
+    "name": "projects/15098376203277899347",
+    "projectId": "15098376203277899347",
+    "projectUrl": "https://stitch.google.com/project/15098376203277899347",
+    "title": "AstroLogAIVibes",
+    "visibility": "PRIVATE",
+    "projectType": "PROJECT_DESIGN",
+    "origin": "STITCH",
+    "deviceType": "MOBILE",
+    "designTheme": {
+        "colorMode": "DARK",
+        "font": "INTER",
+        "roundness": "ROUND_FULL",
+        "customColor": "#e81aff",
+        "saturation": 3
+    },
+    "screens": {
+        "styleguide": {
+            "id": "1077683c209643f2a99db8788e398d82",
+            "sourceScreen": "projects/405394230553485358/screens/1077683c209643f2a99db8788e398d82",
+            "x": 0,
+            "y": 0,
+            "width": 780,
+            "height": 3096
+        }
+    }
+}

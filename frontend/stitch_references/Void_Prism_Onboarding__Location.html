@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#a855f7", // Switched to Purple base
+                        "accent-blue": "#067ff9",
+                        "accent-purple": "#a855f7",
+                        "accent-magenta": "#ec4899",
+                        "background-light": "#f5f7f8",
+                        "background-dark": "#0d0d12", // Deeper dark
+                        "void-black": "#15151A",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d0d12;
+            overflow-x: hidden;
+        }
+        .neon-glow-bottom {
+            background: radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.2) 0%, rgba(236, 72, 153, 0.1) 35%, transparent 75%);
+        }
+        .void-card {
+            background-color: #1a1a20;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+    </style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen flex justify-center">
+<div class="relative flex h-[844px] w-[390px] flex-col bg-background-dark overflow-hidden shadow-2xl border-x border-slate-800/20 neon-glow-bottom">
+<div class="flex flex-col gap-4 p-6 pt-12">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-accent-purple text-xl">blur_on</span>
+<p class="text-slate-400 text-xs font-bold uppercase tracking-widest">AstroLogAI</p>
+</div>
+<p class="text-slate-100 text-sm font-semibold">Step 3 of 4</p>
+</div>
+<div class="h-1.5 w-full rounded-full bg-slate-900 overflow-hidden">
+<div class="h-full rounded-full bg-gradient-to-r from-accent-blue via-accent-purple to-accent-magenta" style="width: 75%;"></div>
+</div>
+</div>
+<div class="px-6 pt-4 pb-2">
+<h1 class="text-slate-100 text-3xl font-bold leading-tight tracking-tight">Where were you <span class="text-transparent bg-clip-text bg-gradient-to-r from-accent-purple to-accent-magenta">born?</span></h1>
+<p class="text-slate-400 mt-2 text-sm">Celestial alignments require precise coordinates to map your destiny.</p>
+</div>
+<div class="px-6 py-6">
+<label class="group flex flex-col w-full">
+<div class="flex w-full items-stretch rounded-full h-14 bg-void-black border border-slate-800/50 focus-within:border-accent-purple/50 transition-all duration-300">
+<div class="flex items-center justify-center pl-5 text-slate-500 group-focus-within:text-accent-purple">
+<span class="material-symbols-outlined text-xl">search</span>
+</div>
+<input class="form-input flex w-full border-none bg-transparent text-slate-100 placeholder:text-slate-600 focus:ring-0 text-base font-medium px-4" placeholder="City of Birth" type="text" value="New York"/>
+<div class="flex items-center pr-3">
+<button class="flex items-center justify-center p-2 text-slate-500 hover:text-slate-300">
+<span class="material-symbols-outlined text-lg">cancel</span>
+</button>
+</div>
+</div>
+</label>
+</div>
+<div class="px-6 flex-1 overflow-y-auto pb-20">
+<h3 class="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mb-4 px-1">Suggested Locations</h3>
+<div class="flex flex-col gap-3">
+<button class="void-card flex items-center justify-between p-4 rounded-full hover:bg-slate-800/40 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="size-11 rounded-full bg-accent-blue/10 flex items-center justify-center text-accent-blue">
+<span class="material-symbols-outlined text-xl">location_on</span>
+</div>
+<div class="text-left">
+<p class="text-slate-100 font-semibold text-base">New York City</p>
+<p class="text-slate-500 text-[10px] uppercase tracking-wider">New York, United States</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-slate-700 group-hover:text-accent-purple transition-colors mr-2">chevron_right</span>
+</button>
+<button class="void-card flex items-center justify-between p-4 rounded-full hover:bg-slate-800/40 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="size-11 rounded-full bg-slate-800/50 flex items-center justify-center text-slate-400">
+<span class="material-symbols-outlined text-xl">location_on</span>
+</div>
+<div class="text-left">
+<p class="text-slate-100 font-semibold text-base">Newark</p>
+<p class="text-slate-500 text-[10px] uppercase tracking-wider">New Jersey, United States</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-slate-700 group-hover:text-accent-purple transition-colors mr-2">chevron_right</span>
+</button>
+<button class="void-card flex items-center justify-between p-4 rounded-full hover:bg-slate-800/40 transition-colors group">
+<div class="flex items-center gap-4">
+<div class="size-11 rounded-full bg-slate-800/50 flex items-center justify-center text-slate-400">
+<span class="material-symbols-outlined text-xl">location_on</span>
+</div>
+<div class="text-left">
+<p class="text-slate-100 font-semibold text-base">Newcastle</p>
+<p class="text-slate-500 text-[10px] uppercase tracking-wider">New South Wales, Australia</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-slate-700 group-hover:text-accent-purple transition-colors mr-2">chevron_right</span>
+</button>
+</div>
+<div class="mt-8 rounded-3xl overflow-hidden relative h-32 w-full border border-slate-800/50">
+<div class="absolute inset-0 bg-void-black/80"></div>
+<img class="w-full h-full object-cover filter grayscale brightness-[0.4] contrast-150" data-alt="Stylized dark minimalist world map with neon highlights" data-location="Global" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAx3hN5EZ4W7SjEMqfhC0p-f7sc2TL8kDqkPJzKo7bMoMgoMnDy79d6JyL0IFr30O1wreJuB5fpvCzE4vNvYzEVTLBj8vR1UrE004XLnfFMZOdmZawKzfgqtjfQRoBubFS5xgEwq4U-G6UxC7LvU0kaHfk7mrOSzxsTbGWSw5xsK7erZA38L7cJxB2AZ6_DUCZLE5O7-TicsZMnee9LvC3WJf_3CLwn794LUUAzojjIgL9eoxj-fHJz_nc_9Av_LveVinl3yob9DXIX"/>
+<div class="absolute inset-0 bg-gradient-to-t from-background-dark to-transparent opacity-60"></div>
+<div class="absolute bottom-4 left-4 flex items-center gap-2">
+<div class="size-2 rounded-full bg-accent-blue shadow-[0_0_8px_#067ff9]"></div>
+<span class="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em]">Scanning Star Charts...</span>
+</div>
+</div>
+</div>
+<div class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-background-dark via-background-dark/95 to-transparent">
+<button class="w-full bg-gradient-to-r from-accent-blue to-accent-purple hover:brightness-110 text-white font-bold py-4 rounded-full transition-all shadow-[0_0_25px_rgba(168,85,247,0.4)] flex items-center justify-center gap-2">
+<span>Continue</span>
+<span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+<div class="absolute -bottom-20 -right-20 size-64 bg-accent-purple/20 blur-[120px] rounded-full pointer-events-none"></div>
+<div class="absolute -top-20 -left-20 size-64 bg-accent-magenta/10 blur-[120px] rounded-full pointer-events-none"></div>
+</div>
+
+</body></html>
