@@ -112,13 +112,13 @@ export default function PricingPage() {
     <div className="relative min-h-screen py-24 px-4 overflow-hidden selection:bg-primary-glow">
       <div className="absolute inset-0 z-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[20%] w-[50%] h-[50%] rounded-full bg-primary/10 blur-[150px] mix-blend-screen animate-pulse-slow"></div>
-        <div className="absolute bottom-[-10%] right-[10%] w-[40%] h-[40%] rounded-full bg-accent-pink/10 blur-[120px] mix-blend-screen"></div>
+        <div className="absolute bottom-[-10%] right-[10%] w-[40%] h-[40%] rounded-full bg-accent-blue/10 blur-[120px] mix-blend-screen"></div>
       </div>
 
       <div className="relative z-10 max-w-6xl mx-auto">
         <div className="text-center mb-16 animate-fade-in-up">
           <h1 className="text-5xl md:text-6xl font-display font-bold text-white mb-6">
-            Unlock <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-light to-accent-pink">The Oracle</span>
+            Unlock <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary-light to-accent-blue">The Oracle</span>
           </h1>
           <p className="text-xl text-text-secondary max-w-2xl mx-auto">
             Ascend to higher astrological precision. Deepen your connection to the cosmos with our advanced NASA-grade ephemeris mapping.
@@ -130,13 +130,13 @@ export default function PricingPage() {
           <div className="max-w-xl mx-auto mb-12 glass-panel p-6 rounded-2xl animate-fade-in-up">
             <div className="flex justify-between items-center mb-4">
               <span className="text-white font-medium">Cosmic Queries Remaining</span>
-              <span className={userUsage.queriesThisMonth >= userUsage.queriesLimit ? 'text-accent-pink font-bold' : 'text-primary-light font-bold'}>
+              <span className={userUsage.queriesThisMonth >= userUsage.queriesLimit ? 'text-accent-blue font-bold' : 'text-primary-light font-bold'}>
                 {userUsage.queriesLimit - userUsage.queriesThisMonth} / {userUsage.queriesLimit}
               </span>
             </div>
             <div className="h-3 rounded-full bg-background-deep overflow-hidden">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-primary to-accent-pink transition-all duration-500"
+                className="h-full rounded-full bg-gradient-to-r from-primary to-accent-blue transition-all duration-500"
                 style={{ width: `${Math.min(100, (userUsage.queriesThisMonth / userUsage.queriesLimit) * 100)}%` }}
               />
             </div>
@@ -176,7 +176,7 @@ export default function PricingPage() {
                 style={{ animationDelay: `${i * 0.1}s` }}
               >
                 {plan.popular && (
-                  <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-gradient-to-r from-primary to-accent-pink text-white shadow-glow">
+                  <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-gradient-to-r from-primary to-accent-blue text-white shadow-glow">
                     Most Popular
                   </div>
                 )}
@@ -197,7 +197,7 @@ export default function PricingPage() {
                   <ul className="space-y-4">
                     {plan.features.map((f, idx) => (
                       <li key={idx} className="flex items-start gap-3">
-                        <Check className="w-5 h-5 text-accent-pink shrink-0" />
+                        <Check className="w-5 h-5 text-accent-blue shrink-0" />
                         <span className="text-sm text-text-secondary">{f}</span>
                       </li>
                     ))}
@@ -207,7 +207,7 @@ export default function PricingPage() {
                 <button
                   onClick={() => handleCheckout(plan.id.toUpperCase())}
                   disabled={isCurrent || !!checkoutLoading}
-                  className={`w-full py-4 rounded-xl font-bold transition-all ${isCurrent ? 'bg-surface border border-border-glass text-text-muted' : plan.popular ? 'bg-gradient-to-r from-primary to-accent-pink text-white hover:shadow-glow-lg' : 'bg-primary/20 hover:bg-primary/40 border border-primary/30 text-white'}`}
+                  className={`w-full py-4 rounded-xl font-bold transition-all ${isCurrent ? 'bg-surface border border-border-glass text-text-muted' : plan.popular ? 'bg-gradient-to-r from-primary to-accent-blue text-white hover:shadow-glow-lg' : 'bg-primary/20 hover:bg-primary/40 border border-primary/30 text-white'}`}
                 >
                   {checkoutLoading === plan.id.toUpperCase() ? '...' : isCurrent ? 'Current Tier' : 'Upgrade Now'}
                 </button>

@@ -40,3 +40,6 @@ prisma/migrations/
 # Logs
 logs
 *.log
+.env.production
+INFRASTRUCTURE_SETUP_GUIDE.md
+.github/workflows

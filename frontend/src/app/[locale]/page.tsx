@@ -1,7 +1,7 @@
 import { Link } from '@/i18n/routing';
 import { LanguageSwitcher } from '@/components/language-switcher';
 import { MarketingChat } from '@/components/marketing/marketing-chat';
-import { Sparkles, Compass, Eye, ShieldCheck } from 'lucide-react';
+import { Sparkles, Compass, Eye, ShieldCheck, Star, User, MessageCircle, Aperture, Fingerprint } from 'lucide-react';
 
 const englishContent = {
   badge: 'The Next Evolution of AI Astrology',
@@ -106,6 +106,96 @@ export default function LandingPage({ params: { locale } }: { params: { locale: 
               );
             })}
           </div>
+        </div>
+        {/* How It Works Section */}
+        <div className="mt-48 text-left animate-fade-in-up">
+          <div className="text-center mb-20 animate-fade-in-up">
+            <h2 className="text-4xl md:text-5xl font-display font-bold text-white mb-6 uppercase tracking-tight">How To Consult The Oracle</h2>
+            <p className="text-text-secondary text-xl max-w-2xl mx-auto">Three steps to unlock your cosmic blueprint and begin navigating the universe.</p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 relative">
+            {/* Connecting line for desktop */}
+            <div className="hidden md:block absolute top-[80px] left-[15%] right-[15%] h-[2px] bg-gradient-to-r from-primary/10 via-primary/30 to-accent-blue/10 z-0"></div>
+
+            <div className="relative z-10 glass-panel p-10 flex flex-col items-center text-center group">
+              <div className="w-20 h-20 rounded-full bg-background-deep border-4 border-primary shadow-glow flex items-center justify-center mb-8 relative">
+                <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping opacity-20"></div>
+                <Fingerprint className="w-8 h-8 text-primary-light" />
+              </div>
+              <h3 className="text-2xl font-display font-bold text-white mb-4">1. Provide Coordinates</h3>
+              <p className="text-text-secondary">Enter your exact birth time and location. The Oracle encrypts this data to map your celestial origins instantly.</p>
+            </div>
+
+            <div className="relative z-10 glass-panel p-10 flex flex-col items-center text-center group mt-8 md:mt-0">
+              <div className="w-20 h-20 rounded-full bg-background-deep border-4 border-secondary shadow-[0_0_15px_rgba(255,0,128,0.4)] flex items-center justify-center mb-8 relative">
+                <Aperture className="w-8 h-8 text-secondary-light" />
+              </div>
+              <h3 className="text-2xl font-display font-bold text-white mb-4">2. Align Alignment</h3>
+              <p className="text-text-secondary">Our engine calculates a highly precise, SVG-rendered holographic natal chart mapping every planetary aspect.</p>
+            </div>
+
+            <div className="relative z-10 glass-panel p-10 flex flex-col items-center text-center group mt-8 md:mt-0">
+              <div className="w-20 h-20 rounded-full bg-background-deep border-4 border-accent-blue shadow-[0_0_15px_rgba(6,127,249,0.4)] flex items-center justify-center mb-8 relative">
+                <MessageCircle className="w-8 h-8 text-accent-blue" />
+              </div>
+              <h3 className="text-2xl font-display font-bold text-white mb-4">3. Ask The Universe</h3>
+              <p className="text-text-secondary">Converse directly with The Oracle regarding your chart, daily transits, and future path using natural language.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Testimonials from the Void */}
+        <div className="mt-48 text-left animate-fade-in-up">
+          <div className="text-center mb-20 animate-fade-in-up">
+            <h2 className="text-4xl md:text-5xl font-display font-bold text-white mb-6 uppercase tracking-tight">Echoes From The Void</h2>
+            <p className="text-text-secondary text-xl max-w-2xl mx-auto">Hear from navigators who have already unlocked their cosmic blueprint.</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="glass-panel p-10 relative overflow-hidden group">
+              <div className="absolute top-[-50px] right-[-50px] w-32 h-32 bg-primary blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity"></div>
+              <div className="flex items-center gap-2 mb-6">
+                {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-5 h-5 text-amber-400 fill-amber-400" />)}
+              </div>
+              <p className="text-xl text-white italic mb-8 relative z-10">"I've used every astrology app on the market, but The Oracle immediately pointed out a Venus-Neptune transit affecting my work that everyone else missed purely because the ephemeris calculations were so exact."</p>
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="w-12 h-12 rounded-full bg-primary/20 border border-primary/50 flex items-center justify-center">
+                  <User className="w-6 h-6 text-primary-light" />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold">Elena R.</h4>
+                  <p className="text-sm text-text-muted">The Navigator Tier</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-panel p-10 relative overflow-hidden group">
+              <div className="absolute top-[-50px] right-[-50px] w-32 h-32 bg-accent-blue blur-[50px] opacity-10 group-hover:opacity-30 transition-opacity"></div>
+              <div className="flex items-center gap-2 mb-6">
+                {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-5 h-5 text-amber-400 fill-amber-400" />)}
+              </div>
+              <p className="text-xl text-white italic mb-8 relative z-10">"The holographic SVG chart alone is worth the subscription. But being able to literally text questions about my chart and get hyper-specific, mathematically backed answers is next level."</p>
+              <div className="flex items-center gap-4 relative z-10">
+                <div className="w-12 h-12 rounded-full bg-accent-blue/20 border border-accent-blue/50 flex items-center justify-center">
+                  <User className="w-6 h-6 text-accent-blue" />
+                </div>
+                <div>
+                  <h4 className="text-white font-bold">Marcus T.</h4>
+                  <p className="text-sm text-text-muted">The Oracle Tier</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Final CTA Footer */}
+        <div className="mt-48 text-center animate-fade-in-up mb-24">
+          <h2 className="text-5xl font-display font-bold text-white mb-8">Begin Your Journey</h2>
+          <Link href="/register" className="inline-flex items-center gap-3 px-10 py-5 rounded-full bg-gradient-to-r from-primary to-accent-blue hover:shadow-[0_0_40px_rgba(228,26,255,0.6)] text-white font-bold text-xl transition-all duration-300 transform hover:scale-105">
+            <Sparkles className="w-6 h-6" />
+            Consult The Oracle Now
+          </Link>
         </div>
 
       </div>
