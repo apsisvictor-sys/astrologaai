@@ -6,6 +6,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
+import { Link } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
 
 interface FormData {
@@ -24,7 +25,7 @@ interface LoginFormProps {
 }
 
 export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
-  const { signIn, signInWithGoogle, signInWithApple, isLoading, error: authError, clearError } = useAuth();
+  const { signIn, signInWithGoogle, signInWithMagicLink, isLoading, error: authError, clearError } = useAuth();
 
   const [formData, setFormData] = useState<FormData>({
     email: '',
@@ -35,6 +36,9 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
+  const [magicLinkOpen, setMagicLinkOpen] = useState(false);
+  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [magicLinkEmail, setMagicLinkEmail] = useState('');
 
   const validateEmail = (email: string): string | undefined => {
     if (!email) return 'Email is required';
@@ -127,7 +131,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
             onBlur={handleBlur}
             placeholder="your@email.com"
             autoComplete="email"
-            className={`w-full bg-background-dark/50 border ${errors.email ? 'border-red-500' : 'border-border-subtle'} rounded-xl px-4 py-4 text-text-primary focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all`}
+            className={`w-full bg-white/5 border ${errors.email ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3.5 text-text-primary placeholder-text-muted focus:outline-none focus:border-primary/50 transition-all`}
           />
           {errors.email && (
             <p className="mt-1 text-sm text-red-500">
@@ -151,7 +155,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
               onBlur={handleBlur}
               placeholder="••••••••"
               autoComplete="current-password"
-              className={`w-full bg-background-dark/50 border ${errors.password ? 'border-red-500' : 'border-border-subtle'} rounded-xl px-4 py-4 pr-12 text-text-primary focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all`}
+              className={`w-full bg-white/5 border ${errors.password ? 'border-red-500' : 'border-white/10'} rounded-xl px-4 py-3.5 pr-12 text-text-primary placeholder-text-muted focus:outline-none focus:border-primary/50 transition-all`}
             />
             <button
               type="button"
@@ -190,9 +194,9 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
               Remember me
             </span>
           </label>
-          <a href="/forgot-password" className="text-sm text-primary hover:text-primary-light hover:underline transition-colors">
+          <Link href="/forgot-password" className="text-sm text-primary hover:underline transition-colors">
             Forgot password?
-          </a>
+          </Link>
         </div>
 
         {/* Auth Error */}
@@ -206,7 +210,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full font-bold rounded-xl bg-gradient-to-r from-primary to-accent-blue text-white py-4 hover:shadow-glow-primary transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:shadow-none"
+          className="w-full font-bold rounded-full gradient-button text-white py-3.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">
@@ -227,7 +231,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
             <div className="w-full border-t border-border-subtle"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-4 bg-background-surface/80 text-text-muted">
+            <span className="px-4 bg-background-dark text-text-muted text-xs uppercase tracking-widest">
               or continue with
             </span>
           </div>
@@ -247,7 +251,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
               }
             }}
             disabled={isLoading || oauthLoading !== null}
-            className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-border-subtle bg-background-dark/50 hover:bg-white/5 transition-colors duration-200 text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/8 hover:border-white/20 transition-colors duration-200 text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {oauthLoading === 'google' ? (
               <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
@@ -267,31 +271,62 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
 
           <button
             type="button"
-            onClick={async () => {
-              try {
-                setOauthLoading('apple');
-                await signInWithApple();
-              } catch (error) {
-                console.error('Apple login error:', error);
-                setOauthLoading(null);
-              }
+            onClick={() => {
+              setMagicLinkOpen(true);
+              setMagicLinkEmail(formData.email);
             }}
             disabled={isLoading || oauthLoading !== null}
-            className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-border-subtle bg-background-dark/50 hover:bg-white/5 transition-colors duration-200 text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/8 hover:border-primary/20 transition-colors duration-200 text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {oauthLoading === 'apple' ? (
-              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-              </svg>
-            )}
-            Apple
+            <span className="text-primary text-base leading-none">✦</span>
+            Magic Link
           </button>
         </div>
+
+        {/* Magic Link inline form */}
+        {magicLinkOpen && !magicLinkSent && (
+          <div className="p-4 rounded-xl border border-white/10 bg-white/5 space-y-3">
+            <p className="text-xs text-text-muted">Enter your email to receive a magic sign-in link</p>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={magicLinkEmail}
+                onChange={(e) => setMagicLinkEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-primary/50 transition-all"
+              />
+              <button
+                type="button"
+                disabled={!magicLinkEmail || oauthLoading === 'magic'}
+                onClick={async () => {
+                  try {
+                    setOauthLoading('magic');
+                    await signInWithMagicLink(magicLinkEmail);
+                    setMagicLinkSent(true);
+                  } catch {
+                    // error handled by auth context
+                  } finally {
+                    setOauthLoading(null);
+                  }
+                }}
+                className="px-4 py-2.5 rounded-xl gradient-button text-white text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {oauthLoading === 'magic' ? (
+                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                ) : 'Send'}
+              </button>
+            </div>
+          </div>
+        )}
+        {magicLinkSent && (
+          <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 text-center">
+            <p className="text-sm text-white font-medium">Check your email ✦</p>
+            <p className="text-xs text-text-muted mt-1">Magic link sent to {magicLinkEmail}</p>
+          </div>
+        )}
       </form>
 
       {/* Register Link */}

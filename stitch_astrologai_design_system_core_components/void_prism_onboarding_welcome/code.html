@@ -1,0 +1,89 @@
+<html class="dark"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "primary": "#e01ff9",
+            "background-light": "#f8f5f8",
+            "background-dark": "#200f23",
+          },
+          fontFamily: {
+            "display": ["Space Grotesk"]
+          },
+          borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display antialiased overflow-x-hidden">
+<div class="relative flex min-h-screen w-full flex-col bg-background-light dark:bg-background-dark overflow-hidden">
+<!-- Background Orb Visual -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] aspect-square max-w-[600px] pointer-events-none opacity-60">
+<div class="w-full h-full rounded-full bg-gradient-to-tr from-primary via-[#632f6a] to-blue-600 blur-[80px]"></div>
+</div>
+<!-- Main Content Area -->
+<div class="relative z-10 flex flex-col h-screen px-6 justify-between pb-12 pt-16">
+<!-- Top Branding/Image Component -->
+<div class="@container w-full">
+<div class="flex flex-col items-center">
+<div class="w-full aspect-square max-w-[320px] bg-center bg-no-repeat bg-cover flex flex-col justify-end overflow-hidden rounded-full shadow-[0_0_50px_rgba(224,31,249,0.3)] border border-primary/20" data-alt="Massive blurred violet and magenta orb in center" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuA-4IsBHlrwu1t8X6fAYicLDlCEAIu-BbYs2O0vo-pxztrhDxKzI2uDBZki1yi9n5mTxCx-VLHcVk_32Qz0l0tW8541G8b5XMJqLmRZ3gcjL8zlCIaHhQG1mMv0wpHw4G4ZoaZUuyiV7KSfEy9_0SykY114Qu7WkGFVvFDXQjKuQa1t4aBwb97zzsRhvU0XKXdpbI7WjN7DrwDY3jyrG88nosFaNwL574YoGXFUR8UdDy_xVj3FKCBss_11uzTWLg5G7dWM5541HxWY");'>
+</div>
+</div>
+</div>
+<!-- Text Content -->
+<div class="flex flex-col items-center text-center space-y-4">
+<h1 class="text-slate-900 dark:text-slate-100 tracking-tight text-4xl font-bold leading-tight">
+          Step into the <br/><span class="text-primary">Cosmic Void</span>
+</h1>
+<p class="text-slate-600 dark:text-slate-400 text-lg font-normal leading-relaxed max-w-[280px]">
+          Welcome to AstroLogAI, where the stars align with intelligence.
+        </p>
+</div>
+<!-- Interaction Section -->
+<div class="flex flex-col items-center gap-8">
+<!-- Progress Indicators -->
+<div class="flex flex-row items-center justify-center gap-3">
+<div class="h-2 w-8 rounded-full bg-primary shadow-[0_0_8px_rgba(224,31,249,0.8)]"></div>
+<div class="h-2 w-2 rounded-full bg-primary/20"></div>
+<div class="h-2 w-2 rounded-full bg-primary/20"></div>
+<div class="h-2 w-2 rounded-full bg-primary/20"></div>
+</div>
+<!-- Action Button -->
+<div class="w-full max-w-[320px]">
+<button class="group relative flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-full h-16 transition-all active:scale-95 shadow-[0_0_20px_rgba(224,31,249,0.4)]">
+<!-- Gradient Background -->
+<div class="absolute inset-0 bg-gradient-to-r from-primary via-[#9d1ff9] to-blue-600"></div>
+<!-- Neon Glow Overlay -->
+<div class="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity bg-white"></div>
+<span class="relative z-10 text-white text-lg font-bold leading-normal tracking-wide flex items-center gap-2">
+              Start Your Journey
+              <span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Decorative Elements -->
+<div class="absolute top-0 left-0 w-full h-full pointer-events-none">
+<div class="absolute top-[10%] left-[15%] w-1 h-1 bg-white rounded-full opacity-40"></div>
+<div class="absolute top-[20%] right-[20%] w-2 h-2 bg-primary rounded-full opacity-30"></div>
+<div class="absolute bottom-[30%] left-[10%] w-1.5 h-1.5 bg-blue-400 rounded-full opacity-20"></div>
+<div class="absolute top-[60%] right-[10%] w-1 h-1 bg-white rounded-full opacity-50"></div>
+</div>
+</div>
+
+```</body></html>

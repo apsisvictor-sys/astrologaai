@@ -51,19 +51,19 @@ export async function signInWithGoogle() {
 }
 
 /**
- * Sign in with Apple OAuth
+ * Sign in with Magic Link (passwordless email)
  */
-export async function signInWithApple() {
+export async function signInWithMagicLink(email: string) {
   const supabase = createSupabaseBrowserClient();
-  
+
   if (!supabase) {
     throw new Error('Supabase client not configured');
   }
 
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'apple',
+  const { data, error } = await supabase.auth.signInWithOtp({
+    email,
     options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
+      emailRedirectTo: `${window.location.origin}/auth/callback`,
     },
   });
 

@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Void Prism Onboarding: Birth Data</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#e01ff9",
+                        "background-light": "#f8f5f8",
+                        "background-dark": "#000000",
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "32px",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .nebula-bg {
+            background: radial-gradient(circle at 50% 50%, rgba(30, 58, 138, 0.15) 0%, rgba(0, 0, 0, 1) 70%);
+        }
+        .prism-border {
+            border: 1px solid rgba(224, 31, 249, 0.3);
+        }
+        .focus-prism:focus {
+            border-color: #e01ff9;
+            box-shadow: 0 0 15px rgba(224, 31, 249, 0.2);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased overflow-hidden">
+<!-- Background Nebula Effect -->
+<div class="fixed inset-0 nebula-bg pointer-events-none" data-alt="Subtle blue and purple cosmic nebula background"></div>
+<div class="relative flex h-screen w-full flex-col px-6 py-8">
+<!-- Page Indicators -->
+<div class="flex w-full flex-row items-center justify-center gap-3 py-8">
+<div class="h-1.5 w-1.5 rounded-full bg-primary/30"></div>
+<div class="h-2 w-8 rounded-full bg-primary shadow-[0_0_10px_rgba(224,31,249,0.5)]"></div>
+<div class="h-1.5 w-1.5 rounded-full bg-primary/30"></div>
+<div class="h-1.5 w-1.5 rounded-full bg-primary/30"></div>
+</div>
+<!-- Header Content -->
+<header class="mb-10 text-center">
+<h1 class="text-slate-100 text-[32px] font-bold leading-tight tracking-tight mb-3">Birth Data</h1>
+<p class="text-slate-400 text-base font-normal leading-relaxed max-w-[280px] mx-auto">Enter your details to align the stars and unlock your destiny.</p>
+</header>
+<!-- Form Section -->
+<main class="flex-1 flex flex-col gap-6 max-w-md mx-auto w-full">
+<!-- Name Input -->
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-primary/80 ml-4 uppercase tracking-widest">Full Name</label>
+<input class="w-full bg-slate-900/50 prism-border rounded-xl h-[64px] px-6 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-primary/50 focus-prism transition-all border-slate-800" placeholder="Enter your name" type="text"/>
+</div>
+<!-- Date of Birth Input -->
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-primary/80 ml-4 uppercase tracking-widest">Date of Birth</label>
+<div class="relative group">
+<input class="w-full bg-slate-900/50 prism-border rounded-xl h-[64px] px-6 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-primary/50 focus-prism transition-all border-slate-800" placeholder="DD / MM / YYYY" type="text"/>
+<div class="absolute right-6 top-1/2 -translate-y-1/2 text-primary/60">
+<span class="material-symbols-outlined">calendar_today</span>
+</div>
+</div>
+</div>
+<!-- Time of Birth Input -->
+<div class="flex flex-col gap-2">
+<label class="text-sm font-medium text-primary/80 ml-4 uppercase tracking-widest">Time of Birth</label>
+<div class="relative group">
+<input class="w-full bg-slate-900/50 prism-border rounded-xl h-[64px] px-6 text-slate-100 placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-primary/50 focus-prism transition-all border-slate-800" placeholder="00:00 AM/PM" type="text"/>
+<div class="absolute right-6 top-1/2 -translate-y-1/2 text-primary/60">
+<span class="material-symbols-outlined">schedule</span>
+</div>
+</div>
+</div>
+</main>
+<!-- Action Buttons -->
+<footer class="mt-auto flex flex-col gap-4 py-6 max-w-md mx-auto w-full">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-bold h-16 rounded-xl shadow-[0_0_20px_rgba(224,31,249,0.3)] transition-all active:scale-[0.98]">
+                Continue
+            </button>
+<button class="w-full bg-transparent border border-primary/40 hover:border-primary/70 text-primary/80 font-medium h-14 rounded-full transition-all">
+                Skip for Now
+            </button>
+</footer>
+</div>
+</body></html>

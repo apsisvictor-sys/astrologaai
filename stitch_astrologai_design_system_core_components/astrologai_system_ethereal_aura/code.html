@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AstroLogAI System: Ethereal Aura</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#e41aff",
+                        "background-light": "#f8f5f8",
+                        "background-dark": "#210f23",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 min-h-screen relative overflow-x-hidden selection:bg-primary/30">
+<!-- Ambient Background -->
+<div class="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+<div class="absolute top-[-10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-blue-500/20 blur-[100px] mix-blend-screen"></div>
+<div class="absolute bottom-[-10%] right-[-10%] w-[60vw] h-[60vw] rounded-full bg-primary/20 blur-[120px] mix-blend-screen"></div>
+<div class="absolute top-[40%] left-[20%] w-[40vw] h-[40vw] rounded-full bg-purple-500/10 blur-[80px] mix-blend-screen"></div>
+</div>
+<div class="relative z-10 flex h-full min-h-screen w-full flex-col max-w-md mx-auto shadow-2xl bg-background-light/90 dark:bg-background-dark/90 backdrop-blur-md">
+<!-- Header -->
+<div class="flex items-center p-4 pb-2 justify-between">
+<button class="flex size-12 shrink-0 items-center justify-center rounded-full hover:bg-white/10 transition-colors text-slate-900 dark:text-slate-100">
+<span class="material-symbols-outlined text-[24px]">search</span>
+</button>
+<h2 class="text-lg font-bold leading-tight tracking-[-0.015em] flex-1 text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-primary">Ethereal Aura</h2>
+<div class="w-12"></div> <!-- Spacer for centering -->
+</div>
+<!-- Scrollable Content -->
+<div class="flex-1 overflow-y-auto pb-24 space-y-6">
+<!-- Cosmic Calendar Widget -->
+<div class="px-4 pt-4">
+<div class="glass-panel rounded-xl p-4">
+<div class="flex min-w-72 max-w-[336px] mx-auto flex-col gap-2">
+<div class="flex items-center p-1 justify-between mb-2">
+<button class="flex size-8 items-center justify-center rounded-full hover:bg-white/10 transition-colors text-slate-900 dark:text-slate-100">
+<span class="material-symbols-outlined text-[20px]">chevron_left</span>
+</button>
+<p class="text-base font-bold leading-tight flex-1 text-center">August 2023</p>
+<button class="flex size-8 items-center justify-center rounded-full hover:bg-white/10 transition-colors text-slate-900 dark:text-slate-100">
+<span class="material-symbols-outlined text-[20px]">chevron_right</span>
+</button>
+</div>
+<div class="grid grid-cols-7 gap-y-2">
+<p class="text-[13px] font-bold leading-normal tracking-[0.015em] flex h-8 w-full items-center justify-center text-slate-500 dark:text-slate-400">S</p>
+<p class="text-[13px] font-bold leading-normal tracking-[0.015em] flex h-8 w-full items-center justify-center text-slate-500 dark:text-slate-400">M</p>
+<p class="text-[13px] font-bold leading-normal tracking-[0.015em] flex h-8 w-full items-center justify-center text-slate-500 dark:text-slate-400">T</p>
+<p class="text-[13px] font-bold leading-normal tracking-[0.015em] flex h-8 w-full items-center justify-center text-slate-500 dark:text-slate-400">W</p>
+<p class="text-[13px] font-bold leading-normal tracking-[0.015em] flex h-8 w-full items-center justify-center text-slate-500 dark:text-slate-400">T</p>
+<p class="text-[13px] font-bold leading-normal tracking-[0.015em] flex h-8 w-full items-center justify-center text-slate-500 dark:text-slate-400">F</p>
+<p class="text-[13px] font-bold leading-normal tracking-[0.015em] flex h-8 w-full items-center justify-center text-slate-500 dark:text-slate-400">S</p>
+<button class="h-10 w-full text-slate-400 col-start-4 text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">1</div></button>
+<button class="h-10 w-full text-slate-400 text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">2</div></button>
+<button class="h-10 w-full text-slate-400 text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">3</div></button>
+<button class="h-10 w-full text-slate-400 text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">4</div></button>
+<button class="h-10 w-full text-white text-sm font-medium">
+<div class="flex size-full items-center justify-center rounded-full bg-primary shadow-[0_0_15px_rgba(228,26,255,0.5)]">5</div>
+</button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">6</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors relative">
+<div class="flex size-full items-center justify-center rounded-full">7</div>
+<div class="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 bg-blue-400 rounded-full"></div>
+</button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">8</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">9</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">10</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">11</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors relative">
+<div class="flex size-full items-center justify-center rounded-full border border-primary/50 text-primary">12</div>
+</button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">13</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">14</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">15</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">16</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">17</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">18</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">19</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">20</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">21</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">22</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">23</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">24</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">25</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">26</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">27</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">28</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">29</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">30</div></button>
+<button class="h-10 w-full text-sm font-medium hover:bg-white/5 rounded-full transition-colors"><div class="flex size-full items-center justify-center rounded-full">31</div></button>
+</div>
+</div>
+</div>
+</div>
+<!-- Planetary Strength -->
+<div class="px-4">
+<h1 class="text-[22px] font-bold leading-tight tracking-[-0.015em] text-left pb-4">Planetary Strength</h1>
+<div class="glass-panel rounded-xl p-5 space-y-5">
+<!-- Jupiter -->
+<div class="flex flex-col gap-2">
+<div class="flex gap-4 justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-blue-400 text-[20px]">public</span>
+<p class="text-base font-medium leading-normal">Jupiter</p>
+</div>
+<p class="text-sm font-normal text-slate-400">75%</p>
+</div>
+<div class="rounded-full bg-slate-800/50 h-2 overflow-hidden">
+<div class="h-full rounded-full bg-primary shadow-[0_0_10px_rgba(228,26,255,0.8)]" style="width: 75%;"></div>
+</div>
+<p class="text-primary text-xs font-medium uppercase tracking-wider mt-1">Strong Influence</p>
+</div>
+<!-- Saturn -->
+<div class="flex flex-col gap-2">
+<div class="flex gap-4 justify-between items-center">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-purple-400 text-[20px]">language</span>
+<p class="text-base font-medium leading-normal">Saturn</p>
+</div>
+<p class="text-sm font-normal text-slate-400">42%</p>
+</div>
+<div class="rounded-full bg-slate-800/50 h-2 overflow-hidden">
+<div class="h-full rounded-full bg-purple-500 shadow-[0_0_10px_rgba(168,85,247,0.8)]" style="width: 42%;"></div>
+</div>
+<p class="text-purple-400 text-xs font-medium uppercase tracking-wider mt-1">Moderate Focus</p>
+</div>
+</div>
+</div>
+<!-- Insights Card -->
+<div class="px-4 pb-4">
+<div class="bg-gradient-to-br from-[#3b0764]/80 to-[#170533]/80 rounded-xl p-5 border border-primary/20 relative overflow-hidden">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/20 blur-3xl rounded-full"></div>
+<div class="relative z-10">
+<div class="flex items-center gap-2 mb-3">
+<span class="material-symbols-outlined text-primary">auto_awesome</span>
+<h3 class="font-bold text-lg text-white">Cosmic Insight</h3>
+</div>
+<p class="text-sm text-slate-200 leading-relaxed mb-4">
+                            Your ruling planet aligns with the current lunar phase, suggesting a prime window for creative endeavors. Trust your intuition over the next 48 hours.
+                        </p>
+<button class="w-full py-3 rounded-lg bg-primary hover:bg-primary/90 text-white font-medium transition-colors shadow-[0_0_15px_rgba(228,26,255,0.3)]">
+                            Reveal Full Reading
+                        </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Navigation Bar -->
+<div class="absolute bottom-0 left-0 w-full glass-panel border-t-0 border-b-0 border-x-0 !border-t border-white/10 rounded-t-xl bg-[#210f23]/80 pt-2 pb-6 px-4 z-50">
+<div class="flex justify-between items-center max-w-sm mx-auto">
+<a class="flex flex-col items-center justify-center gap-1 w-16 text-primary group" href="#">
+<div class="flex h-8 w-12 items-center justify-center rounded-full bg-primary/20 group-hover:bg-primary/30 transition-colors">
+<span class="material-symbols-outlined text-[24px]">home</span>
+</div>
+<p class="text-[10px] font-medium leading-normal tracking-wide">Home</p>
+</a>
+<a class="flex flex-col items-center justify-center gap-1 w-16 text-slate-400 hover:text-slate-200 transition-colors" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">public</span>
+</div>
+<p class="text-[10px] font-medium leading-normal tracking-wide">Star Map</p>
+</a>
+<a class="flex flex-col items-center justify-center gap-1 w-16 text-slate-400 hover:text-slate-200 transition-colors" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">forum</span>
+</div>
+<p class="text-[10px] font-medium leading-normal tracking-wide">Consultant</p>
+</a>
+<a class="flex flex-col items-center justify-center gap-1 w-16 text-slate-400 hover:text-slate-200 transition-colors" href="#">
+<div class="flex h-8 items-center justify-center">
+<span class="material-symbols-outlined text-[24px]">settings</span>
+</div>
+<p class="text-[10px] font-medium leading-normal tracking-wide">Settings</p>
+</a>
+</div>
+</div>
+</div>
+</body></html>

@@ -1,20 +1,7 @@
 /**
- * LLM Service (Orchestrator Wrapper)
- * US-34: LLM Provider Fallback Strategy
- * 
- * Wraps the LLM Orchestrator to provide backward compatibility
- * with the existing chatController interface.
- * 
- * Features:
- * - Automatic failover between providers
- * - Health monitoring
- * - Latency tracking
- * - Provider switch logging
- */
-
-/**
  * LLM Service (Autonomous Agent Edition)
- * Rebuilt using Vercel AI SDK to support dynamic tool calling
+ * Uses Vercel AI SDK with dynamic tool calling.
+ * Providers: Anthropic Claude (primary) → OpenAI GPT-4o (fallback)
  */
 
 import { streamText, generateText } from 'ai';
@@ -22,20 +9,19 @@ import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { astrologyTools } from './agent-tools';
 
-// Re-export types for backward compatibility
+// Re-export helpers from legacy (prompt building, chart summary, session summary)
 export {
   generateChartSummary,
   buildSystemPrompt,
   generateSessionSummary,
   buildEnhancedContext,
-} from './llm-legacy';
+} from './llm-helpers';
 
 // Re-export ChatMessage type
-export { type ChatMessage } from './llm/llm-provider.interface';
+export { type ChatMessage } from './llm-helpers';
 
-// Map our legacy ChatMessage format to any[] to bypass strict typs mismatch with specific ai versions
-import type { ChatMessage as LegacyChatMessage } from './llm/llm-provider.interface';
-import type { LLMConfig as LegacyLLMConfig } from './llm-legacy';
+import type { ChatMessage as LegacyChatMessage } from './llm-helpers';
+import type { LLMConfig as LegacyLLMConfig } from './llm-helpers';
 
 export interface StreamChunk {
   content: string;
@@ -43,6 +29,7 @@ export interface StreamChunk {
   error?: string;
   toolCall?: { name: string; args: any };
   toolResult?: { name: string; result: any };
+  usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
 }
 
 /**
@@ -64,20 +51,46 @@ function mapToCoreMessages(messages: LegacyChatMessage[]): any[] {
 }
 
 /**
- * Select the appropriate AI Provider (Anthropic preferred for reasoning, OpenAI fallback)
+ * Default models per tier — override via env vars MODEL_FREE, MODEL_PRO, MODEL_PREMIUM
  */
-function getProviderModel(requestedModel?: string) {
-  // If Anthropic API key is available, default to Claude 3.5 Sonnet for superior reasoning
-  if (process.env.ANTHROPIC_API_KEY) {
-    return anthropic('claude-3-5-sonnet-20240620');
+const TIER_DEFAULT_MODELS: Record<string, string> = {
+  FREE:    'claude-haiku-4-5-20251001',
+  PRO:     'claude-sonnet-4-6',
+  PREMIUM: 'claude-opus-4-6',
+};
+
+/**
+ * Returns the resolved model ID string for a given tier (for logging/metadata).
+ */
+export function getModelIdForTier(tier: string = 'FREE'): string {
+  const envKey = `MODEL_${tier.toUpperCase()}`;
+  return process.env[envKey] || TIER_DEFAULT_MODELS[tier] || TIER_DEFAULT_MODELS.FREE;
+}
+
+/**
+ * Select model for a given tier from env vars (with hardcoded defaults).
+ * Provider is auto-detected from the model ID prefix:
+ *   claude-* → Anthropic   |   gpt-* / o1* / o3* → OpenAI
+ */
+function getProviderModel(tier: string = 'FREE') {
+  const envKey = `MODEL_${tier.toUpperCase()}`;
+  const modelId = process.env[envKey] || TIER_DEFAULT_MODELS[tier] || TIER_DEFAULT_MODELS.FREE;
+
+  if (modelId.startsWith('claude-')) {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error(`Anthropic API key required for model "${modelId}" (set ANTHROPIC_API_KEY).`);
+    }
+    return anthropic(modelId);
   }
 
-  // Fallback to OpenAI
-  if (process.env.OPENAI_API_KEY) {
-    return openai('gpt-4o');
+  if (modelId.startsWith('gpt-') || modelId.startsWith('o1') || modelId.startsWith('o3')) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error(`OpenAI API key required for model "${modelId}" (set OPENAI_API_KEY).`);
+    }
+    return openai(modelId);
   }
 
-  throw new Error('No valid LLM API Key found (Anthropic or OpenAI required for Tool Calling).');
+  throw new Error(`Unknown model provider for model ID "${modelId}". Use a claude-* or gpt-* prefix.`);
 }
 
 /**
@@ -92,36 +105,63 @@ export async function* streamChatCompletion(
 ): AsyncGenerator<StreamChunk> {
   try {
     const coreMessages = mapToCoreMessages(messages);
-    const model = getProviderModel(config.model);
+    const tier = config.tier || 'FREE';
+    const model = getProviderModel(tier);
 
     // Gating Tools based on User Subscription Tier
-    const tier = config.tier || 'FREE';
     const activeTools: Record<string, any> = {};
 
-    // Everyone gets Natal Chart
+    // FREE: natal chart only — users can explore their birth chart placements
     activeTools['get_natal_chart'] = astrologyTools.get_natal_chart;
 
-    // PRO and PREMIUM get Transits
+    // PRO: adds live transits, solar return, and lunar return
     if (tier === 'PRO' || tier === 'PREMIUM') {
       activeTools['get_transits'] = astrologyTools.get_transits;
+      activeTools['get_solar_return'] = astrologyTools.get_solar_return;
+      activeTools['get_lunar_return'] = astrologyTools.get_lunar_return;
     }
 
-    // Only PREMIUM gets Synastry and advanced elite tools
+    // PREMIUM: full toolkit — relationships, psychological depth, timing, astrocartography
     if (tier === 'PREMIUM') {
       activeTools['get_synastry'] = astrologyTools.get_synastry;
       activeTools['get_progressions'] = astrologyTools.get_progressions;
-      activeTools['get_solar_return'] = astrologyTools.get_solar_return;
       activeTools['get_relocation'] = astrologyTools.get_relocation;
       activeTools['get_composite'] = astrologyTools.get_composite;
       activeTools['get_venus_return'] = astrologyTools.get_venus_return;
+      activeTools['get_solar_arc'] = astrologyTools.get_solar_arc;
     }
 
-    // Inject Subscription Tier Context into the System Prompt
-    const systemPromptContext = tier === 'FREE' ?
-      "The user is on the FREE tier ('The Seeker' / 'Търсачът'). You ONLY have access to get_natal_chart and get_transits (basic only). If they ask about relationship destiny, exact timing, or deep transit analysis, DO NOT hallucinate. Instead, tell them in Bulgarian: 'За да разгледам дълбоко вашата любовна съвместимост или точното време на събитията, моля, преминете към план Pro (Навигаторът).'" :
-      tier === 'PRO' ?
-        "The user is on the PRO tier ('The Navigator' / 'Навигаторът'). You have access to Natal, Transits, Solar Return, and Relocation tools. If they ask about relationship compatibility or peak romance timing, DO NOT hallucinate. Tell them in Bulgarian: 'За анализ на сродни души и точно време за върхова романтика, моля, преминете към план Premium (Оракулът).'" :
-        "The user is on the PREMIUM tier ('The Oracle' / 'Оракулът'). You have unrestricted access to all astrological tools. Answer any question deeply and accurately.";
+    // Tier-accurate system prompt context — must exactly match the tools above
+    const systemPromptContext = tier === 'FREE'
+      ? `The user is on the FREE plan — 'The Seeker' (Търсачът).
+You have access to ONE tool: get_natal_chart. Use it to explore their birth chart placements, signs, houses, and natal aspects in depth.
+You can discuss: Sun, Moon, Rising, planetary signs and houses, natal aspects, elemental balance, and the core themes of their personality and life path.
+You CANNOT access transits, forecasts, relationship analysis, or timing tools on this plan.
+If the user asks about current planetary events, what to expect this year, relationship compatibility, or specific timing — do NOT guess or hallucinate. Acknowledge it warmly and guide them: 'За да видим какво правят планетите за теб в момента и какво предстои тази година, можеш да преминеш към план Pro (Навигаторът).'`
+
+      : tier === 'PRO'
+      ? `The user is on the PRO plan — 'The Navigator' (Навигаторът).
+You have access to FOUR tools: get_natal_chart, get_transits, get_solar_return, get_lunar_return.
+- get_natal_chart: birth chart placements, natal aspects, core personality and life themes
+- get_transits: current and upcoming planetary movements and how they activate the natal chart — use this for questions about what is happening NOW or in the near future
+- get_solar_return: the annual chart cast for the user's birthday — use this for questions about the year ahead, major themes, and annual focus areas
+- get_lunar_return: the monthly lunar cycle chart — use this for questions about THIS MONTH, current emotional focus, and what the current lunar cycle brings
+You CANNOT access relationship synastry, composite charts, secondary progressions, solar arc directions, astrocartography, or Venus Return timing on this plan.
+If the user asks about relationship compatibility, soul connections, psychological progression work, or relocation analysis — acknowledge it warmly and guide them: 'За задълбочен анализ на взаимоотношенията, съдбовните връзки и точното любовно и житейско прогнозиране, можеш да преминеш към план Premium (Оракулът).'`
+
+      : `The user is on the PREMIUM plan — 'The Oracle' (Оракулът).
+You have unrestricted access to all ten astrological tools:
+- get_natal_chart: full birth chart — placements, aspects, houses, chart patterns
+- get_transits: current and upcoming planetary activations on the natal chart
+- get_solar_return: the annual solar return chart for year-ahead themes
+- get_lunar_return: the monthly lunar return chart — emotional themes and focus for the current lunar cycle
+- get_synastry: inter-chart aspects between the user and a partner — relationship compatibility
+- get_progressions: secondary progressions — the slow inner psychological and life evolution
+- get_solar_arc: solar arc directions — each planet moves ~1° per year, revealing long-term life chapter shifts
+- get_relocation: astrocartography — how different locations on Earth affect the chart
+- get_composite: the composite chart — the chart of the relationship itself as an entity
+- get_venus_return: Venus return chart — precise timing for love, attraction, and financial luck
+Answer every question with depth, nuance, and comprehensive multi-tool synthesis when relevant. Do not limit yourself to a single tool when a question touches multiple domains.`;
 
     if (coreMessages.length > 0 && coreMessages[0].role === 'system') {
       coreMessages[0].content += `\n\n[TIER SYSTEM INSTRUCTION]\n${systemPromptContext}`;
@@ -153,7 +193,16 @@ export async function* streamChatCompletion(
         const toolName = (chunk as any).toolName;
         yield { content: '', done: false, toolResult: { name: toolName, result: resultVal } };
       } else if (chunk.type === 'finish') {
-        yield { content: '', done: true };
+        const usage = (chunk as any).usage;
+        yield {
+          content: '',
+          done: true,
+          usage: usage ? {
+            inputTokens: usage.promptTokens ?? 0,
+            outputTokens: usage.completionTokens ?? 0,
+            totalTokens: usage.totalTokens ?? 0,
+          } : undefined,
+        };
       }
     }
   } catch (error) {
@@ -174,7 +223,7 @@ export async function chatCompletion(
   config: Partial<LegacyLLMConfig> = {}
 ): Promise<string> {
   const coreMessages = mapToCoreMessages(messages);
-  const model = getProviderModel(config.model);
+  const model = getProviderModel();
 
   const result = await generateText({
     model,

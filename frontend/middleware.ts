@@ -3,8 +3,8 @@
  * BMAD 03-technical-architecture.md: URL-based locale routing
  * 
  * Routes:
- * - /login → Bulgarian (default)
- * - /en/login → English
+ * - /login → English (default)
+ * - /bg/login → Bulgarian
  */
 
 import createMiddleware from 'next-intl/middleware';

@@ -1,4 +1,4 @@
-import { Link } from '@/i18n/routing';
+import { Link } from '@/i18n/navigation';
 import { Sparkles, ArrowRight } from 'lucide-react';
 
 const ZODIAC_SIGNS = [

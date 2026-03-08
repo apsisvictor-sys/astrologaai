@@ -58,7 +58,7 @@ export default function ResetPasswordPage() {
           token,
           newPassword,
           confirmPassword,
-          language: typeof window !== 'undefined' && window.location.pathname.includes('/en/') ? 'en' : 'bg',
+          language: typeof window !== 'undefined' && window.location.pathname.includes('/bg/') ? 'bg' : 'en',
         }),
       });
 

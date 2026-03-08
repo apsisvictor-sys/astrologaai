@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#e01ff9",
+                        "background-light": "#f8f5f8",
+                        "background-dark": "#1a0b1c",
+                        "accent-blue": "#00d4ff",
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .glow-ring {
+            box-shadow: 0 0 40px 5px rgba(224, 31, 249, 0.3), 0 0 20px 2px rgba(0, 212, 255, 0.4);
+        }
+        .bg-void-gradient {
+            background: radial-gradient(circle at center, #2d1431 0%, #1a0b1c 100%);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-slate-100 antialiased overflow-hidden">
+<div class="relative flex min-h-screen w-full flex-col items-center justify-center p-6 bg-void-gradient">
+<div class="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none opacity-20">
+<div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-primary blur-[120px]"></div>
+<div class="absolute top-[40%] -right-[10%] w-[50%] h-[50%] rounded-full bg-accent-blue blur-[150px]"></div>
+</div>
+<div class="relative z-10 w-full max-w-md flex flex-col items-center gap-12">
+<div class="relative flex items-center justify-center w-64 h-64">
+<div class="absolute w-full h-full rounded-full border-4 border-dashed border-primary/20 animate-[spin_10s_linear_infinite]"></div>
+<div class="absolute w-[85%] h-[85%] rounded-full border-2 border-accent-blue/30 animate-[spin_15s_linear_infinite_reverse]"></div>
+<div class="relative w-48 h-48 rounded-full bg-gradient-to-tr from-primary/30 to-accent-blue/30 backdrop-blur-xl border border-white/10 flex items-center justify-center glow-ring">
+<div class="text-center p-4">
+<span class="material-symbols-outlined text-6xl text-white opacity-80 mb-2 block">auto_awesome</span>
+<div class="w-12 h-1 bg-gradient-to-r from-primary to-accent-blue mx-auto rounded-full"></div>
+</div>
+</div>
+<div class="absolute w-4 h-4 rounded-full bg-primary blur-sm top-0 left-1/2 -translate-x-1/2 animate-pulse"></div>
+<div class="absolute w-3 h-3 rounded-full bg-accent-blue blur-sm bottom-4 right-10"></div>
+</div>
+<div class="text-center space-y-3">
+<h1 class="text-slate-100 text-3xl font-bold tracking-tight leading-tight">
+                    The Oracle is aligning your stars...
+                </h1>
+<p class="text-primary/80 font-medium tracking-wide uppercase text-xs">Screen 4 of 4</p>
+</div>
+<div class="w-full space-y-4">
+<div class="flex justify-between items-end px-2">
+<span class="text-slate-300 text-sm font-medium">Calculating Natal Chart</span>
+<span class="text-primary text-lg font-bold">85%</span>
+</div>
+<div class="w-full h-3 bg-white/5 rounded-full overflow-hidden border border-white/10">
+<div class="h-full bg-gradient-to-r from-accent-blue via-primary to-primary rounded-full" style="width: 85%;"></div>
+</div>
+</div>
+<div class="w-full p-5 rounded-2xl border border-primary/20 bg-primary/5 backdrop-blur-md">
+<div class="flex flex-col gap-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-xl">info</span>
+<p class="text-slate-100 text-base font-bold leading-tight">Celestial Notification</p>
+</div>
+<p class="text-slate-400 text-sm leading-relaxed">
+                        Did you know? Your Natal Chart is a snapshot of the sky at the exact moment of your birth, capturing the cosmic blueprint of your potential.
+                    </p>
+<a class="mt-2 text-xs font-bold uppercase tracking-widest flex items-center gap-1 text-primary hover:text-accent-blue transition-colors" href="#">
+                        Learn more
+                        <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</a>
+</div>
+</div>
+<div class="flex flex-row items-center justify-center gap-3 pt-4">
+<div class="h-1.5 w-1.5 rounded-full bg-primary/20"></div>
+<div class="h-1.5 w-1.5 rounded-full bg-primary/20"></div>
+<div class="h-1.5 w-1.5 rounded-full bg-primary/20"></div>
+<div class="h-1.5 w-8 rounded-full bg-primary shadow-[0_0_10px_rgba(224,31,249,0.5)]"></div>
+</div>
+</div>
+</div>
+</body></html>

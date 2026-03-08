@@ -2,76 +2,105 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --background: #050510;
-    --foreground: #f1f5f9;
-  }
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
+@layer base {
   * {
     box-sizing: border-box;
-    margin: 0;
-    padding: 0;
   }
 
   html {
     scroll-behavior: smooth;
-    height: 100%;
-    background-color: var(--background);
   }
 
   body {
-    background-color: var(--background);
-    color: var(--foreground);
-    min-height: max(100vh, 100dvh);
-    background-attachment: fixed;
-    /* Font smoothing */
+    background-color: #0D0010;
+    background-image:
+      radial-gradient(circle at 15% 20%, rgba(228, 26, 255, 0.12) 0%, transparent 40%),
+      radial-gradient(circle at 85% 80%, rgba(0, 240, 255, 0.07) 0%, transparent 40%);
+    color: #FAFAFA;
+    font-family: 'Space Grotesk', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    /* Hide scrollbar for a cleaner app feel */
-    scrollbar-width: none;
-    -ms-overflow-style: none;
   }
 
-  body::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* Selection styling */
   ::selection {
-    background: rgba(228, 26, 255, 0.4);
-    color: white;
+    background-color: rgba(228, 26, 255, 0.3);
+    color: #FAFAFA;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(228, 26, 255, 0.3);
+    border-radius: 4px;
   }
 }
 
-@layer utilities {
-  .text-glow {
-    text-shadow: 0 0 10px rgba(228, 26, 255, 0.6);
+@layer components {
+  /* Glass panel — core surface primitive */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(228, 26, 255, 0.15);
+    border-radius: 16px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
-  .neon-glow-primary {
-    box-shadow: 0 0 15px rgba(228, 26, 255, 0.1);
+  .glass-panel-hover {
+    @apply glass-panel transition-all duration-300;
+  }
+  .glass-panel-hover:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(228, 26, 255, 0.35);
+    box-shadow: 0 0 20px rgba(228, 26, 255, 0.15);
   }
 
-  .neon-glow-blue {
-    box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+  /* Glow borders */
+  .glow-primary {
+    box-shadow: 0 0 20px rgba(228, 26, 255, 0.25);
+    border: 1px solid rgba(228, 26, 255, 0.3);
   }
 
+  .glow-cyan {
+    box-shadow: 0 0 20px rgba(0, 240, 255, 0.25);
+    border: 1px solid rgba(0, 240, 255, 0.3);
+  }
+
+  /* Blur spheres — ambient depth background elements */
   .blur-sphere {
+    position: absolute;
     border-radius: 50%;
     filter: blur(100px);
-    mix-blend-mode: screen;
-    opacity: 0.3;
+    pointer-events: none;
+    opacity: 0.35;
   }
 
-  .glass-panel {
-    background-color: rgba(26, 11, 28, 0.4);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 32px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(228, 26, 255, 0.05);
-    position: relative;
-    overflow: hidden;
+  /* Neon gradient text */
+  .gradient-text {
+    background: linear-gradient(135deg, #e41aff, #00f0ff);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
+
+  /* Neon gradient button */
+  .gradient-button {
+    background: linear-gradient(135deg, #ff0080, #e41aff, #00f0ff);
+    background-size: 200% 200%;
+    transition: background-position 0.3s ease, box-shadow 0.3s ease;
+  }
+  .gradient-button:hover {
+    background-position: right center;
+    box-shadow: 0 0 30px rgba(228, 26, 255, 0.5);
+  }
+
+  /* Tier badge colors */
+  .tier-free     { color: #64748B; border-color: #64748B; }
+  .tier-pro      { color: #F59E0B; border-color: #F59E0B; }
+  .tier-premium  { color: #8B5CF6; border-color: #8B5CF6; }
 }

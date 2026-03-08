@@ -19,6 +19,8 @@ import {
   type RelocationData,
   type CompositeData,
   type VenusReturnData,
+  type LunarReturnData,
+  type SolarArcData,
   type AstrologyCalculationOptions,
   type ProviderMetrics,
   type ProviderHealth,
@@ -438,6 +440,14 @@ export class AstrologyOrchestrator implements AstrologyOrchestratorInterface {
 
   async getVenusReturn(birthData: BirthDataInput, year: number, options?: AstrologyCalculationOptions): Promise<VenusReturnData> {
     return this.executeWithRetry('getVenusReturn', (p) => p.getVenusReturn(birthData, year, options), birthData);
+  }
+
+  async getLunarReturn(birthData: BirthDataInput, year: number, month: number, options?: AstrologyCalculationOptions): Promise<LunarReturnData> {
+    return this.executeWithRetry('getLunarReturn', (p) => p.getLunarReturn(birthData, year, month, options), birthData);
+  }
+
+  async getSolarArcDirections(birthData: BirthDataInput, targetDate: string, options?: AstrologyCalculationOptions): Promise<SolarArcData> {
+    return this.executeWithRetry('getSolarArcDirections', (p) => p.getSolarArcDirections(birthData, targetDate, options), birthData);
   }
 
 

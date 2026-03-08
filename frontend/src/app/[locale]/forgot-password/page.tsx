@@ -34,7 +34,7 @@ export default function ForgotPasswordPage() {
         },
         body: JSON.stringify({
           email,
-          language: typeof window !== 'undefined' && window.location.pathname.includes('/en/') ? 'en' : 'bg',
+          language: typeof window !== 'undefined' && window.location.pathname.includes('/bg/') ? 'bg' : 'en',
         }),
       });
 

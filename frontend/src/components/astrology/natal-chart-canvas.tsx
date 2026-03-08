@@ -1,339 +1,509 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion } from 'framer-motion';
 
-/**
- * Standard Astro Data Types (Math degrees from 0-360 mapped from Swiss Ephemeris)
- */
 export interface PlanetaryPosition {
-    name: string;
-    degree: number;
-    sign: string;
+  name: string;
+  degree: number; // absolute 0–360
+  sign: string;
+  retrograde?: boolean;
 }
 
 export interface NatalChartData {
-    planets: PlanetaryPosition[];
-    houses: number[]; // 12 house cusp degrees
-    ascendant: number;
+  planets: PlanetaryPosition[];
+  houses: number[]; // 12 house cusp degrees (absolute 0–360)
+  ascendant: number;
 }
 
 interface NatalChartCanvasProps {
-    data?: NatalChartData;
-    size?: number;
+  data?: NatalChartData;
+  size?: number;
 }
 
-// Fallback dummy data if no chart is generated yet
+// Fallback data
 const DUMMY_DATA: NatalChartData = {
-    planets: [
-        { name: 'Sun', degree: 45, sign: 'Taurus' },
-        { name: 'Moon', degree: 180, sign: 'Libra' },
-        { name: 'Mercury', degree: 52, sign: 'Taurus' },
-        { name: 'Venus', degree: 15, sign: 'Aries' },
-        { name: 'Mars', degree: 210, sign: 'Scorpio' },
-        { name: 'Jupiter', degree: 330, sign: 'Pisces' },
-        { name: 'Saturn', degree: 120, sign: 'Leo' },
-    ],
-    houses: [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330],
-    ascendant: 0,
+  planets: [
+    { name: 'Sun',     degree: 45,  sign: 'Taurus' },
+    { name: 'Moon',    degree: 180, sign: 'Libra' },
+    { name: 'Mercury', degree: 52,  sign: 'Taurus' },
+    { name: 'Venus',   degree: 15,  sign: 'Aries' },
+    { name: 'Mars',    degree: 210, sign: 'Scorpio' },
+    { name: 'Jupiter', degree: 330, sign: 'Pisces' },
+    { name: 'Saturn',  degree: 120, sign: 'Leo' },
+    { name: 'Uranus',  degree: 270, sign: 'Capricorn' },
+    { name: 'Neptune', degree: 295, sign: 'Capricorn' },
+    { name: 'Pluto',   degree: 230, sign: 'Scorpio' },
+  ],
+  houses: [0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330],
+  ascendant: 0,
 };
 
-// Zodiac Symbols and Colors mapping
 const ZODIAC_SIGNS = [
-    { name: 'Aries', symbol: '♈', color: '#FF6B00' },     // Fire
-    { name: 'Taurus', symbol: '♉', color: '#10B981' },    // Earth
-    { name: 'Gemini', symbol: '♊', color: '#bc13fe' },    // Air
-    { name: 'Cancer', symbol: '♋', color: '#00f0ff' },    // Water
-    { name: 'Leo', symbol: '♌', color: '#FF6B00' },       // Fire
-    { name: 'Virgo', symbol: '♍', color: '#10B981' },     // Earth
-    { name: 'Libra', symbol: '♎', color: '#bc13fe' },     // Air
-    { name: 'Scorpio', symbol: '♏', color: '#00f0ff' },    // Water
-    { name: 'Sagittarius', symbol: '♐', color: '#FF6B00' },// Fire
-    { name: 'Capricorn', symbol: '♑', color: '#10B981' }, // Earth
-    { name: 'Aquarius', symbol: '♒', color: '#bc13fe' },   // Air
-    { name: 'Pisces', symbol: '♓', color: '#00f0ff' },     // Water
+  { name: 'Aries',       symbol: '♈', color: '#FF6B35', element: 'fire'  },
+  { name: 'Taurus',      symbol: '♉', color: '#10B981', element: 'earth' },
+  { name: 'Gemini',      symbol: '♊', color: '#A78BFA', element: 'air'   },
+  { name: 'Cancer',      symbol: '♋', color: '#38BDF8', element: 'water' },
+  { name: 'Leo',         symbol: '♌', color: '#FBBF24', element: 'fire'  },
+  { name: 'Virgo',       symbol: '♍', color: '#34D399', element: 'earth' },
+  { name: 'Libra',       symbol: '♎', color: '#C084FC', element: 'air'   },
+  { name: 'Scorpio',     symbol: '♏', color: '#60A5FA', element: 'water' },
+  { name: 'Sagittarius', symbol: '♐', color: '#FB923C', element: 'fire'  },
+  { name: 'Capricorn',   symbol: '♑', color: '#6EE7B7', element: 'earth' },
+  { name: 'Aquarius',    symbol: '♒', color: '#818CF8', element: 'air'   },
+  { name: 'Pisces',      symbol: '♓', color: '#67E8F9', element: 'water' },
 ];
 
+const ELEMENT_FILL: Record<string, string> = {
+  fire:  '#FF6B35',
+  earth: '#10B981',
+  air:   '#A78BFA',
+  water: '#38BDF8',
+};
+
+const PLANET_SYMBOLS: Record<string, string> = {
+  'Sun':        '☉',
+  'Moon':       '☽',
+  'Mercury':    '☿',
+  'Venus':      '♀',
+  'Mars':       '♂',
+  'Jupiter':    '♃',
+  'Saturn':     '♄',
+  'Uranus':     '♅',
+  'Neptune':    '♆',
+  'Pluto':      '♇',
+  'North Node': '☊',
+  'South Node': '☋',
+  'Chiron':     '⚷',
+  'Lilith':     '⚸',
+};
+
 const PLANET_COLORS: Record<string, string> = {
-    'Sun': '#FBBF24',
-    'Moon': '#E2E8F0',
-    'Mercury': '#A78BFA',
-    'Venus': '#F472B6',
-    'Mars': '#EF4444',
-    'Jupiter': '#34D399',
-    'Saturn': '#9CA3AF',
-    'Uranus': '#38BDF8',
-    'Neptune': '#818CF8',
-    'Pluto': '#1E293B',
+  'Sun':        '#FBBF24',
+  'Moon':       '#E2E8F0',
+  'Mercury':    '#A78BFA',
+  'Venus':      '#F472B6',
+  'Mars':       '#EF4444',
+  'Jupiter':    '#34D399',
+  'Saturn':     '#9CA3AF',
+  'Uranus':     '#38BDF8',
+  'Neptune':    '#818CF8',
+  'Pluto':      '#C084FC',
+  'North Node': '#00f0ff',
+  'South Node': '#00f0ff',
+  'Chiron':     '#F9A8D4',
+  'Lilith':     '#e41aff',
 };
 
-// Trigonometry Helpers
-const degreeToRadians = (degree: number) => (degree) * (Math.PI / 180);
+const ROMAN_NUMERALS = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
 
-const calculateCoordinate = (degree: number, radius: number, centerX: number, centerY: number) => {
-    // We subtract from 180 to position 0 degrees (Ascendant) exactly at the left (9 o'clock)
-    // and correctly map counter-clockwise
-    const adjustedDegree = (180 - degree) % 360;
-    const rad = degreeToRadians(adjustedDegree);
-    return {
-        x: centerX + radius * Math.cos(rad),
-        y: centerY + radius * Math.sin(rad)
-    };
+// Angular house indices and their labels/colors
+const ANGULAR_AXES = [
+  { index: 0, label: 'ASC', color: '#00f0ff' },
+  { index: 3, label: 'IC',  color: '#F59E0B' },
+  { index: 6, label: 'DSC', color: '#00f0ff' },
+  { index: 9, label: 'MC',  color: '#F59E0B' },
+];
+
+const ASPECT_CONFIG: { name: string; degree: number; orb: number; color: string; opacity: number }[] = [
+  { name: 'Conjunction', degree: 0,   orb: 8,  color: '#FBBF24', opacity: 0.5 },
+  { name: 'Sextile',     degree: 60,  orb: 6,  color: '#34D399', opacity: 0.3 },
+  { name: 'Square',      degree: 90,  orb: 8,  color: '#e41aff', opacity: 0.35 },
+  { name: 'Trine',       degree: 120, orb: 8,  color: '#00f0ff', opacity: 0.35 },
+  { name: 'Opposition',  degree: 180, orb: 8,  color: '#ff0080', opacity: 0.35 },
+];
+
+const degToRad = (d: number) => d * (Math.PI / 180);
+
+const coord = (degree: number, radius: number, cx: number, cy: number) => {
+  const adj = (180 - degree) % 360;
+  const rad = degToRad(adj);
+  return { x: cx + radius * Math.cos(rad), y: cy + radius * Math.sin(rad) };
 };
 
-const describeZodiacArc = (x: number, y: number, radius: number, startDegree: number, endDegree: number) => {
-    // Path arc generation
-    const start = calculateCoordinate(endDegree, radius, x, y);
-    const end = calculateCoordinate(startDegree, radius, x, y);
-    const largeArcFlag = endDegree - startDegree <= 180 ? "0" : "1";
-    return [
-        "M", start.x, start.y,
-        "A", radius, radius, 0, largeArcFlag, 0, end.x, end.y
-    ].join(" ");
+// Arc path along a single ring (used for colored strips)
+const zodiacArcPath = (cx: number, cy: number, r: number, start: number, end: number) => {
+  const s = coord(end, r, cx, cy);
+  const e = coord(start, r, cx, cy);
+  const large = end - start <= 180 ? '0' : '1';
+  return `M ${s.x} ${s.y} A ${r} ${r} 0 ${large} 0 ${e.x} ${e.y}`;
 };
 
-export function NatalChartCanvas({ data = DUMMY_DATA, size = 450 }: NatalChartCanvasProps) {
-    const [hoveredPlanet, setHoveredPlanet] = useState<string | null>(null);
+// Filled wedge between two radii for a degree range
+function zodiacWedgePath(
+  cx: number, cy: number,
+  innerR: number, outerR: number,
+  startDeg: number, endDeg: number,
+): string {
+  const oEnd   = coord(endDeg,   outerR, cx, cy);
+  const oStart = coord(startDeg, outerR, cx, cy);
+  const iStart = coord(startDeg, innerR, cx, cy);
+  const iEnd   = coord(endDeg,   innerR, cx, cy);
+  const diff   = endDeg - startDeg;
+  const large  = diff <= 180 ? '0' : '1';
+  return [
+    `M ${oEnd.x} ${oEnd.y}`,
+    `A ${outerR} ${outerR} 0 ${large} 0 ${oStart.x} ${oStart.y}`,
+    `L ${iStart.x} ${iStart.y}`,
+    `A ${innerR} ${innerR} 0 ${large} 1 ${iEnd.x} ${iEnd.y}`,
+    'Z',
+  ].join(' ');
+}
 
-    const center = size / 2;
-    const outerRadius = (size / 2) * 0.9;
-    const innerRadius = outerRadius - 40;
-    const houseRadius = innerRadius - 20;
+function detectAspect(d1: number, d2: number) {
+  const diff = Math.abs(d1 - d2);
+  const dist = Math.min(diff, 360 - diff);
+  return ASPECT_CONFIG.find((a) => Math.abs(dist - a.degree) <= a.orb) ?? null;
+}
 
-    return (
-        <div className="relative w-full aspect-square max-w-[500px] mx-auto flex items-center justify-center">
-            {/* Background Base */}
-            <div className="absolute inset-0 rounded-full bg-background-dark/50 z-0 shadow-inner" />
+export function NatalChartCanvas({ data = DUMMY_DATA, size = 460 }: NatalChartCanvasProps) {
+  const [hoveredPlanet, setHoveredPlanet] = useState<string | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
 
-            {/* SVG Canvas - Ethereal Chart Engine */}
-            <svg
-                width="100%"
-                height="100%"
-                viewBox={`0 0 ${size} ${size}`}
-                className="relative z-10 w-full h-full max-w-full drop-shadow-2xl"
-                style={{ filter: 'drop-shadow(0 0 10px rgba(228, 26, 255, 0.2))' }}
-            >
-                <defs>
-                    <filter id="etherealGlow">
-                        <feGaussianBlur stdDeviation="3" result="coloredBlur" />
-                        <feMerge>
-                            <feMergeNode in="coloredBlur" />
-                            <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                    </filter>
-                    <filter id="intenseGlow">
-                        <feGaussianBlur stdDeviation="6" result="coloredBlur" />
-                        <feMerge>
-                            <feMergeNode in="coloredBlur" />
-                            <feMergeNode in="SourceGraphic" />
-                        </feMerge>
-                    </filter>
-                </defs>
+  useEffect(() => {
+    const t = setTimeout(() => setIsVisible(true), 80);
+    return () => clearTimeout(t);
+  }, []);
 
-                {/* Layer 1: Zodiac Wheel (12 Segments) */}
-                <g className="zodiac-wheel group/wheel">
-                    {/* Dark track background */}
-                    <circle cx={center} cy={center} r={outerRadius - 20} fill="none" stroke="#15151A" strokeWidth="40" opacity="0.8" />
+  const cx = size / 2;
+  const cy = size / 2;
+  const outerR  = (size / 2) * 0.90; // outer edge of zodiac ring
+  const zodiacR = outerR - 34;       // inner edge of zodiac ring (34px wide band)
+  const houseR  = zodiacR - 6;       // outer house boundary
+  const planetR = houseR * 0.73;     // planet orbit radius
+  const coreR   = houseR * 0.23;     // clear central space
 
-                    {Array.from({ length: 12 }).map((_, i) => {
-                        const startDegree = i * 30;
-                        const endDegree = (i + 1) * 30;
-                        const midDegree = startDegree + 15;
-                        const sign = ZODIAC_SIGNS[i];
+  // Starfield — deterministic pseudo-random dots
+  const stars = Array.from({ length: 40 }, (_, i) => {
+    const angle  = (i * 137.508) % 360;
+    const radius = coreR + 4 + ((i * 31) % (planetR - coreR - 8));
+    return coord(angle, radius, cx, cy);
+  });
 
-                        // Text positioning
-                        const textPos = calculateCoordinate(midDegree, outerRadius - 20, center, center);
+  return (
+    <div className="relative w-full aspect-square mx-auto" style={{ maxWidth: size }}>
+      {/* Ambient glow behind the wheel */}
+      <div
+        className="absolute inset-0 rounded-full pointer-events-none"
+        style={{
+          background: 'radial-gradient(circle, rgba(228,26,255,0.12) 0%, rgba(0,240,255,0.04) 50%, transparent 75%)',
+          filter: 'blur(20px)',
+        }}
+      />
 
-                        return (
-                            <g key={`zodiac-${i}`}>
-                                {/* Segment Divider */}
-                                <line
-                                    x1={calculateCoordinate(startDegree, outerRadius, center, center).x}
-                                    y1={calculateCoordinate(startDegree, outerRadius, center, center).y}
-                                    x2={calculateCoordinate(startDegree, innerRadius, center, center).x}
-                                    y2={calculateCoordinate(startDegree, innerRadius, center, center).y}
-                                    stroke="rgba(255,255,255,0.1)" strokeWidth="1"
-                                />
-                                {/* Colored Outer Arc glowing */}
-                                <path
-                                    d={describeZodiacArc(center, center, outerRadius, startDegree, endDegree)}
-                                    fill="none"
-                                    stroke={sign.color}
-                                    strokeWidth="2"
-                                    opacity="0.3"
-                                    filter="url(#etherealGlow)"
-                                />
-                                {/* Symbol */}
-                                <text
-                                    x={textPos.x}
-                                    y={textPos.y}
-                                    fill={sign.color}
-                                    fontSize="18"
-                                    textAnchor="middle"
-                                    alignmentBaseline="middle"
-                                    opacity="0.8"
-                                    className="select-none"
-                                >
-                                    {sign.symbol}
-                                </text>
-                            </g>
-                        );
-                    })}
-                </g>
+      <svg
+        width="100%"
+        height="100%"
+        viewBox={`0 0 ${size} ${size}`}
+        style={{ filter: 'drop-shadow(0 0 16px rgba(228,26,255,0.18))' }}
+      >
+        <defs>
+          <filter id="glow-soft">
+            <feGaussianBlur stdDeviation="2.5" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <filter id="glow-strong">
+            <feGaussianBlur stdDeviation="5" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+          <radialGradient id="bg-gradient" cx="50%" cy="50%" r="50%">
+            <stop offset="0%"   stopColor="#1a0520" stopOpacity="1" />
+            <stop offset="60%"  stopColor="#100315" stopOpacity="1" />
+            <stop offset="100%" stopColor="#0a0010" stopOpacity="1" />
+          </radialGradient>
+          <radialGradient id="center-glow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%"   stopColor="#e41aff" stopOpacity="0.15" />
+            <stop offset="100%" stopColor="#e41aff" stopOpacity="0" />
+          </radialGradient>
+        </defs>
 
-                {/* Layer 2: Houses (Neon Fuchsia Lines cutting inward) */}
-                <g className="houses">
-                    {/* Inner bound circle */}
-                    <circle cx={center} cy={center} r={houseRadius} fill="none" stroke="rgba(228, 26, 255, 0.2)" strokeWidth="1" />
+        {/* Background disc */}
+        <circle cx={cx} cy={cy} r={outerR} fill="url(#bg-gradient)" />
+        <circle cx={cx} cy={cy} r={outerR} fill="none" stroke="rgba(228,26,255,0.25)" strokeWidth="1" />
 
-                    {data.houses.map((houseDegree, i) => {
-                        const { x: startX, y: startY } = calculateCoordinate(houseDegree, innerRadius, center, center);
-                        const { x: endX, y: endY } = calculateCoordinate(houseDegree, houseRadius * 0.2, center, center);
+        {/* Layer 0: Starfield */}
+        <g opacity={isVisible ? 1 : 0} style={{ transition: 'opacity 1.2s ease' }}>
+          {stars.map((s, i) => (
+            <circle
+              key={i}
+              cx={s.x} cy={s.y}
+              r={i % 5 === 0 ? 1.2 : 0.7}
+              fill="white"
+              opacity={0.12 + (i % 4) * 0.06}
+            />
+          ))}
+        </g>
 
-                        // Determine mid-point angle for rendering house numbers securely
-                        const nextHouse = data.houses[(i + 1) % 12];
-                        let diff = nextHouse - houseDegree;
-                        if (diff < 0) diff += 360; // handle 360 wraparound
-                        const midDegree = houseDegree + (diff / 2);
-                        const numPos = calculateCoordinate(midDegree, houseRadius * 0.85, center, center);
+        {/* Layer 1: Zodiac ring */}
+        <g opacity={isVisible ? 1 : 0} style={{ transition: 'opacity 0.8s ease 0.1s' }}>
+          {/* Inner / outer ring borders */}
+          <circle cx={cx} cy={cy} r={zodiacR} fill="none" stroke="rgba(228,26,255,0.18)" strokeWidth="0.75" />
+          <circle cx={cx} cy={cy} r={outerR}  fill="none" stroke="rgba(228,26,255,0.22)" strokeWidth="0.75" />
 
-                        return (
-                            <g key={`house-${i}`}>
-                                <line
-                                    x1={startX} y1={startY} x2={endX} y2={endY}
-                                    stroke="#e41aff" strokeWidth={i === 0 || i === 9 ? "1.5" : "0.5"} // Bold for Ascendant and Midheaven
-                                    opacity={i === 0 || i === 9 ? "0.8" : "0.3"}
-                                />
-                                <text
-                                    x={numPos.x} y={numPos.y}
-                                    fill="#e41aff"
-                                    fontSize="10"
-                                    textAnchor="middle"
-                                    alignmentBaseline="middle"
-                                    opacity="0.5"
-                                    className="select-none font-mono"
-                                >
-                                    {i + 1}
-                                </text>
-                            </g>
-                        );
-                    })}
-                </g>
+          {ZODIAC_SIGNS.map((sign, i) => {
+            const startDeg = i * 30;
+            const endDeg   = startDeg + 30;
+            const midDeg   = startDeg + 15;
+            const textPos  = coord(midDeg, (outerR + zodiacR) / 2, cx, cy);
+            const elemColor = ELEMENT_FILL[sign.element];
 
-                {/* Layer 3: Aspects (Connecting Lasers inside inner circle) */}
-                <g className="aspect-lasers">
-                    {data.planets.map((p1, i) => {
-                        return data.planets.slice(i + 1).map((p2, j) => {
-                            const isHovered = hoveredPlanet === p1.name || hoveredPlanet === p2.name;
-                            const isDimmed = hoveredPlanet !== null && !isHovered;
+            return (
+              <g key={sign.name}>
+                {/* Element-colored wedge fill */}
+                <path
+                  d={zodiacWedgePath(cx, cy, zodiacR + 1, outerR - 1, startDeg, endDeg)}
+                  fill={elemColor}
+                  opacity="0.09"
+                />
 
-                            const diff = Math.abs(p1.degree - p2.degree);
-                            const distance = Math.min(diff, 360 - diff);
+                {/* Colored accent arc on outer edge */}
+                <path
+                  d={zodiacArcPath(cx, cy, outerR - 2, startDeg, endDeg)}
+                  fill="none"
+                  stroke={sign.color}
+                  strokeWidth="2.5"
+                  opacity="0.35"
+                  filter="url(#glow-soft)"
+                />
 
-                            let aspectColor = null;
-                            if (Math.abs(distance - 120) < 8) aspectColor = '#00f0ff';       // Trine (Harmony/Blue)
-                            else if (Math.abs(distance - 90) < 8) aspectColor = '#e41aff';  // Square (Tension/Fuchsia)
-                            else if (Math.abs(distance - 180) < 8) aspectColor = '#ff0080'; // Opposition (Conflict/Pink)
-                            else if (Math.abs(distance - 60) < 8) aspectColor = '#34D399';  // Sextile (Flow/Green)
+                {/* Segment divider at each 30° boundary */}
+                <line
+                  x1={coord(startDeg, zodiacR, cx, cy).x}
+                  y1={coord(startDeg, zodiacR, cx, cy).y}
+                  x2={coord(startDeg, outerR,  cx, cy).x}
+                  y2={coord(startDeg, outerR,  cx, cy).y}
+                  stroke="rgba(255,255,255,0.12)"
+                  strokeWidth="0.75"
+                />
 
-                            if (aspectColor) {
-                                const pos1 = calculateCoordinate(p1.degree, houseRadius * 0.7, center, center);
-                                const pos2 = calculateCoordinate(p2.degree, houseRadius * 0.7, center, center);
+                {/* Degree tick marks at 10° and 20° within each sign */}
+                {[10, 20].map((tick) => {
+                  const tickDeg   = startDeg + tick;
+                  const tickOuter = coord(tickDeg, outerR - 1,  cx, cy);
+                  const tickInner = coord(tickDeg, outerR - 6,  cx, cy);
+                  return (
+                    <line
+                      key={tick}
+                      x1={tickOuter.x} y1={tickOuter.y}
+                      x2={tickInner.x} y2={tickInner.y}
+                      stroke="rgba(255,255,255,0.18)"
+                      strokeWidth="0.75"
+                    />
+                  );
+                })}
 
-                                return (
-                                    <line
-                                        key={`aspect-${i}-${j}`}
-                                        x1={pos1.x} y1={pos1.y} x2={pos2.x} y2={pos2.y}
-                                        stroke={aspectColor}
-                                        strokeWidth={isHovered ? "2.5" : "1"}
-                                        opacity={isHovered ? "0.9" : isDimmed ? "0.05" : "0.25"}
-                                        filter={isHovered ? "url(#intenseGlow)" : "none"}
-                                        className="transition-all duration-300"
-                                    />
-                                );
-                            }
-                            return null;
-                        });
-                    })}
-                </g>
+                {/* Sign symbol */}
+                <text
+                  x={textPos.x} y={textPos.y}
+                  fill={sign.color}
+                  fontSize="15"
+                  textAnchor="middle"
+                  alignmentBaseline="middle"
+                  opacity="0.88"
+                  className="select-none"
+                >
+                  {sign.symbol}
+                </text>
+              </g>
+            );
+          })}
+        </g>
 
-                {/* Layer 4: Planets (Glowing Orbs) */}
-                <g className="planets">
-                    {data.planets.map((planet, i) => {
-                        const { x, y } = calculateCoordinate(planet.degree, houseRadius * 0.7, center, center);
-                        const isHovered = hoveredPlanet === planet.name;
-                        const isDimmed = hoveredPlanet !== null && !isHovered;
-                        const color = PLANET_COLORS[planet.name] || '#FFF';
+        {/* Layer 2: House lines */}
+        <g opacity={isVisible ? 1 : 0} style={{ transition: 'opacity 0.8s ease 0.25s' }}>
+          <circle cx={cx} cy={cy} r={houseR} fill="none" stroke="rgba(228,26,255,0.15)" strokeWidth="0.5" />
+          <circle cx={cx} cy={cy} r={coreR}  fill="none" stroke="rgba(228,26,255,0.2)"  strokeWidth="0.5" />
 
-                        return (
-                            <g
-                                key={`planet-${i}`}
-                                onMouseEnter={() => setHoveredPlanet(planet.name)}
-                                onMouseLeave={() => setHoveredPlanet(null)}
-                                className="cursor-pointer"
-                            >
-                                {/* Invisible larger hit area for easier hovering */}
-                                <circle cx={x} cy={y} r="20" fill="transparent" />
+          {data.houses.map((houseDeg, i) => {
+            const isAxis = i === 0 || i === 3 || i === 6 || i === 9;
+            const from   = coord(houseDeg, zodiacR, cx, cy);
+            const to     = coord(houseDeg, coreR,   cx, cy);
 
-                                {/* Outer Glow */}
-                                <circle
-                                    cx={x} cy={y}
-                                    r={isHovered ? "14" : "10"}
-                                    fill={color}
-                                    opacity={isDimmed ? "0.1" : isHovered ? "0.6" : "0.3"}
-                                    filter={isHovered ? "url(#intenseGlow)" : "url(#etherealGlow)"}
-                                    className="transition-all duration-300"
-                                />
+            const next = data.houses[(i + 1) % 12];
+            let diff = next - houseDeg;
+            if (diff < 0) diff += 360;
+            const mid    = houseDeg + diff / 2;
+            const numPos = coord(mid, (houseR + coreR) / 2, cx, cy);
 
-                                {/* Solid Core */}
-                                <circle
-                                    cx={x} cy={y}
-                                    r={4}
-                                    fill="#FFF"
-                                    opacity={isDimmed ? "0.3" : "1"}
-                                />
+            return (
+              <g key={`house-${i}`}>
+                <line
+                  x1={from.x} y1={from.y} x2={to.x} y2={to.y}
+                  stroke={isAxis ? '#e41aff' : 'rgba(228,26,255,0.3)'}
+                  strokeWidth={isAxis ? '1.5' : '0.5'}
+                  opacity={isAxis ? '0.9' : '0.5'}
+                  filter={isAxis ? 'url(#glow-soft)' : undefined}
+                />
+                {/* Roman numeral house label */}
+                <text
+                  x={numPos.x} y={numPos.y}
+                  fill="rgba(228,26,255,0.45)"
+                  fontSize="9"
+                  textAnchor="middle"
+                  alignmentBaseline="middle"
+                  className="select-none"
+                  style={{ fontFamily: 'Georgia, serif' }}
+                >
+                  {ROMAN_NUMERALS[i]}
+                </text>
+              </g>
+            );
+          })}
 
-                                {/* Planet Name Label */}
-                                <text
-                                    x={x}
-                                    y={y + 20}
-                                    fill={isHovered ? "#FFF" : color}
-                                    fontSize={isHovered ? "12" : "10"}
-                                    fontWeight={isHovered ? "bold" : "normal"}
-                                    textAnchor="middle"
-                                    opacity={isDimmed ? "0" : isHovered ? "1" : "0.8"}
-                                    className="transition-all duration-300 select-none pointer-events-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]"
-                                >
-                                    {planet.name}
-                                </text>
+          {/* Angular axis labels: ASC / IC / DSC / MC */}
+          {ANGULAR_AXES.map(({ index, label, color }) => {
+            const deg = data.houses[index];
+            if (deg === undefined) return null;
+            const pos = coord(deg, zodiacR - 10, cx, cy);
+            return (
+              <motion.text
+                key={label}
+                x={pos.x} y={pos.y}
+                fill={color}
+                fontSize="8"
+                fontWeight="bold"
+                textAnchor="middle"
+                alignmentBaseline="middle"
+                className="select-none"
+                filter="url(#glow-soft)"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.4 }}
+              >
+                {label}
+              </motion.text>
+            );
+          })}
+        </g>
 
-                                {/* Tooltip background box (only visible on hover) */}
-                                {isHovered && (
-                                    <g className="pointer-events-none">
-                                        <rect
-                                            x={x - 50}
-                                            y={y - 45}
-                                            width="100"
-                                            height="30"
-                                            rx="6"
-                                            fill="#0A0A1F"
-                                            stroke={color}
-                                            strokeWidth="1"
-                                            opacity="0.95"
-                                        />
-                                        <text x={x} y={y - 25} fill="#FFF" fontSize="10" textAnchor="middle" className="font-medium">
-                                            {planet.degree.toFixed(1)}° {planet.sign}
-                                        </text>
-                                    </g>
-                                )}
-                            </g>
-                        );
-                    })}
-                </g>
+        {/* Layer 3: Aspect lines */}
+        <g opacity={isVisible ? 1 : 0} style={{ transition: 'opacity 0.9s ease 0.4s' }}>
+          {data.planets.map((p1, i) =>
+            data.planets.slice(i + 1).map((p2, j) => {
+              const aspect = detectAspect(p1.degree, p2.degree);
+              if (!aspect) return null;
 
-                {/* Central Core Indicator */}
-                <circle cx={center} cy={center} r={4} fill="#e41aff" filter="url(#etherealGlow)" opacity="0.5" />
-                <circle cx={center} cy={center} r={1.5} fill="#FFF" />
-            </svg>
-        </div>
-    );
+              const isHovered = hoveredPlanet === p1.name || hoveredPlanet === p2.name;
+              const isDimmed  = hoveredPlanet !== null && !isHovered;
+
+              const pos1 = coord(p1.degree, planetR * 0.95, cx, cy);
+              const pos2 = coord(p2.degree, planetR * 0.95, cx, cy);
+
+              return (
+                <line
+                  key={`asp-${i}-${j}`}
+                  x1={pos1.x} y1={pos1.y}
+                  x2={pos2.x} y2={pos2.y}
+                  stroke={aspect.color}
+                  strokeWidth={isHovered ? 2 : 0.8}
+                  opacity={isDimmed ? 0.03 : isHovered ? 0.85 : aspect.opacity}
+                  filter={isHovered ? 'url(#glow-strong)' : undefined}
+                  style={{ transition: 'opacity 0.25s, stroke-width 0.25s' }}
+                />
+              );
+            })
+          )}
+        </g>
+
+        {/* Layer 4: Planets */}
+        <g>
+          {data.planets.map((planet, i) => {
+            const { x, y }  = coord(planet.degree, planetR, cx, cy);
+            const isHovered = hoveredPlanet === planet.name;
+            const isDimmed  = hoveredPlanet !== null && !isHovered;
+            const color     = PLANET_COLORS[planet.name] || '#FFF';
+            const symbol    = PLANET_SYMBOLS[planet.name] || planet.name[0];
+
+            return (
+              <motion.g
+                key={planet.name}
+                initial={{ opacity: 0, scale: 0.4 }}
+                animate={{ opacity: isDimmed ? 0.2 : 1, scale: 1 }}
+                transition={{ duration: 0.5, delay: 0.5 + i * 0.07, ease: 'backOut' }}
+                onMouseEnter={() => setHoveredPlanet(planet.name)}
+                onMouseLeave={() => setHoveredPlanet(null)}
+                onTouchStart={() => setHoveredPlanet(planet.name)}
+                onTouchEnd={() => setTimeout(() => setHoveredPlanet(null), 1200)}
+                style={{ cursor: 'pointer' }}
+              >
+                {/* Hit area */}
+                <circle cx={x} cy={y} r={18} fill="transparent" />
+
+                {/* Outer glow halo */}
+                <circle
+                  cx={x} cy={y}
+                  r={isHovered ? 14 : 10}
+                  fill={color}
+                  opacity={isHovered ? 0.55 : 0.2}
+                  filter={isHovered ? 'url(#glow-strong)' : 'url(#glow-soft)'}
+                  style={{ transition: 'r 0.2s, opacity 0.2s' }}
+                />
+
+                {/* Planet symbol */}
+                <text
+                  x={x} y={y + 0.5}
+                  fill={isHovered ? '#fff' : color}
+                  fontSize={isHovered ? '13' : '11'}
+                  fontWeight="500"
+                  textAnchor="middle"
+                  alignmentBaseline="middle"
+                  className="select-none pointer-events-none"
+                  style={{ transition: 'font-size 0.2s' }}
+                >
+                  {symbol}
+                </text>
+
+                {/* Retrograde indicator */}
+                {planet.retrograde && (
+                  <text
+                    x={x + 8} y={y - 7}
+                    fill={color}
+                    fontSize="7"
+                    textAnchor="middle"
+                    className="select-none pointer-events-none"
+                    opacity="0.9"
+                  >
+                    ℛ
+                  </text>
+                )}
+
+                {/* Hover tooltip */}
+                {isHovered && (
+                  <g className="pointer-events-none">
+                    <rect
+                      x={x - 52} y={y - 52}
+                      width="104" height="32"
+                      rx="6"
+                      fill="#0D0010"
+                      stroke={color}
+                      strokeWidth="0.8"
+                      opacity="0.96"
+                    />
+                    <text x={x} y={y - 42} fill="#fff" fontSize="10" fontWeight="600" textAnchor="middle">
+                      {planet.name}{planet.retrograde ? ' ℛ' : ''}
+                    </text>
+                    <text x={x} y={y - 28} fill={color} fontSize="9" textAnchor="middle" opacity="0.85">
+                      {(planet.degree % 30).toFixed(1)}° {planet.sign}
+                    </text>
+                  </g>
+                )}
+              </motion.g>
+            );
+          })}
+        </g>
+
+        {/* Central core */}
+        <circle cx={cx} cy={cy} r={coreR - 1} fill="url(#center-glow)" />
+        <motion.circle
+          cx={cx} cy={cy} r={5}
+          fill="#e41aff"
+          filter="url(#glow-soft)"
+          opacity="0.7"
+          animate={{ r: [4, 6, 4], opacity: [0.5, 0.9, 0.5] }}
+          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <circle cx={cx} cy={cy} r={2} fill="#fff" />
+      </svg>
+    </div>
+  );
 }

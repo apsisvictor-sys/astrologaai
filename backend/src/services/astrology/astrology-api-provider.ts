@@ -23,6 +23,8 @@ import {
   type RelocationData,
   type CompositeData,
   type VenusReturnData,
+  type LunarReturnData,
+  type SolarArcData,
 } from './astrology-provider.interface';
 import { redisClient } from '../../utils/redis';
 
@@ -606,6 +608,63 @@ export class AstrologyAPIProvider extends BaseAstrologyProvider {
       exactTime: '00:00:00',
       themes: ['love', 'beauty', 'harmony']
     };
+  }
+
+  async getLunarReturn(
+    birthData: BirthDataInput,
+    year: number,
+    month: number,
+    options?: AstrologyCalculationOptions
+  ): Promise<LunarReturnData> {
+    const apiData = await this.makeRequest<any>('/lunar-return', {
+      year: birthData.year, month: birthData.month, day: birthData.day,
+      hour: birthData.hour, minute: birthData.minute,
+      latitude: birthData.latitude, longitude: birthData.longitude,
+      return_year: year, return_month: month
+    });
+
+    return {
+      returnDate: `${year}-${String(month).padStart(2, '0')}-01`,
+      exactTime: apiData?.exact_time || '00:00:00',
+      planets: apiData?.planets ? this.transformPlanetsArray(apiData.planets) : [],
+      houses: apiData?.houses ? transformHousesData(apiData) : [],
+      aspects: apiData?.aspects ? transformAspectsData(apiData) : [],
+    };
+  }
+
+  async getSolarArcDirections(
+    birthData: BirthDataInput,
+    targetDate: string,
+    options?: AstrologyCalculationOptions
+  ): Promise<SolarArcData> {
+    const apiData = await this.makeRequest<any>('/solar-arc', {
+      year: birthData.year, month: birthData.month, day: birthData.day,
+      hour: birthData.hour, minute: birthData.minute,
+      latitude: birthData.latitude, longitude: birthData.longitude,
+      target_date: targetDate
+    });
+
+    return {
+      progressedDate: targetDate,
+      arcDegrees: apiData?.arc_degrees || 0,
+      planets: apiData?.planets ? this.transformPlanetsArray(apiData.planets) : [],
+      aspects: apiData?.aspects ? transformAspectsData(apiData) : [],
+    };
+  }
+
+  private transformPlanetsArray(planets: any[]): PlanetPosition[] {
+    return planets.map((p: any) => {
+      const sign = p.sign || p.zodiac_sign || 'Unknown';
+      return {
+        name: p.name || '',
+        sign,
+        signBg: SIGN_TRANSLATIONS[sign] || sign,
+        degree: parseFloat(p.degree || 0),
+        house: parseInt(p.house || 1, 10),
+        retrograde: p.retrograde === true || p.is_retrograde === true,
+        symbol: PLANET_SYMBOLS[p.name?.toLowerCase() || ''] || '',
+      };
+    });
   }
 }
 

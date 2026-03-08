@@ -349,3 +349,130 @@ enum Tier {
   PRO
   PREMIUM
 }
+
+// ============================================
+// ADMIN — LLM USAGE TRACKING
+// ============================================
+
+// Daily aggregate of LLM token usage per tier + model.
+// Written by the LLM service after each streaming completion.
+model LlmUsage {
+  id            String   @id @default(uuid())
+  date          DateTime @db.Date                // day bucket (no time component)
+  tier          Tier
+  model         String                           // "claude-haiku-4-5-20251001", etc.
+  requestCount  Int      @default(0) @map("request_count")
+  inputTokens   BigInt   @default(0) @map("input_tokens")
+  outputTokens  BigInt   @default(0) @map("output_tokens")
+  totalTokens   BigInt   @default(0) @map("total_tokens")
+  costUsdCents  Int      @default(0) @map("cost_usd_cents")  // avoid float, store as integer cents
+  p50LatencyMs  Int      @default(0) @map("p50_latency_ms")
+  p95LatencyMs  Int      @default(0) @map("p95_latency_ms")
+  p99LatencyMs  Int      @default(0) @map("p99_latency_ms")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([date, tier, model])
+  @@index([date])
+  @@index([tier])
+  @@map("llm_usage")
+}
+
+// ============================================
+// ADMIN — EDITABLE SYSTEM PROMPTS
+// ============================================
+
+model SystemPrompt {
+  id        String   @id @default(uuid())
+  name      String   @unique                      // "master", "free_addon", "pro_addon", "premium_addon", "forecast", "compatibility"
+  label     String                                // Display: "Master Prompt", "Free Tier Addon", etc.
+  content   String   @db.Text
+  isActive  Boolean  @default(true) @map("is_active")
+  version   Int      @default(1)
+  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  history   SystemPromptHistory[]
+
+  @@map("system_prompts")
+}
+
+model SystemPromptHistory {
+  id        String       @id @default(uuid())
+  promptId  String       @map("prompt_id")
+  prompt    SystemPrompt @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  content   String       @db.Text
+  version   Int
+  savedAt   DateTime     @default(now()) @map("saved_at")
+  savedBy   String       @map("saved_by")         // admin email
+
+  @@index([promptId])
+  @@map("system_prompt_history")
+}
+
+// ============================================
+// ADMIN — RUNTIME CONFIGURATION
+// ============================================
+
+// Key/value config store for runtime overrides (model strings per tier, etc.)
+model AdminConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique                      // "model_free", "model_pro", "model_premium"
+  value     String
+  updatedAt DateTime @updatedAt @map("updated_at")
+  updatedBy String   @map("updated_by")           // admin email
+
+  @@map("admin_config")
+}
+
+// ============================================
+// ADMIN — DISCOUNT CODES
+// ============================================
+
+model DiscountCode {
+  id                   String    @id @default(uuid())
+  code                 String    @unique
+  stripePromotionCodeId String?  @map("stripe_promotion_code_id")
+  discountType         String    @default("percent") @map("discount_type")  // "percent" | "amount"
+  discountValue        Int       @map("discount_value")                     // % or EUR cents
+  appliesTo            String    @default("ALL") @map("applies_to")         // "PRO" | "PREMIUM" | "ALL"
+  maxUses              Int?      @map("max_uses")                           // null = unlimited
+  usesCount            Int       @default(0) @map("uses_count")
+  expiresAt            DateTime? @map("expires_at")
+  isActive             Boolean   @default(true) @map("is_active")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@index([isActive])
+  @@map("discount_codes")
+}
+
+// ============================================
+// ADMIN — REFERRAL LINKS
+// ============================================
+
+model ReferralLink {
+  id             String    @id @default(uuid())
+  slug           String    @unique
+  label          String                            // "John's Blog", "Instagram Bio"
+  commissionRate Float     @default(0.2) @map("commission_rate")  // 0.20 = 20%
+  clicks         Int       @default(0)
+  isActive       Boolean   @default(true) @map("is_active")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  conversions    ReferralConversion[]
+
+  @@map("referral_links")
+}
+
+model ReferralConversion {
+  id              String       @id @default(uuid())
+  linkId          String       @map("link_id")
+  link            ReferralLink @relation(fields: [linkId], references: [id])
+  userId          String       @map("user_id")
+  tier            Tier
+  revenueEurCents Int          @default(0) @map("revenue_eur_cents")
+  commissionCents Int          @default(0) @map("commission_cents")
+  convertedAt     DateTime     @default(now()) @map("converted_at")
+
+  @@index([linkId])
+  @@map("referral_conversions")
+}

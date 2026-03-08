@@ -7,19 +7,15 @@
  * The [locale]/layout.tsx provides the same for locale-aware pages
  */
 
-import { Inter, Outfit } from 'next/font/google';
+import { Space_Grotesk } from 'next/font/google';
 import { AuthProvider } from '@/lib/auth-context';
 import { ClientProviders } from '@/components/client-providers';
 import './globals.css';
 
-const inter = Inter({
-  subsets: ['latin', 'cyrillic'],
-  variable: '--font-inter',
-});
-
-const outfit = Outfit({
+const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
-  variable: '--font-outfit',
+  variable: '--font-space-grotesk',
+  weight: ['300', '400', '500', '600', '700'],
 });
 
 export const metadata = {
@@ -34,9 +30,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${outfit.variable} dark`} suppressHydrationWarning>
+    <html lang="en" className={`${spaceGrotesk.variable} dark`} suppressHydrationWarning>
       <body
-        className={`${inter.className} antialiased min-h-screen selection:bg-primary-glow selection:text-white`}
+        className={`${spaceGrotesk.className} antialiased min-h-screen`}
       >
         <AuthProvider>
           <ClientProviders>

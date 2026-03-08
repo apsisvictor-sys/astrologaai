@@ -696,7 +696,15 @@ function buildCompatibilityAnalysis(
 }
 
 /**
- * Analyze a specific planet pair between charts
+ * Analyze a specific planet's role in the synastry.
+ *
+ * Finds the strongest astrological aspect this planet makes across the two charts.
+ * In synastry, a planet's influence is defined by the tightest (lowest orb) aspect
+ * it forms — whether the user's planet contacts the partner's chart or vice versa.
+ *
+ * Priority: user's planet → partner's planets (natural reading direction), then
+ * partner's planet → user's planets (reverse direction, equally valid in synastry).
+ * Tightest orb wins — orb is the measure of aspect strength.
  */
 function analyzePlanetPair(
   planet: string,
@@ -704,18 +712,27 @@ function analyzePlanetPair(
   partnerPlanet: PlanetPosition,
   aspects: InterPlanetaryAspect[]
 ): PlanetaryComparison {
-  // Find aspect between these planets
-  const aspect = aspects.find(
-    a => (a.userPlanet === planet && a.partnerPlanet === planet) ||
-         (a.userPlanet === planet && a.partnerPlanet === planet)
-  );
+  // Primary: aspects where the user's named planet contacts any partner planet
+  // e.g. for planet='venus': user Venus trine partner Moon, user Venus square partner Saturn
+  const primaryAspects = aspects
+    .filter(a => a.userPlanet === planet)
+    .sort((a, b) => a.orb - b.orb);
 
-  // Calculate element-based compatibility
+  // Secondary: aspects where the partner's named planet contacts any user planet
+  // e.g. for planet='venus': partner Venus conjunct user Ascendant
+  const secondaryAspects = aspects
+    .filter(a => a.partnerPlanet === planet)
+    .sort((a, b) => a.orb - b.orb);
+
+  // Take the strongest (tightest orb) aspect found, prioritising the user's side
+  const aspect = primaryAspects[0] ?? secondaryAspects[0] ?? null;
+
+  // Base score from sign-element compatibility (fire/earth/air/water cross-match)
   const userElement = SIGN_ELEMENTS[userPlanet.sign] || 'fire';
   const partnerElement = SIGN_ELEMENTS[partnerPlanet.sign] || 'fire';
   const baseCompatibility = ELEMENT_COMPATIBILITY[userElement]?.[partnerElement] || 50;
 
-  // Adjust based on aspect
+  // Refine score based on the actual synastry aspect found
   let compatibility = baseCompatibility;
   let nature: 'harmonious' | 'challenging' | 'neutral' = 'neutral';
 

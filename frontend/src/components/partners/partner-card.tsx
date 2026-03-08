@@ -1,15 +1,6 @@
-/**
- * Partner Card Component
- * US-18: Add Partner - Display card for a single partner
- * US-19: Synastry Chart - View synastry button
- * 
- * Design: Follows 06-ux-ui-design.md specifications
- */
-
 'use client';
 
-import React from 'react';
-import { useRouter } from '@/i18n/routing';
+import { useRouter } from '@/i18n/navigation';
 import { Partner } from '@/lib/partners-api';
 
 interface PartnerCardProps {
@@ -19,211 +10,130 @@ interface PartnerCardProps {
   language?: 'bg' | 'en';
 }
 
-// Translations
-const translations = {
-  bg: {
-    types: {
-      romantic: '💕 Романтична',
-      friend: '🤝 Приятел',
-      family: '👨‍👩‍👧 Семейство',
-      business: '💼 Бизнес',
-      other: '✨ Друго',
-    },
-    bornIn: 'Роден/а в',
-    unknownTime: 'часът е неизвестен',
-    edit: 'Редактирай',
-    delete: 'Изтрий',
-    deleteConfirm: 'Сигурни ли сте, че искате да изтриете този партньор?',
-    viewSynastry: 'Синастрия',
-    viewReport: 'Доклад',
-  },
-  en: {
-    types: {
-      romantic: '💕 Romantic',
-      friend: '🤝 Friend',
-      family: '👨‍👩‍👧 Family',
-      business: '💼 Business',
-      other: '✨ Other',
-    },
-    bornIn: 'Born in',
-    unknownTime: 'time unknown',
-    edit: 'Edit',
-    delete: 'Delete',
-    deleteConfirm: 'Are you sure you want to delete this partner?',
-    viewSynastry: 'Synastry',
-    viewReport: 'Report',
-  },
+const TYPE_LABELS: Record<string, { en: string; bg: string; color: string }> = {
+  romantic: { en: 'Romantic',  bg: 'Романтична', color: '#ff0080' },
+  friend:   { en: 'Friend',    bg: 'Приятел',    color: '#00f0ff' },
+  family:   { en: 'Family',    bg: 'Семейство',  color: '#F59E0B' },
+  business: { en: 'Business',  bg: 'Бизнес',     color: '#A78BFA' },
+  other:    { en: 'Other',     bg: 'Друго',       color: '#64748B' },
 };
+
+const SIGN_SYMBOLS: Record<string, string> = {
+  Aries: '♈', Taurus: '♉', Gemini: '♊', Cancer: '♋',
+  Leo: '♌', Virgo: '♍', Libra: '♎', Scorpio: '♏',
+  Sagittarius: '♐', Capricorn: '♑', Aquarius: '♒', Pisces: '♓',
+};
+
+function signSym(sign?: string) {
+  return sign ? (SIGN_SYMBOLS[sign] ?? '') + ' ' + sign : '—';
+}
+
+function formatDate(dateStr: string, language: 'bg' | 'en') {
+  return new Date(dateStr).toLocaleDateString(language === 'bg' ? 'bg-BG' : 'en-US', {
+    year: 'numeric', month: 'short', day: 'numeric',
+  });
+}
 
 export function PartnerCard({ partner, onEdit, onDelete, language = 'bg' }: PartnerCardProps) {
   const router = useRouter();
-  const t = translations[language];
-
-  const handleDelete = () => {
-    if (window.confirm(t.deleteConfirm)) {
-      onDelete(partner);
-    }
-  };
-
-  // Format date for display
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(language === 'bg' ? 'bg-BG' : 'en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
+  const typeInfo = TYPE_LABELS[partner.relationshipType] ?? TYPE_LABELS.other;
+  const typeLabel = language === 'bg' ? typeInfo.bg : typeInfo.en;
+  const typeColor = typeInfo.color;
 
   return (
-    <div 
-      className="relative group p-5 rounded-2xl transition-all duration-300"
+    <div
+      className="group relative p-5 rounded-2xl transition-all duration-200"
       style={{
-        background: '#0A0A1F',
-        border: '1px solid #1A1A3A',
+        background: 'rgba(255,255,255,0.03)',
+        border: '1px solid rgba(255,255,255,0.07)',
+        backdropFilter: 'blur(12px)',
       }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.borderColor = 'rgba(124, 58, 237, 0.5)';
-        e.currentTarget.style.transform = 'translateY(-2px)';
-        e.currentTarget.style.boxShadow = '0 8px 30px rgba(0, 0, 0, 0.4), 0 0 20px rgba(124, 58, 237, 0.1)';
+      onMouseEnter={e => {
+        (e.currentTarget as HTMLDivElement).style.border = '1px solid rgba(228,26,255,0.25)';
+        (e.currentTarget as HTMLDivElement).style.boxShadow = '0 0 24px rgba(228,26,255,0.08)';
       }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.borderColor = '#1A1A3A';
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
+      onMouseLeave={e => {
+        (e.currentTarget as HTMLDivElement).style.border = '1px solid rgba(255,255,255,0.07)';
+        (e.currentTarget as HTMLDivElement).style.boxShadow = 'none';
       }}
     >
-      {/* Relationship Type Badge */}
-      <div 
-        className="absolute top-4 right-4 px-3 py-1 rounded-full text-xs font-medium"
+      {/* Relationship type badge */}
+      <span
+        className="absolute top-4 right-4 text-[10px] font-bold px-2 py-0.5 rounded-full"
         style={{
-          background: 'rgba(124, 58, 237, 0.15)',
-          color: '#A78BFA',
+          background: `${typeColor}15`,
+          color: typeColor,
+          border: `1px solid ${typeColor}30`,
         }}
       >
-        {t.types[partner.relationshipType]}
-      </div>
+        {typeLabel}
+      </span>
 
-      {/* Partner Name */}
-      <h3 
-        className="text-xl font-bold mb-1 pr-20"
-        style={{ color: '#F8FAFC' }}
-      >
-        {partner.name}
-      </h3>
-
-      {/* Custom Label */}
+      {/* Name + label */}
+      <h3 className="text-lg font-bold text-white pr-20 mb-0.5">{partner.name}</h3>
       {partner.label && (
-        <p 
-          className="text-sm mb-3"
-          style={{ color: '#8B5CF6' }}
-        >
-          {partner.label}
-        </p>
+        <p className="text-xs mb-3" style={{ color: 'rgba(228,26,255,0.7)' }}>{partner.label}</p>
       )}
 
-      {/* Birth Data */}
-      <div 
-        className="text-sm mb-3"
-        style={{ color: '#CBD5E1' }}
-      >
-        <p>🎂 {formatDate(partner.birthData.date)}</p>
-        <p>
-          📍 {t.bornIn} {partner.birthData.location}
-          {partner.birthData.time ? (
-            <span> at {partner.birthData.time}</span>
-          ) : (
-            <span style={{ color: '#64748B' }}> ({t.unknownTime})</span>
-          )}
-        </p>
-      </div>
-
-      {/* Chart Summary */}
+      {/* Big 3 signs */}
       {partner.chartSummary && (
-        <div 
-          className="flex gap-2 mb-3"
-        >
+        <div className="flex gap-1.5 flex-wrap mb-3">
           {partner.chartSummary.sunSign && (
-            <span 
-              className="px-2 py-1 rounded-lg text-xs"
-              style={{ background: 'rgba(251, 191, 36, 0.15)', color: '#FBBF24' }}
-            >
-              ☀️ {partner.chartSummary.sunSign}
+            <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(251,191,36,0.12)', color: '#FBBF24', border: '1px solid rgba(251,191,36,0.2)' }}>
+              ☉ {signSym(partner.chartSummary.sunSign)}
             </span>
           )}
           {partner.chartSummary.moonSign && (
-            <span 
-              className="px-2 py-1 rounded-lg text-xs"
-              style={{ background: 'rgba(229, 231, 235, 0.15)', color: '#E5E7EB' }}
-            >
-              🌙 {partner.chartSummary.moonSign}
+            <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(203,213,225,0.08)', color: '#CBD5E1', border: '1px solid rgba(203,213,225,0.15)' }}>
+              ☽ {signSym(partner.chartSummary.moonSign)}
             </span>
           )}
           {partner.chartSummary.risingSign && (
-            <span 
-              className="px-2 py-1 rounded-lg text-xs"
-              style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#A78BFA' }}
-            >
-              ↑ {partner.chartSummary.risingSign}
+            <span className="text-[11px] px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,240,255,0.08)', color: '#00f0ff', border: '1px solid rgba(0,240,255,0.2)' }}>
+              ↑ {signSym(partner.chartSummary.risingSign)}
             </span>
           )}
         </div>
       )}
 
-      {/* Notes */}
-      {partner.notes && (
-        <p 
-          className="text-sm mb-4 line-clamp-2"
-          style={{ color: '#64748B' }}
-        >
-          📝 {partner.notes}
-        </p>
-      )}
+      {/* Birth data */}
+      <p className="text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+        {formatDate(partner.birthData.date, language)}
+        {partner.birthData.time ? ` · ${partner.birthData.time}` : ' · time unknown'}
+      </p>
+      <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>
+        {partner.birthData.location}
+      </p>
 
-      {/* Actions */}
-      <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Action buttons — always visible */}
+      <div className="flex gap-2">
         <button
           onClick={() => router.push(`/partners/${partner.id}/report`)}
-          className="flex-1 px-3 py-2 rounded-xl text-sm font-medium transition-all"
-          style={{
-            background: 'linear-gradient(135deg, #7C3AED 0%, #EC4899 100%)',
-            color: '#FAFAFA',
-          }}
+          className="flex-1 py-2 rounded-xl text-xs font-semibold text-white transition-opacity hover:opacity-90"
+          style={{ background: 'linear-gradient(135deg, #ff0080, #e41aff)' }}
         >
-          🔮 {t.viewReport}
+          Report
         </button>
         <button
           onClick={() => router.push(`/partners/${partner.id}/synastry`)}
-          className="flex-1 px-3 py-2 rounded-xl text-sm font-medium transition-all"
-          style={{
-            background: 'rgba(124, 58, 237, 0.1)',
-            color: '#8B5CF6',
-            border: '1px solid rgba(124, 58, 237, 0.3)',
-          }}
+          className="flex-1 py-2 rounded-xl text-xs font-semibold transition-colors"
+          style={{ background: 'rgba(0,240,255,0.08)', color: '#00f0ff', border: '1px solid rgba(0,240,255,0.2)' }}
         >
-          🌟 {t.viewSynastry}
+          Synastry
         </button>
         <button
           onClick={() => onEdit(partner)}
-          className="px-3 py-2 rounded-xl text-sm font-medium transition-all"
-          style={{
-            background: 'rgba(100, 116, 139, 0.1)',
-            color: '#94A3B8',
-            border: '1px solid rgba(100, 116, 139, 0.3)',
-          }}
+          className="px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+          style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}
         >
-          {t.edit}
+          Edit
         </button>
         <button
-          onClick={handleDelete}
-          className="px-3 py-2 rounded-xl text-sm font-medium transition-all"
-          style={{
-            background: 'rgba(239, 68, 68, 0.1)',
-            color: '#EF4444',
-            border: '1px solid rgba(239, 68, 68, 0.3)',
-          }}
+          onClick={() => onDelete(partner)}
+          className="px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
+          style={{ background: 'rgba(239,68,68,0.06)', color: '#EF4444', border: '1px solid rgba(239,68,68,0.15)' }}
         >
-          {t.delete}
+          ×
         </button>
       </div>
     </div>

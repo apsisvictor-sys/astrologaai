@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Void Prism: Interaction V2</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#f906f9",
+                        "secondary": "#06b6d4",
+                        "accent-blue": "#7c3aed",
+                        "background-light": "#f8f5f8",
+                        "background-dark": "#15151A",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "1rem",
+                        "lg": "2rem",
+                        "xl": "3rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        .glass-panel {
+            background: rgba(35, 15, 35, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(249, 6, 249, 0.1);
+        }
+        .neon-glow-magenta {
+            box-shadow: 0 0 15px rgba(249, 6, 249, 0.4);
+        }
+        .neon-glow-blue {
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+        }
+        .sphere-blur {
+            filter: blur(80px);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-dark font-display text-slate-100 min-h-screen relative overflow-x-hidden">
+<!-- Background Decoration -->
+<div class="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+<div class="absolute top-[-10%] left-[-20%] w-[80%] h-[60%] rounded-full bg-primary/20 sphere-blur"></div>
+<div class="absolute bottom-[10%] right-[-10%] w-[60%] h-[50%] rounded-full bg-secondary/15 sphere-blur"></div>
+<div class="absolute top-[40%] right-[10%] w-[40%] h-[40%] rounded-full bg-accent-blue/10 sphere-blur"></div>
+</div>
+<!-- Top Navigation Header -->
+<header class="sticky top-0 z-40 bg-background-dark/80 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-primary/10">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary text-3xl">flare</span>
+<h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white to-primary/60 bg-clip-text text-transparent">Void Prism</h1>
+</div>
+<div class="flex items-center gap-4">
+<button class="size-10 flex items-center justify-center rounded-full bg-slate-800/50 text-slate-300">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<div class="size-10 rounded-full bg-gradient-to-tr from-primary to-secondary p-[2px]">
+<div class="w-full h-full rounded-full bg-background-dark flex items-center justify-center overflow-hidden">
+<img alt="User avatar" data-alt="Cyberpunk style user profile avatar" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBEUSgYwHaJiv8rlnWnayBmhMVEtYNB9czx2vs0GFGExqObf8JBQeWtYQhzDM9mstsb3WVMXnNTc3oU67RnGW8eixoHrfLAguUFSERBUoWt9BpujwSqXErZ6OOsBFA7kyjlMaRG9Ru2aHJfSgG-mcxCi2q0NEV5NFa5Afuj3PnnyWl8tYeB_tebJ1YNRnZJHQBUfSBL0i9lY_iS8cQHFp0L7jojxYY77qA4Ykc0T1kR1L5UwKMO2t4ZVFBDW7tHdK1ugKZ2GQiQQ-01"/>
+</div>
+</div>
+</div>
+</header>
+<main class="p-6 space-y-8 pb-32">
+<!-- Account Status Component -->
+<section>
+<h2 class="text-sm font-semibold uppercase tracking-widest text-slate-500 mb-4">Current Status</h2>
+<div class="glass-panel rounded-xl p-5 flex items-center justify-between border border-secondary/30 neon-glow-blue">
+<div class="flex items-center gap-4">
+<div class="size-12 rounded-lg bg-secondary/20 flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-3xl">workspace_premium</span>
+</div>
+<div>
+<p class="font-bold text-lg">Pro Tier</p>
+<p class="text-xs text-slate-400">Next billing on Oct 24</p>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="flex items-center gap-2 px-3 py-1 rounded-full bg-secondary/10 text-secondary text-xs font-bold border border-secondary/20 uppercase">
+<span class="size-2 rounded-full bg-secondary animate-pulse"></span> Active
+                    </span>
+</div>
+</div>
+</section>
+<!-- Interaction Controls -->
+<section class="space-y-6">
+<h2 class="text-sm font-semibold uppercase tracking-widest text-slate-500 mb-2">Interface Controls</h2>
+<!-- Dropdown Field -->
+<div class="space-y-2">
+<label class="text-sm font-medium text-slate-300 ml-2">Insight Focus</label>
+<div class="relative">
+<select class="w-full bg-[#15151A] border-none text-slate-100 h-14 px-6 rounded-xl appearance-none focus:ring-2 focus:ring-primary/50 transition-all font-medium">
+<option>Astro-Logics Chart</option>
+<option>Lunar Phase Influence</option>
+<option>Retrograde Analysis</option>
+<option>Synastry Report</option>
+</select>
+<div class="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-primary">
+<span class="material-symbols-outlined">expand_more</span>
+</div>
+</div>
+</div>
+<!-- Toggle Switches -->
+<div class="glass-panel rounded-xl p-6 space-y-6">
+<div class="flex items-center justify-between">
+<div class="flex flex-col gap-0.5">
+<p class="font-medium text-slate-100">AI Deep Dive</p>
+<p class="text-xs text-slate-400">Generate neural-mapped analysis</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input checked="" class="sr-only peer" type="checkbox"/>
+<div class="w-14 h-7 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-primary neon-glow-magenta"></div>
+</label>
+</div>
+<div class="h-px bg-slate-800"></div>
+<div class="flex items-center justify-between">
+<div class="flex flex-col gap-0.5">
+<p class="font-medium text-slate-100">Prism Notifications</p>
+<p class="text-xs text-slate-400">Real-time planetary alerts</p>
+</div>
+<label class="relative inline-flex items-center cursor-pointer">
+<input class="sr-only peer" type="checkbox"/>
+<div class="w-14 h-7 bg-slate-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-primary"></div>
+</label>
+</div>
+</div>
+</section>
+<!-- Preview Card -->
+<section>
+<div class="relative overflow-hidden rounded-xl h-48 group">
+<div class="absolute inset-0 bg-gradient-to-t from-background-dark via-transparent to-transparent z-10"></div>
+<img alt="Natal Chart Background" class="w-full h-full object-cover grayscale opacity-40 group-hover:scale-110 transition-transform duration-700" data-alt="Abstract celestial nebula with deep purple and black colors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbN3go03CDP9W1lh3KOFrs95-d6hz6Vi8zldKfP5nJfBTnjyusx9ec7ZngBSeFXXs0uoS_3_YYylmRF0yHGOTT1AmqeQhupN-eIUJId1Ur5IVou5o6CXFWCce1Fw7CJhFjQqla8gRC2tmS3I5VT5aVXvy992Qb4FVai2QJGRXtQ9UYGT3PJGooku5mnIqRXSNLL8rntnL2WzCeLRcu8_E6sdnyusIkW8f17AiFxhzTK2og6h5BIiBop0JaeZShCNGg1iCXN028ADHe"/>
+<div class="absolute bottom-4 left-5 z-20">
+<h3 class="text-xl font-bold">Chart Evolution</h3>
+<p class="text-sm text-slate-300">View your progress over the last moon cycle</p>
+</div>
+<div class="absolute top-4 right-5 z-20">
+<button class="bg-primary/20 backdrop-blur-md px-4 py-1.5 rounded-full border border-primary/30 text-xs font-bold text-primary">
+                        VIEW DATA
+                    </button>
+</div>
+</div>
+</section>
+</main>
+<!-- Modal Overlay (Upgrade to Oracle) -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-6 bg-background-dark/80 backdrop-blur-sm">
+<div class="w-full max-w-sm glass-panel rounded-xl p-8 border border-primary/40 shadow-2xl relative overflow-hidden">
+<!-- Modal Background Element -->
+<div class="absolute -top-24 -right-24 w-48 h-48 bg-primary/20 rounded-full blur-3xl"></div>
+<div class="relative z-10 text-center space-y-6">
+<div class="size-20 bg-gradient-to-tr from-primary to-accent-blue rounded-full mx-auto flex items-center justify-center shadow-lg neon-glow-magenta">
+<span class="material-symbols-outlined text-white text-4xl">auto_awesome</span>
+</div>
+<div class="space-y-2">
+<h3 class="text-2xl font-bold">Upgrade to Oracle</h3>
+<p class="text-slate-400">Unlock infinite celestial insights and personalized AI predictions for your natal path.</p>
+</div>
+<div class="space-y-3">
+<button class="w-full h-14 rounded-xl bg-gradient-to-r from-primary to-accent-blue font-bold text-white shadow-lg hover:opacity-90 transition-opacity">
+                        Go Pro for $9.99/mo
+                    </button>
+<button class="w-full py-2 text-sm font-medium text-slate-500 hover:text-slate-300 transition-colors">
+                        Maybe later
+                    </button>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Navigation Bar -->
+<nav class="fixed bottom-0 left-0 right-0 z-40 bg-background-dark/95 backdrop-blur-lg border-t border-white/5 pb-8 pt-2">
+<div class="flex justify-around items-center px-4 max-w-md mx-auto">
+<a class="flex flex-col items-center gap-1 group" href="#">
+<div class="size-12 flex items-center justify-center text-slate-500 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[28px]">explore</span>
+</div>
+<span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-primary">Cosmos</span>
+</a>
+<a class="flex flex-col items-center gap-1 group" href="#">
+<div class="size-12 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[28px] fill-current">monitoring</span>
+</div>
+<span class="text-[10px] font-bold uppercase tracking-wider text-primary">Insights</span>
+</a>
+<a class="flex flex-col items-center gap-1 group relative" href="#">
+<div class="absolute -top-8 size-14 bg-primary rounded-full flex items-center justify-center shadow-lg border-4 border-background-dark text-white neon-glow-magenta">
+<span class="material-symbols-outlined text-[32px]">flare</span>
+</div>
+<div class="h-12"></div>
+<span class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Oracle</span>
+</a>
+<a class="flex flex-col items-center gap-1 group" href="#">
+<div class="size-12 flex items-center justify-center text-slate-500 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[28px]">auto_stories</span>
+</div>
+<span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-primary">Journal</span>
+</a>
+<a class="flex flex-col items-center gap-1 group" href="#">
+<div class="size-12 flex items-center justify-center text-slate-500 group-hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[28px]">person</span>
+</div>
+<span class="text-[10px] font-bold uppercase tracking-wider text-slate-500 group-hover:text-primary">Profile</span>
+</a>
+</div>
+</nav>
+</body></html>

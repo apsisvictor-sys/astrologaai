@@ -22,6 +22,8 @@ import {
   type RelocationData,
   type CompositeData,
   type VenusReturnData,
+  type LunarReturnData,
+  type SolarArcData,
   type AstrologyCalculationOptions,
   type PlanetPosition,
   type HouseCusp,
@@ -676,6 +678,8 @@ export class SwissEphemerisProvider extends BaseAstrologyProvider {
   async getRelocation(birthData: BirthDataInput, targetLocation: { latitude: number; longitude: number }, options?: AstrologyCalculationOptions): Promise<RelocationData> { throw new Error('Astrocartography not supported in offline fallback'); }
   async getCompositeChart(person1: BirthDataInput, person2: BirthDataInput, options?: AstrologyCalculationOptions): Promise<CompositeData> { throw new Error('Composite charts not supported in offline fallback'); }
   async getVenusReturn(birthData: BirthDataInput, returnYear: number, options?: AstrologyCalculationOptions): Promise<VenusReturnData> { throw new Error('Venus Return not supported in offline fallback'); }
+  async getLunarReturn(birthData: BirthDataInput, year: number, month: number, options?: AstrologyCalculationOptions): Promise<LunarReturnData> { throw new Error('Lunar Return not supported in offline fallback'); }
+  async getSolarArcDirections(birthData: BirthDataInput, targetDate: string, options?: AstrologyCalculationOptions): Promise<SolarArcData> { throw new Error('Solar Arc Directions not supported in offline fallback'); }
 }
 
 // ============================================

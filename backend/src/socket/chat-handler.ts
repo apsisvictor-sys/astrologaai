@@ -13,6 +13,7 @@ import {
   streamChatCompletion,
   buildSystemPrompt,
   generateChartSummary,
+  getModelIdForTier,
 } from '../services/llm';
 import type { ChatMessage } from '../services/llm';
 import {
@@ -30,8 +31,7 @@ const prisma = new PrismaClient();
 // Note: Rate limits now come from config/subscription-tiers.ts
 // These constants are kept for backwards compatibility
 const MONTH_RESET_DAY = 1;
-const MAX_CONTEXT_MESSAGES = 10;
-const SUMMARY_THRESHOLD = 20;
+const MAX_CONTEXT_MESSAGES = 100;
 
 // ============================================
 // Helper Functions
@@ -269,13 +269,12 @@ export async function handleChatSendMessage(
     const sessionContext = await getSessionContext(conversationId);
     const sessionSummary = sessionContext?.summary || session.summary || undefined;
 
-    // Build system prompt
+    // Build system prompt — chart + persona only. Full conversation history
+    // is sent as structured messages below, not embedded in the system prompt.
     const systemPrompt = buildSystemPrompt({
       chartSummary,
       language: userLanguage,
-      conversationHistory,
       sessionSummary,
-      recentMessages: conversationHistory.slice(-MAX_CONTEXT_MESSAGES),
     });
 
     const messages: ChatMessage[] = [
@@ -310,6 +309,9 @@ export async function handleChatSendMessage(
     let fullResponse = '';
     let chunkIndex = 0;
     let hasError = false;
+    let tokenUsage: { inputTokens: number; outputTokens: number; totalTokens: number } | undefined;
+    const modelId = getModelIdForTier(userTier);
+    const streamStartTime = Date.now();
 
     try {
       for await (const chunk of streamChatCompletion(messages, { tier: userTier }, {
@@ -351,6 +353,10 @@ export async function handleChatSendMessage(
           });
         }
 
+        if (chunk.usage) {
+          tokenUsage = chunk.usage;
+        }
+
         if (chunk.done) {
           break;
         }
@@ -379,14 +385,19 @@ export async function handleChatSendMessage(
 
     // Save assistant response if no error
     if (!hasError && fullResponse) {
+      const latencyMs = Date.now() - streamStartTime;
       const assistantMessage = await prisma.chatMessage.create({
         data: {
           sessionId: conversationId,
           role: 'ASSISTANT',
           content: fullResponse,
           metadata: {
-            model: process.env.ANTHROPIC_API_KEY ? 'claude-3.5-agent' : 'gpt-4o-agent',
-            tokensUsed: Math.ceil(fullResponse.length / 4),
+            model: modelId,
+            tier: userTier,
+            inputTokens: tokenUsage?.inputTokens ?? 0,
+            outputTokens: tokenUsage?.outputTokens ?? 0,
+            totalTokens: tokenUsage?.totalTokens ?? Math.ceil(fullResponse.length / 4),
+            latencyMs,
           },
         },
       });
@@ -412,9 +423,11 @@ export async function handleChatSendMessage(
         conversationId,
         content: fullResponse,
         metadata: {
-          model: process.env.ANTHROPIC_API_KEY ? 'claude-3.5-agent' : 'gpt-4o-agent',
-          tokensUsed: Math.ceil(fullResponse.length / 4),
-          processingTime: 0, // TODO: Track actual time
+          model: modelId,
+          inputTokens: tokenUsage?.inputTokens ?? 0,
+          outputTokens: tokenUsage?.outputTokens ?? 0,
+          totalTokens: tokenUsage?.totalTokens ?? Math.ceil(fullResponse.length / 4),
+          latencyMs,
           finishReason: 'stop',
         },
       });

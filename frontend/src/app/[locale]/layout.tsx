@@ -9,7 +9,6 @@
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { notFound } from 'next/navigation';
-import { GlobalNav } from '@/components/global-nav';
 
 const locales = ['bg', 'en'] as const;
 type Locale = (typeof locales)[number];
@@ -36,7 +35,6 @@ export default async function LocaleLayout({
 
   return (
     <NextIntlClientProvider messages={messages}>
-      <GlobalNav />
       {children}
     </NextIntlClientProvider>
   );

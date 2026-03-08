@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { Sparkles, ArrowLeft, Sun, Moon, ArrowUpRight } from 'lucide-react';
-import { Link } from '@/i18n/routing';
+import { Link } from '@/i18n/navigation';
 
 const ZODIAC_DATA = {
     aries: { name: 'Aries', symbol: '♈', element: 'Fire', color: '#FF6B00', quality: 'Cardinal', ruler: 'Mars', keyword: 'I am' },

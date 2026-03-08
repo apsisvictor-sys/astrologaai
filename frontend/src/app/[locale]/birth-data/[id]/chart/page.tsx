@@ -23,7 +23,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { useRouter, Link } from '@/i18n/routing';
+import { useRouter, Link } from '@/i18n/navigation';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 import ChartLoading from '@/components/chart/chart-loading';

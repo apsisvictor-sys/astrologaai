@@ -12,7 +12,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithGoogle, signInWithApple } from './supabase-browser';
+import { signInWithGoogle, signInWithMagicLink } from './supabase-browser';
 import { getApiBaseUrl } from './runtime-config';
 
 // Types
@@ -39,7 +39,7 @@ interface AuthContextType {
   signUp: (email: string, password: string, fullName?: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
-  signInWithApple: () => Promise<void>;
+  signInWithMagicLink: (email: string) => Promise<void>;
   handleOAuthCallback: (code: string, provider: string) => Promise<void>;
   signOut: () => void;
   refreshSession: () => Promise<void>;
@@ -115,8 +115,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const localePath = (path: string): string => {
     if (typeof window === 'undefined') return path;
     const parts = window.location.pathname.split('/').filter(Boolean);
-    const currentLocale = parts[0] === 'en' ? 'en' : 'bg';
-    return currentLocale === 'en' ? `/en${path}` : path;
+    const currentLocale = parts[0] === 'bg' ? 'bg' : 'en';
+    return currentLocale === 'bg' ? `/bg${path}` : path;
   };
 
   // Load user from storage on mount
@@ -268,21 +268,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   /**
-   * Sign in with Apple OAuth (US-04)
+   * Sign in with Magic Link (passwordless email)
    */
-  const handleAppleSignIn = async (): Promise<void> => {
+  const handleMagicLinkSignIn = async (email: string): Promise<void> => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const data = await signInWithApple();
-      // The redirect happens automatically via Supabase
-      // After redirect, the callback page will handle the rest
+      await signInWithMagicLink(email);
+      // Email sent — user clicks the link to complete sign-in
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Apple login failed';
+      const message = err instanceof Error ? err.message : 'Magic link failed';
       setError(message);
-      setIsLoading(false);
       throw err;
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -467,7 +467,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     signUp,
     signIn,
     signInWithGoogle: handleGoogleSignIn,
-    signInWithApple: handleAppleSignIn,
+    signInWithMagicLink: handleMagicLinkSignIn,
     handleOAuthCallback,
     signOut,
     refreshSession,

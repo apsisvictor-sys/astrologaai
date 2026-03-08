@@ -56,7 +56,9 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
     features: [
       'unlimited_queries',
       'tool:get_natal_chart',
-      'tool:get_transits', // Pro users get live transit timing predictions
+      'tool:get_transits',       // Live transit timing predictions
+      'tool:get_solar_return',   // Annual solar return / year-ahead forecast
+      'tool:get_lunar_return',   // Monthly lunar return cycle
     ],
     price: {
       monthly: 10,
@@ -78,7 +80,9 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
       'tool:get_solar_return', // Year Ahead Forecast
       'tool:get_relocation', // Astrocartography / Moving
       'tool:get_composite', // Destiny of Relationship
-      'tool:get_venus_return', // Precise Love timing
+      'tool:get_lunar_return',   // Monthly lunar return cycle
+      'tool:get_venus_return',   // Precise Love timing
+      'tool:get_solar_arc',      // Long-term solar arc directions
       'priority_support',
     ],
     price: {

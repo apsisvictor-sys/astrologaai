@@ -156,6 +156,21 @@ export interface VenusReturnData {
   themes: string[];
 }
 
+export interface LunarReturnData {
+  returnDate: string;
+  exactTime: string;
+  planets: PlanetPosition[];
+  houses: HouseCusp[];
+  aspects: Aspect[];
+}
+
+export interface SolarArcData {
+  progressedDate: string;
+  arcDegrees: number;
+  planets: PlanetPosition[];
+  aspects: Aspect[];
+}
+
 export interface ProviderHealth {
   status: AstrologyProviderStatus;
   latencyMs: number;
@@ -283,6 +298,21 @@ export interface AstrologyProvider {
     options?: AstrologyCalculationOptions
   ): Promise<VenusReturnData>;
 
+  /** Calculate lunar return chart (monthly cycle) */
+  getLunarReturn(
+    birthData: BirthDataInput,
+    year: number,
+    month: number,
+    options?: AstrologyCalculationOptions
+  ): Promise<LunarReturnData>;
+
+  /** Calculate solar arc directions */
+  getSolarArcDirections(
+    birthData: BirthDataInput,
+    targetDate: string,
+    options?: AstrologyCalculationOptions
+  ): Promise<SolarArcData>;
+
   /**
    * Get circuit breaker state
    */
@@ -367,6 +397,19 @@ export abstract class BaseAstrologyProvider implements AstrologyProvider {
     returnYear: number,
     options?: AstrologyCalculationOptions
   ): Promise<VenusReturnData>;
+
+  abstract getLunarReturn(
+    birthData: BirthDataInput,
+    year: number,
+    month: number,
+    options?: AstrologyCalculationOptions
+  ): Promise<LunarReturnData>;
+
+  abstract getSolarArcDirections(
+    birthData: BirthDataInput,
+    targetDate: string,
+    options?: AstrologyCalculationOptions
+  ): Promise<SolarArcData>;
 
   async healthCheck(): Promise<ProviderHealth> {
     const startTime = Date.now();

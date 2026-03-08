@@ -8,7 +8,7 @@
 
 import { redisClient } from '../utils/redis';
 import { calculateNatalChart, NatalChart, BirthDataInput } from './astrology';
-import { chatCompletion, type ChatMessage } from './llm-legacy';
+import { chatCompletion, type ChatMessage } from './llm';
 
 // ============================================
 // Types
