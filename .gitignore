@@ -6,7 +6,7 @@ node_modules/
 # Build
 .next/
 out/
-dist/
+# dist/ - keep for Railway deployment
 build/
 
 # Testing
