@@ -31,6 +31,6 @@ export function getFrontendBaseUrl(): string {
   }
 
   return process.env.NODE_ENV === 'production'
-    ? 'https://frontend-rust-nu-20.vercel.app'
+    ? 'https://astrologa.bg'
     : 'http://localhost:3000';
 }
