@@ -210,7 +210,7 @@ export default function BirthDataForm() {
       }
 
       // Success - redirect to birth data list
-      router.push('/birth-data?success=true');
+      router.push('/settings/birth-data?success=true');
     } catch (error) {
       console.error('Submit error:', error);
       setErrors({ submit: error instanceof Error ? error.message : 'Failed to save birth data' });
