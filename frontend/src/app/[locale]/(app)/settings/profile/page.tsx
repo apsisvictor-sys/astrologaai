@@ -44,6 +44,13 @@ const COLORS = {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
 
+interface BirthProfile {
+  birthDate: string;
+  birthTime: string | null;
+  locationName: string;
+  isUnknownTime: boolean;
+}
+
 export default function EditProfilePage() {
   const t = useTranslations();
   const locale = useLocale();
@@ -55,6 +62,7 @@ export default function EditProfilePage() {
   const [email, setEmail] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [birthProfile, setBirthProfile] = useState<BirthProfile | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [errorMessage, setErrorMessage] = useState('');
@@ -75,6 +83,16 @@ export default function EditProfilePage() {
       setIsLoading(false);
     }
   }, [user]);
+
+  // Load birth data (read-only display)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const token = localStorage.getItem('astrologaai_access_token');
+    fetch(`${API_URL}/api/v1/birth-data`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => setBirthProfile(data.data?.profiles?.[0] || null))
+      .catch(() => {});
+  }, [isAuthenticated]);
 
   // Handle form submission
   const handleSave = async () => {
@@ -310,11 +328,39 @@ export default function EditProfilePage() {
               }}
             />
             <p className="text-xs mt-1" style={{ color: COLORS.textMuted }}>
-              {locale === 'bg' 
-                ? 'Имейлът не може да бъде променен' 
+              {locale === 'bg'
+                ? 'Имейлът не може да бъде променен'
                 : 'Email cannot be changed'}
             </p>
           </div>
+
+          {/* Birth Data (Read-only) */}
+          {birthProfile && (
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: COLORS.textSecondary }}>
+                {locale === 'bg' ? 'Рождени данни' : 'Birth Data'}
+              </label>
+              <input
+                readOnly
+                value={[
+                  new Date(birthProfile.birthDate).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+                  birthProfile.isUnknownTime ? (locale === 'bg' ? 'час неизвестен' : 'time unknown') : birthProfile.birthTime || '',
+                  birthProfile.locationName,
+                ].filter(Boolean).join(' · ')}
+                className="w-full px-4 py-3 rounded-lg opacity-60 cursor-not-allowed"
+                style={{
+                  background: COLORS.backgroundPrimary,
+                  border: `1px solid ${COLORS.border}`,
+                  color: COLORS.textSecondary,
+                }}
+              />
+              <p className="text-xs mt-1" style={{ color: COLORS.textMuted }}>
+                <Link href="/settings/birth-data" style={{ color: COLORS.primary }}>
+                  {locale === 'bg' ? 'Редактирай рождените данни →' : 'Edit birth data →'}
+                </Link>
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Save Button */}
