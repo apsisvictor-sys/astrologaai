@@ -85,28 +85,33 @@ async function rateLimitHeadersMiddleware(req, res, next) {
     const originalJson = res.json.bind(res);
     // Override json function to add headers
     res.json = function (body) {
-        // Add rate limit headers if user is authenticated
-        const userId = req.user?.id;
-        const userTier = req.user?.tier || 'FREE';
-        if (userId) {
-            // Use cached rate limit info if available
-            const rateLimitInfo = req.rateLimit;
-            if (rateLimitInfo) {
-                const { burst, monthly } = rateLimitInfo;
-                // Use burst limit for immediate rate limiting
-                const limit = burst.limit === -1 ? 'unlimited' : burst.limit;
-                const remaining = burst.remaining === -1 ? 'unlimited' : burst.remaining;
-                const reset = Math.floor(burst.resetAt.getTime() / 1000);
-                res.setHeader(exports.RATE_LIMIT_HEADERS.LIMIT, limit);
-                res.setHeader(exports.RATE_LIMIT_HEADERS.REMAINING, remaining);
-                res.setHeader(exports.RATE_LIMIT_HEADERS.RESET, reset);
-                res.setHeader(exports.RATE_LIMIT_HEADERS.TIER, userTier);
-                // Add monthly info for informational purposes
-                if (monthly.limit !== -1) {
-                    res.setHeader('X-RateLimit-Monthly-Limit', monthly.limit);
-                    res.setHeader('X-RateLimit-Monthly-Remaining', monthly.remaining);
+        try {
+            // Add rate limit headers if user is authenticated
+            const userId = req.user?.id;
+            const userTier = req.user?.tier || 'FREE';
+            if (userId) {
+                // Use cached rate limit info if available
+                const rateLimitInfo = req.rateLimit;
+                if (rateLimitInfo?.burst && rateLimitInfo?.monthly) {
+                    const { burst, monthly } = rateLimitInfo;
+                    // Use burst limit for immediate rate limiting
+                    const limit = burst.limit === -1 ? 'unlimited' : burst.limit;
+                    const remaining = burst.remaining === -1 ? 'unlimited' : burst.remaining;
+                    const reset = Math.floor(burst.resetAt.getTime() / 1000);
+                    res.setHeader(exports.RATE_LIMIT_HEADERS.LIMIT, limit);
+                    res.setHeader(exports.RATE_LIMIT_HEADERS.REMAINING, remaining);
+                    res.setHeader(exports.RATE_LIMIT_HEADERS.RESET, reset);
+                    res.setHeader(exports.RATE_LIMIT_HEADERS.TIER, userTier);
+                    // Add monthly info for informational purposes
+                    if (monthly.limit !== -1) {
+                        res.setHeader('X-RateLimit-Monthly-Limit', monthly.limit);
+                        res.setHeader('X-RateLimit-Monthly-Remaining', monthly.remaining);
+                    }
                 }
             }
+        }
+        catch (err) {
+            console.error('[RateLimitHeaders] Error adding headers:', err);
         }
         return originalJson(body);
     };

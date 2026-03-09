@@ -75,6 +75,8 @@ const socket_1 = require("./socket");
 const chart_regeneration_1 = require("./services/chart-regeneration");
 (0, dotenv_1.config)();
 const app = (0, express_1.default)();
+// Trust Railway's proxy (required for express-rate-limit to work correctly behind Railway)
+app.set('trust proxy', 1);
 const PORT = runtime_1.runtimeConfig.port;
 // Create HTTP server for Socket.io
 const httpServer = (0, http_1.createServer)(app);

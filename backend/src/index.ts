@@ -46,6 +46,9 @@ config();
 const app: Express = express();
 const PORT = runtimeConfig.port;
 
+// Trust Railway's proxy (required for express-rate-limit to work correctly behind Railway)
+app.set('trust proxy', 1);
+
 // Create HTTP server for Socket.io
 const httpServer = createServer(app);
 
