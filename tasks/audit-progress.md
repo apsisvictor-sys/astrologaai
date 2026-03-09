@@ -13,7 +13,7 @@
 | 3 — Frontend Env Vars | ✅ Complete | All critical vars set; 1 manual action (Stripe live key) |
 | 4 — Supabase Config | ✅ Complete | site_url fixed, redirect URLs updated, JWT expiry noted, Google OAuth verified |
 | 5 — Backend Code Audit | ✅ Complete | 2 issues fixed; 1 pre-existing type issue flagged |
-| 6 — Frontend Code Audit | ⬜ Not started | API URLs, socket, i18n, auth flow |
+| 6 — Frontend Code Audit | ✅ Complete | 1 fix (socket URL); all other checks passed |
 | 7 — Integration Verification | ⬜ Not started | End-to-end flow traces + deploy checklist |
 
 ---
@@ -260,6 +260,50 @@ All 15 route files in `backend/src/routes/` are imported AND registered in `inde
 #### Code changes (commit faef168)
 - `backend/src/controllers/authController.ts`: removed temporary DEBUG error exposure from `register()` catch
 - `backend/src/services/llm-helpers.ts`: added `recentMessages` field to `ChatContext` interface
+
+---
+
+---
+
+### Phase 6 — Frontend Code Audit (2026-03-09) ✅
+
+#### Task 6.1 — API Client (`frontend/src/lib/api-client.ts`)
+- Base URL: uses `getApiBaseUrl()` from `runtime-config.ts` — reads `NEXT_PUBLIC_API_URL`, strips trailing slash, has correct prod fallback. **No issue.**
+- No bare `localhost` fallback (all localhost guarded by `NODE_ENV !== 'production'` or `window.location.hostname` check). **No issue.**
+- Auth token: `getAccessToken()` reads `localStorage.getItem('astrologaai_access_token')`, added as `Authorization: Bearer <token>`. **No issue.**
+- Error handling: non-OK responses throw typed `ApiError`; all callers receive a typed error, app does not crash. Retry loop with exponential backoff for 429/5xx. **No issue.**
+
+#### Task 6.2 — Socket.io Client (`frontend/src/lib/socket-client.ts`)
+- **Bug found and fixed:** `initializeSocket()` used `process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app'` directly instead of `getApiBaseUrl()`. This bypassed trailing-slash normalisation. Fixed to call `getApiBaseUrl()` — consistent with api-client.
+- Auth token: reads `localStorage.getItem('astrologaai_access_token')` and passes as `io(url, { auth: { token } })`. **Correct.**
+- Reconnection: manual exponential backoff (5 max attempts, 1s→30s delay with ±20% jitter), message queue of 50 items during disconnect, stream state resumption. **Robust implementation.**
+- Error handling: `connect_error` callback increments attempts, emits `onConnectionError`/`onReconnectionFailed`, never throws uncaught. **No crash risk.**
+- No console.log statements printing tokens, passwords, or secrets. **Clean.**
+
+#### Task 6.3 — Next.js Middleware (`frontend/middleware.ts`)
+- Middleware file is at `frontend/middleware.ts` (root of project, not `src/`) — correct for Next.js.
+- Uses `createMiddleware(routing)` from `next-intl` — no custom redirect logic, no loop risk.
+- `config.matcher`: `'/((?!api|_next|_vercel|.*\\..*).*)'` — excludes `/_next/`, `/api/`, `/_vercel/`, and any path with a dot (covers `favicon.ico`, `robots.txt`, `sitemap.xml`, images). **Correct.**
+- Routing config: `locales: ['en', 'bg']`, `defaultLocale: 'en'`, `localePrefix: 'as-needed'` — root `/` serves English without prefix, `/bg/` prefix for Bulgarian. No redirect loop possible with `as-needed` strategy.
+- `app/layout.tsx`: no redirect calls. `app/[locale]/layout.tsx`: no redirect calls (only `notFound()` for invalid locales). **No conflicting redirects.**
+- Settings pages use `router.push('/login?redirect=...')` without locale prefix — these will be intercepted by middleware and redirected to `/login?redirect=...` (default locale, correct).
+
+#### Task 6.4 — Auth Flow (`frontend/src/lib/auth-context.tsx`)
+- Token storage: `accessToken` and `refreshToken` stored in `localStorage` under `astrologaai_access_token` / `astrologaai_refresh_token`. On page load, read back from localStorage and user state restored.
+- Token passed to API: `api-client.ts` calls `getAccessToken()` independently on every request. Socket client does the same. **Consistent.**
+- Logout: clears all three localStorage keys (`ACCESS_TOKEN_KEY`, `REFRESH_TOKEN_KEY`, `USER_KEY`) and redirects to `/login`. **Complete.**
+- Token refresh: `refreshSession()` posts to `/api/v1/auth/refresh` with stored refresh token; on failure calls `signOut()`. Not called automatically on 401 (no interceptor), but errors are caught and reported gracefully. **Acceptable — no crash risk.**
+- OAuth callback: `app/auth/callback/page.tsx` — exchanges Supabase code via `exchangeCodeForSession`, then calls `handleOAuthCallback(code, provider)` which hits backend `/api/v1/auth/callback`. Tokens stored in localStorage. Redirect to `/dashboard` after 1s delay. **Correct flow.**
+- `app/auth/callback/` is outside `[locale]` — receives no locale prefix from middleware (paths without a locale prefix default to `en` under `as-needed` strategy). Supabase redirects to `https://astrologa.bg/auth/callback` — **this is fine**, middleware will not inject a locale prefix because this path is served as root-layout page, not `[locale]` layout.
+
+#### Task 6.5 — Sensitive data in console.log
+- No `console.log` printing tokens, passwords, keys, or bearer headers found in `frontend/src`. **Clean.**
+
+#### Code changes (commit 89da740)
+- `frontend/src/lib/socket-client.ts`: replaced direct `process.env.NEXT_PUBLIC_API_URL || fallback` with `getApiBaseUrl()` import from `runtime-config.ts`.
+
+#### Issues requiring manual attention
+- None.
 
 ---
 
