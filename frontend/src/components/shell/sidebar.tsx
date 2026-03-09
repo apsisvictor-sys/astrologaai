@@ -28,13 +28,13 @@ export function Sidebar({ onLockedFeatureClick }: SidebarProps) {
   // Close popover on outside click
   useEffect(() => {
     if (!open) return;
-    function handleMouseDown(e: MouseEvent) {
+    function handleClick(e: MouseEvent) {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
+    document.addEventListener('click', handleClick);
+    return () => document.removeEventListener('click', handleClick);
   }, [open]);
 
   return (
@@ -79,6 +79,7 @@ export function Sidebar({ onLockedFeatureClick }: SidebarProps) {
 
           {/* Popover menu — floats above the card */}
           <div
+            aria-hidden={!open}
             className={`absolute bottom-full mb-2 left-0 right-0 rounded-xl transition-all duration-200 ${
               open ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
             }`}
@@ -94,37 +95,41 @@ export function Sidebar({ onLockedFeatureClick }: SidebarProps) {
               {MENU_ITEMS.map((item) => (
                 <button
                   key={item.href}
+                  tabIndex={open ? 0 : -1}
                   onClick={() => { setOpen(false); router.push(item.href); }}
                   className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg text-sm text-white/80 hover:text-white transition-all"
                   style={{ background: 'transparent' }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(228,26,255,0.08)'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(228,26,255,0.08)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                 >
-                  <span className="text-base w-5 text-center leading-none">{item.icon}</span>
+                  <span aria-hidden="true" className="text-base w-5 text-center leading-none">{item.icon}</span>
                   {item.label}
                 </button>
               ))}
 
               {/* Divider + Sign out */}
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.10)', marginTop: '4px', paddingTop: '4px' }}>
+              <div className="border-t border-white/10 mt-1 pt-1">
                 <button
+                  tabIndex={open ? 0 : -1}
                   onClick={() => { setOpen(false); signOut(); }}
                   className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-lg text-sm text-red-400/70 hover:text-red-400 transition-all"
                   style={{ background: 'transparent' }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(228,26,255,0.08)'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(228,26,255,0.08)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
                 >
-                  <span className="text-base w-5 text-center leading-none">🚪</span>
+                  <span aria-hidden="true" className="text-base w-5 text-center leading-none">🚪</span>
                   Sign out
                 </button>
               </div>
             </div>
           </div>
 
-          {/* User card — clickable to toggle popover */}
-          <div
+          {/* User card — button for keyboard accessibility */}
+          <button
             onClick={() => setOpen((v) => !v)}
-            className="rounded-2xl p-3 relative overflow-visible cursor-pointer"
+            aria-expanded={open}
+            aria-haspopup="menu"
+            className="w-full rounded-2xl p-3 relative overflow-visible cursor-pointer text-left"
             style={{
               background: 'rgba(228,26,255,0.04)',
               border: '1px solid rgba(228,26,255,0.10)',
@@ -157,7 +162,7 @@ export function Sidebar({ onLockedFeatureClick }: SidebarProps) {
 
             {/* Upgrade link below, only for FREE */}
             {tier === 'FREE' && (
-              <a
+              <Link
                 href="/pricing"
                 onClick={(e) => e.stopPropagation()}
                 className="mt-2.5 flex items-center justify-center gap-1.5 w-full py-1.5 rounded-xl text-xs font-semibold transition-all hover:opacity-90"
@@ -169,10 +174,10 @@ export function Sidebar({ onLockedFeatureClick }: SidebarProps) {
                 <span style={{ background: 'linear-gradient(135deg, #e41aff, #00f0ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
                   ✦ Unlock full access
                 </span>
-              </a>
+              </Link>
             )}
 
-          </div>
+          </button>
         </div>
       </div>
     </aside>
