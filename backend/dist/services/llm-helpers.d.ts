@@ -18,6 +18,10 @@ export interface ChatContext {
     sessionSummary?: string;
     language: 'bg' | 'en';
     conversationHistory?: ChatMessage[];
+    recentMessages?: Array<{
+        role: string;
+        content: string;
+    }>;
 }
 export interface LLMConfig {
     model: string;

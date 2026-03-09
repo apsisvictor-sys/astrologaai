@@ -205,9 +205,11 @@ async function register(req, res, next) {
         });
     }
     catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        console.error('[Auth] Registration error:', msg);
-        res.status(500).json({ success: false, error: { code: 'DEBUG', message: msg.substring(0, 500) } });
+        if (handleAuthInfraError(error, res)) {
+            return;
+        }
+        console.error('[Auth] Registration error:', error);
+        next(error);
     }
 }
 /**
