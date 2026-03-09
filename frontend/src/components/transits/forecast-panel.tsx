@@ -313,7 +313,7 @@ export function ForecastPanel() {
           Add your birth date, time, and location to receive your personalized daily forecast.
         </p>
         <a
-          href="/en/birth-data/new"
+          href="/birth-data/new"
           className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-sm font-semibold text-white"
           style={{ background: 'linear-gradient(135deg, #ff0080, #e41aff)' }}
         >
@@ -551,7 +551,7 @@ export function ForecastPanel() {
 
                 {/* Oracle CTA */}
                 <motion.a
-                  href="/en/chat"
+                  href="/chat"
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.8 }}
