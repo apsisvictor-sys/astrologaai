@@ -1,14 +1,14 @@
 /**
  * Middleware for next-intl Locale Detection
  * BMAD 03-technical-architecture.md: URL-based locale routing
- * 
+ *
  * Routes:
- * - /login → English (default)
+ * - /login → English (default, no prefix)
  * - /bg/login → Bulgarian
  */
 
 import createMiddleware from 'next-intl/middleware';
-import { routing } from './src/i18n/routing';
+import { routing } from './i18n/routing';
 
 export default createMiddleware(routing);
 
