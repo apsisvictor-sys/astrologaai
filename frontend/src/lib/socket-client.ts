@@ -13,6 +13,7 @@
  */
 
 import { io, Socket } from 'socket.io-client';
+import { getApiBaseUrl } from './runtime-config';
 
 // Types
 export interface SocketEvents {
@@ -291,7 +292,7 @@ class SocketClient {
       return;
     }
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
+    const apiUrl = getApiBaseUrl();
     
     this.setState('connecting');
 
