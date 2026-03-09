@@ -1,7 +1,10 @@
 'use client';
 
-import BirthDataForm from '@/components/birth-data/birth-data-form';
+import { useEffect } from 'react';
+import { useRouter } from '@/i18n/navigation';
 
 export default function NewBirthDataPage() {
-  return <BirthDataForm />;
+  const router = useRouter();
+  useEffect(() => { router.replace('/settings/birth-data'); }, [router]);
+  return null;
 }
