@@ -77,18 +77,18 @@ export function Sidebar({ onLockedFeatureClick }: SidebarProps) {
         {/* User card wrapper — relative so popover can position above it */}
         <div ref={containerRef} className="mt-3 mx-1 relative">
 
-          {/* Popover menu — floats above the card */}
+          {/* Popover menu — floats to the right, outside the sidebar */}
           <div
             aria-hidden={!open}
-            className={`absolute bottom-full mb-2 left-0 right-0 rounded-xl transition-all duration-200 ${
+            className={`absolute left-full bottom-0 ml-2 w-52 rounded-xl transition-all duration-200 ${
               open ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'
             }`}
             style={{
               background: 'rgba(18,6,20,0.98)',
               backdropFilter: 'blur(16px)',
               border: '1px solid rgba(228,26,255,0.15)',
-              boxShadow: '0 -8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(228,26,255,0.08)',
-              transformOrigin: 'bottom center',
+              boxShadow: '8px 0 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(228,26,255,0.08)',
+              transformOrigin: 'bottom left',
             }}
           >
             <div className="p-1.5">
@@ -124,12 +124,9 @@ export function Sidebar({ onLockedFeatureClick }: SidebarProps) {
             </div>
           </div>
 
-          {/* User card — button for keyboard accessibility */}
-          <button
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            aria-haspopup="menu"
-            className="w-full rounded-2xl p-3 relative overflow-visible cursor-pointer text-left"
+          {/* User card */}
+          <div
+            className="rounded-2xl relative overflow-visible"
             style={{
               background: 'rgba(228,26,255,0.04)',
               border: '1px solid rgba(228,26,255,0.10)',
@@ -141,43 +138,52 @@ export function Sidebar({ onLockedFeatureClick }: SidebarProps) {
               style={{ background: 'radial-gradient(circle, rgba(228,26,255,0.25) 0%, transparent 70%)', filter: 'blur(12px)' }}
             />
 
-            <div className="flex flex-col items-center gap-2 relative">
-              {/* Avatar with gradient ring */}
-              <div
-                className="shrink-0 rounded-full p-[1.5px]"
-                style={{ background: 'linear-gradient(135deg, #e41aff, #00f0ff)' }}
-              >
-                <div className="w-9 h-9 rounded-full bg-[#120614] flex items-center justify-center text-sm font-bold text-primary">
-                  {(user?.fullName || user?.email || '?').charAt(0).toUpperCase()}
+            {/* Clickable trigger — avatar + name only (no <a> inside <button>) */}
+            <button
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              aria-haspopup="menu"
+              className="w-full p-3 pb-2 cursor-pointer text-left relative"
+            >
+              <div className="flex flex-col items-center gap-2">
+                {/* Avatar with gradient ring */}
+                <div
+                  className="shrink-0 rounded-full p-[1.5px]"
+                  style={{ background: 'linear-gradient(135deg, #e41aff, #00f0ff)' }}
+                >
+                  <div className="w-9 h-9 rounded-full bg-[#120614] flex items-center justify-center text-sm font-bold text-primary">
+                    {(user?.fullName || user?.email || '?').charAt(0).toUpperCase()}
+                  </div>
+                </div>
+
+                <div className="flex flex-col items-center gap-1 min-w-0 w-full">
+                  <p className="text-xs text-white/90 font-medium truncate text-center w-full">
+                    {user?.fullName || user?.email}
+                  </p>
+                  <TierBadge tier={tier} showUpgrade={false} />
                 </div>
               </div>
+            </button>
 
-              <div className="flex flex-col items-center gap-1 min-w-0 w-full">
-                <p className="text-xs text-white/90 font-medium truncate text-center w-full">
-                  {user?.fullName || user?.email}
-                </p>
-                <TierBadge tier={tier} showUpgrade={false} />
-              </div>
-            </div>
-
-            {/* Upgrade link below, only for FREE */}
+            {/* Upgrade link — outside the button so <a> is not nested inside <button> */}
             {tier === 'FREE' && (
-              <Link
-                href="/pricing"
-                onClick={(e) => e.stopPropagation()}
-                className="mt-2.5 flex items-center justify-center gap-1.5 w-full py-1.5 rounded-xl text-xs font-semibold transition-all hover:opacity-90"
-                style={{
-                  background: 'rgba(228,26,255,0.08)',
-                  border: '1px solid rgba(228,26,255,0.15)',
-                }}
-              >
-                <span style={{ background: 'linear-gradient(135deg, #e41aff, #00f0ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                  ✦ Unlock full access
-                </span>
-              </Link>
+              <div className="px-3 pb-3">
+                <Link
+                  href="/pricing"
+                  className="flex items-center justify-center gap-1.5 w-full py-1.5 rounded-xl text-xs font-semibold transition-all hover:opacity-90"
+                  style={{
+                    background: 'rgba(228,26,255,0.08)',
+                    border: '1px solid rgba(228,26,255,0.15)',
+                  }}
+                >
+                  <span style={{ background: 'linear-gradient(135deg, #e41aff, #00f0ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    ✦ Unlock full access
+                  </span>
+                </Link>
+              </div>
             )}
 
-          </button>
+          </div>
         </div>
       </div>
     </aside>
