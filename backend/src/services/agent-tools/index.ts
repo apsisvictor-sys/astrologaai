@@ -123,8 +123,8 @@ const solarArcSchema = z.object({
  */
 export const calculateNatalChartTool = tool({
     description: "Calculates the exact position, house, and aspects of planets in the user's birth chart.Use this to find specific placements like Chiron, Midheaven, or basic sign positions mentioned by the user.",
-    parameters: natalChartSchema,
-    execute: async (args) => {
+    inputSchema: natalChartSchema,
+    execute: async (args: z.infer<typeof natalChartSchema>) => {
         try {
             console.log(`[Agent Tool Triggered] calculateNatalChartTool`, args);
             const chart = await orchestrator.calculateNatalChart(args);
@@ -155,8 +155,8 @@ export const calculateNatalChartTool = tool({
  */
 export const analyzeTransitsTool = tool({
     description: 'Fetches the planetary transits for a specific date. ONLY call this tool if the user asks questions about upcoming events, current feelings triggered by the cosmos, or timing (e.g., "What is happening to me next month?").',
-    parameters: transitsSchema,
-    execute: async (args) => {
+    inputSchema: transitsSchema,
+    execute: async (args: z.infer<typeof transitsSchema>) => {
         try {
             console.log(`[Agent Tool Triggered] analyzeTransitsTool for ${args.date}`);
             const transits = await orchestrator.getTransits(args.date, { latitude: args.latitude, longitude: args.longitude });
@@ -186,8 +186,8 @@ function classifySynastryAspect(planet1: string, planet2: string, nature: string
 
 export const calculateSynastryTool = tool({
     description: 'Compares two birth charts and returns relationship compatibility data (Synastry). CALL THIS if the user is asking about an interpersonal relationship, love interest, or partner.',
-    parameters: synastrySchema,
-    execute: async (args) => {
+    inputSchema: synastrySchema,
+    execute: async (args: z.infer<typeof synastrySchema>) => {
         try {
             console.log(`[Agent Tool Triggered] calculateSynastryTool`);
             const synastry = await orchestrator.calculateSynastry(args.person1, args.person2);
@@ -234,8 +234,8 @@ export const calculateSynastryTool = tool({
  */
 export const calculateProgressionsTool = tool({
     description: 'Calculates the secondary progressed chart for a given point in time. CRUCIAL for answering questions about internal emotional shifts, feeling different, or inner evolution (Progressed Moon).',
-    parameters: progressionsSchema,
-    execute: async (args) => {
+    inputSchema: progressionsSchema,
+    execute: async (args: z.infer<typeof progressionsSchema>) => {
         try {
             console.log(`[Agent Tool Triggered] calculateProgressionsTool`);
             return await orchestrator.getProgressions(args.birthData as any, args.targetDate);
@@ -252,8 +252,8 @@ export const calculateProgressionsTool = tool({
  */
 export const calculateSolarReturnTool = tool({
     description: 'Calculates the Solar Return chart. CRUCIAL for questions about the "year ahead", "what will this year bring", or generic annual forecasts.',
-    parameters: solarReturnSchema,
-    execute: async (args) => {
+    inputSchema: solarReturnSchema,
+    execute: async (args: z.infer<typeof solarReturnSchema>) => {
         try {
             console.log(`[Agent Tool Triggered] calculateSolarReturnTool`);
             return await orchestrator.getSolarReturn(args.birthData as any, args.year);
@@ -270,8 +270,8 @@ export const calculateSolarReturnTool = tool({
  */
 export const calculateRelocationTool = tool({
     description: 'Calculates the Astrocartography (relocation) lines for a specific target location. CRUCIAL for answering "Where should I move?", "Is Paris a good city for me?", or questions about travel and geography.',
-    parameters: relocationSchema,
-    execute: async (args) => {
+    inputSchema: relocationSchema,
+    execute: async (args: z.infer<typeof relocationSchema>) => {
         try {
             console.log(`[Agent Tool Triggered] calculateRelocationTool`);
             return await orchestrator.getRelocation(args.birthData as any, args.targetLocation);
@@ -288,8 +288,8 @@ export const calculateRelocationTool = tool({
  */
 export const calculateCompositeTool = tool({
     description: 'Calculates a Composite Chart between two people. CRUCIAL for answering "What is the ultimate purpose of this relationship?", "Are we meant to be together forever?", or the destiny/vibe of the couple as a single entity.',
-    parameters: compositeSchema,
-    execute: async (args) => {
+    inputSchema: compositeSchema,
+    execute: async (args: z.infer<typeof compositeSchema>) => {
         try {
             console.log(`[Agent Tool Triggered] calculateCompositeTool`);
             return await orchestrator.getCompositeChart(args.person1 as any, args.person2 as any);
@@ -306,8 +306,8 @@ export const calculateCompositeTool = tool({
  */
 export const calculateVenusReturnTool = tool({
     description: 'Calculates the Venus Return chart. CRUCIAL for precise timing on love, asking "When will I meet someone?", "When is the best time for romance this year?", or financial luck timing.',
-    parameters: venusReturnSchema,
-    execute: async (args) => {
+    inputSchema: venusReturnSchema,
+    execute: async (args: z.infer<typeof venusReturnSchema>) => {
         try {
             console.log(`[Agent Tool Triggered] calculateVenusReturnTool`);
             return await orchestrator.getVenusReturn(args.birthData as any, args.year);
@@ -324,8 +324,8 @@ export const calculateVenusReturnTool = tool({
  */
 export const calculateLunarReturnTool = tool({
     description: 'Calculates the Lunar Return chart for a specific month. Use this for questions about THIS MONTH — what emotional themes, focus areas, and lunar cycle energy are present in the current or upcoming month.',
-    parameters: lunarReturnSchema,
-    execute: async (args) => {
+    inputSchema: lunarReturnSchema,
+    execute: async (args: z.infer<typeof lunarReturnSchema>) => {
         try {
             console.log(`[Agent Tool Triggered] calculateLunarReturnTool for ${args.year}-${args.month}`);
             return await orchestrator.getLunarReturn(args.birthData as any, args.year, args.month);
@@ -342,8 +342,8 @@ export const calculateLunarReturnTool = tool({
  */
 export const calculateSolarArcTool = tool({
     description: 'Calculates Solar Arc Directions for a target date. Each planet moves approximately 1° per year of life. CRUCIAL for deep timing questions — "why is this life theme emerging now?", long-term psychological evolution, and understanding major life chapter shifts. Complements secondary progressions.',
-    parameters: solarArcSchema,
-    execute: async (args) => {
+    inputSchema: solarArcSchema,
+    execute: async (args: z.infer<typeof solarArcSchema>) => {
         try {
             console.log(`[Agent Tool Triggered] calculateSolarArcTool for ${args.targetDate}`);
             return await orchestrator.getSolarArcDirections(args.birthData as any, args.targetDate);

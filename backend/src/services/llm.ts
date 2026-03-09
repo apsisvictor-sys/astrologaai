@@ -193,14 +193,14 @@ Answer every question with depth, nuance, and comprehensive multi-tool synthesis
         const toolName = (chunk as any).toolName;
         yield { content: '', done: false, toolResult: { name: toolName, result: resultVal } };
       } else if (chunk.type === 'finish') {
-        const usage = (chunk as any).usage;
+        const usage = (chunk as any).totalUsage ?? (chunk as any).usage;
         yield {
           content: '',
           done: true,
           usage: usage ? {
-            inputTokens: usage.promptTokens ?? 0,
-            outputTokens: usage.completionTokens ?? 0,
-            totalTokens: usage.totalTokens ?? 0,
+            inputTokens: usage.inputTokens ?? usage.promptTokens ?? 0,
+            outputTokens: usage.outputTokens ?? usage.completionTokens ?? 0,
+            totalTokens: (usage.inputTokens ?? usage.promptTokens ?? 0) + (usage.outputTokens ?? usage.completionTokens ?? 0),
           } : undefined,
         };
       }

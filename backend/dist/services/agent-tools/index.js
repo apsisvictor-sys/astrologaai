@@ -105,7 +105,7 @@ const solarArcSchema = zod_1.z.object({
  */
 exports.calculateNatalChartTool = (0, ai_1.tool)({
     description: "Calculates the exact position, house, and aspects of planets in the user's birth chart.Use this to find specific placements like Chiron, Midheaven, or basic sign positions mentioned by the user.",
-    parameters: natalChartSchema,
+    inputSchema: natalChartSchema,
     execute: async (args) => {
         try {
             console.log(`[Agent Tool Triggered] calculateNatalChartTool`, args);
@@ -136,7 +136,7 @@ exports.calculateNatalChartTool = (0, ai_1.tool)({
  */
 exports.analyzeTransitsTool = (0, ai_1.tool)({
     description: 'Fetches the planetary transits for a specific date. ONLY call this tool if the user asks questions about upcoming events, current feelings triggered by the cosmos, or timing (e.g., "What is happening to me next month?").',
-    parameters: transitsSchema,
+    inputSchema: transitsSchema,
     execute: async (args) => {
         try {
             console.log(`[Agent Tool Triggered] analyzeTransitsTool for ${args.date}`);
@@ -168,7 +168,7 @@ function classifySynastryAspect(planet1, planet2, nature) {
 }
 exports.calculateSynastryTool = (0, ai_1.tool)({
     description: 'Compares two birth charts and returns relationship compatibility data (Synastry). CALL THIS if the user is asking about an interpersonal relationship, love interest, or partner.',
-    parameters: synastrySchema,
+    inputSchema: synastrySchema,
     execute: async (args) => {
         try {
             console.log(`[Agent Tool Triggered] calculateSynastryTool`);
@@ -212,7 +212,7 @@ exports.calculateSynastryTool = (0, ai_1.tool)({
  */
 exports.calculateProgressionsTool = (0, ai_1.tool)({
     description: 'Calculates the secondary progressed chart for a given point in time. CRUCIAL for answering questions about internal emotional shifts, feeling different, or inner evolution (Progressed Moon).',
-    parameters: progressionsSchema,
+    inputSchema: progressionsSchema,
     execute: async (args) => {
         try {
             console.log(`[Agent Tool Triggered] calculateProgressionsTool`);
@@ -230,7 +230,7 @@ exports.calculateProgressionsTool = (0, ai_1.tool)({
  */
 exports.calculateSolarReturnTool = (0, ai_1.tool)({
     description: 'Calculates the Solar Return chart. CRUCIAL for questions about the "year ahead", "what will this year bring", or generic annual forecasts.',
-    parameters: solarReturnSchema,
+    inputSchema: solarReturnSchema,
     execute: async (args) => {
         try {
             console.log(`[Agent Tool Triggered] calculateSolarReturnTool`);
@@ -248,7 +248,7 @@ exports.calculateSolarReturnTool = (0, ai_1.tool)({
  */
 exports.calculateRelocationTool = (0, ai_1.tool)({
     description: 'Calculates the Astrocartography (relocation) lines for a specific target location. CRUCIAL for answering "Where should I move?", "Is Paris a good city for me?", or questions about travel and geography.',
-    parameters: relocationSchema,
+    inputSchema: relocationSchema,
     execute: async (args) => {
         try {
             console.log(`[Agent Tool Triggered] calculateRelocationTool`);
@@ -266,7 +266,7 @@ exports.calculateRelocationTool = (0, ai_1.tool)({
  */
 exports.calculateCompositeTool = (0, ai_1.tool)({
     description: 'Calculates a Composite Chart between two people. CRUCIAL for answering "What is the ultimate purpose of this relationship?", "Are we meant to be together forever?", or the destiny/vibe of the couple as a single entity.',
-    parameters: compositeSchema,
+    inputSchema: compositeSchema,
     execute: async (args) => {
         try {
             console.log(`[Agent Tool Triggered] calculateCompositeTool`);
@@ -284,7 +284,7 @@ exports.calculateCompositeTool = (0, ai_1.tool)({
  */
 exports.calculateVenusReturnTool = (0, ai_1.tool)({
     description: 'Calculates the Venus Return chart. CRUCIAL for precise timing on love, asking "When will I meet someone?", "When is the best time for romance this year?", or financial luck timing.',
-    parameters: venusReturnSchema,
+    inputSchema: venusReturnSchema,
     execute: async (args) => {
         try {
             console.log(`[Agent Tool Triggered] calculateVenusReturnTool`);
@@ -302,7 +302,7 @@ exports.calculateVenusReturnTool = (0, ai_1.tool)({
  */
 exports.calculateLunarReturnTool = (0, ai_1.tool)({
     description: 'Calculates the Lunar Return chart for a specific month. Use this for questions about THIS MONTH — what emotional themes, focus areas, and lunar cycle energy are present in the current or upcoming month.',
-    parameters: lunarReturnSchema,
+    inputSchema: lunarReturnSchema,
     execute: async (args) => {
         try {
             console.log(`[Agent Tool Triggered] calculateLunarReturnTool for ${args.year}-${args.month}`);
@@ -320,7 +320,7 @@ exports.calculateLunarReturnTool = (0, ai_1.tool)({
  */
 exports.calculateSolarArcTool = (0, ai_1.tool)({
     description: 'Calculates Solar Arc Directions for a target date. Each planet moves approximately 1° per year of life. CRUCIAL for deep timing questions — "why is this life theme emerging now?", long-term psychological evolution, and understanding major life chapter shifts. Complements secondary progressions.',
-    parameters: solarArcSchema,
+    inputSchema: solarArcSchema,
     execute: async (args) => {
         try {
             console.log(`[Agent Tool Triggered] calculateSolarArcTool for ${args.targetDate}`);
