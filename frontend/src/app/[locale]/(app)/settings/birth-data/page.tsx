@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { useRouter, Link } from '@/i18n/navigation';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
@@ -31,15 +31,27 @@ interface BirthProfile {
   birthChart?: { id: string } | null;
 }
 
+// Suspense boundary required for useSearchParams in Next.js 14
+function SuccessBanner() {
+  const searchParams = useSearchParams();
+  if (searchParams.get('success') !== 'true') return null;
+  return (
+    <div
+      className="mb-6 p-4 rounded-xl"
+      style={{ background: `${COLORS.success}20`, border: `1px solid ${COLORS.success}`, color: COLORS.success }}
+    >
+      ✓ Birth profile saved successfully!
+    </div>
+  );
+}
+
 export default function BirthDataSettingsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [profiles, setProfiles] = useState<BirthProfile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const showSuccess = searchParams.get('success') === 'true';
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -114,14 +126,9 @@ export default function BirthDataSettingsPage() {
         </div>
 
         {/* Success message */}
-        {showSuccess && (
-          <div
-            className="mb-6 p-4 rounded-xl"
-            style={{ background: `${COLORS.success}20`, border: `1px solid ${COLORS.success}`, color: COLORS.success }}
-          >
-            &#10003; Birth profile saved successfully!
-          </div>
-        )}
+        <Suspense fallback={null}>
+          <SuccessBanner />
+        </Suspense>
 
         {/* Error message */}
         {error && (
@@ -211,13 +218,6 @@ export default function BirthDataSettingsPage() {
                         View Chart
                       </Link>
                     )}
-                    <Link
-                      href="/birth-data/new"
-                      className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all hover:opacity-80"
-                      style={{ background: COLORS.surface, color: COLORS.textSecondary, border: `1px solid ${COLORS.border}` }}
-                    >
-                      Edit
-                    </Link>
                   </div>
                 </div>
               </div>
