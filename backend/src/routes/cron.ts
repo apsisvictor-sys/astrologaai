@@ -8,9 +8,6 @@
 import { Router, Request, Response } from 'express';
 import { resetMonthlyQueryCounters, isResetDay, archiveOldUsageRecords } from '../services/monthly-reset';
 import { getCronSecret } from '../utils/cron';
-import { prisma } from '../utils/prisma';
-import * as fs from 'fs';
-import * as path from 'path';
 
 const router = Router();
 
@@ -149,50 +146,6 @@ router.get('/status', (req: Request, res: Response) => {
       timezone: 'UTC',
     },
   });
-});
-
-/**
- * POST /api/v1/cron/run-migration
- * One-time DB schema migration — applies supabase_fix.sql against the connected database.
- * REMOVE THIS ENDPOINT after the migration is confirmed successful.
- * Security: Requires CRON_SECRET header.
- */
-router.post('/run-migration', async (req: Request, res: Response) => {
-  try {
-    const configuredSecret = getCronSecret();
-    if (!configuredSecret) {
-      return res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED' } });
-    }
-    const cronSecret = req.headers['x-cron-secret'];
-    if (cronSecret !== configuredSecret) {
-      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
-    }
-
-    const sqlPath = path.join(process.cwd(), 'supabase_fix.sql');
-    const sqlContent = fs.readFileSync(sqlPath, 'utf8');
-
-    // Split into individual statements, skip empty/comment-only chunks
-    const statements = sqlContent
-      .split(';')
-      .map(s => s.split('\n').filter(l => !l.trim().startsWith('--')).join('\n').trim())
-      .filter(s => s.length > 0);
-
-    const errors: { index: number; error: string }[] = [];
-    for (let i = 0; i < statements.length; i++) {
-      try {
-        await prisma.$executeRawUnsafe(statements[i]);
-      } catch (err: any) {
-        errors.push({ index: i, error: err.message });
-      }
-    }
-
-    return res.json({
-      success: errors.length === 0,
-      data: { total: statements.length, succeeded: statements.length - errors.length, failed: errors.length, errors },
-    });
-  } catch (error: any) {
-    return res.status(500).json({ success: false, error: { message: error.message } });
-  }
 });
 
 export default router;

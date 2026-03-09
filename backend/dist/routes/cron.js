@@ -9,9 +9,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const monthly_reset_1 = require("../services/monthly-reset");
 const cron_1 = require("../utils/cron");
-const prisma_1 = require("../utils/prisma");
-const fs = require("fs");
-const path = require("path");
 const router = (0, express_1.Router)();
 /**
  * POST /api/v1/cron/monthly-reset
@@ -141,45 +138,6 @@ router.get('/status', (req, res) => {
             timezone: 'UTC',
         },
     });
-});
-/**
- * POST /api/v1/cron/run-migration
- * One-time DB schema migration. REMOVE after confirmed successful.
- * Security: Requires CRON_SECRET header.
- */
-router.post('/run-migration', async (req, res) => {
-    try {
-        const configuredSecret = (0, cron_1.getCronSecret)();
-        if (!configuredSecret) {
-            return res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED' } });
-        }
-        const cronSecret = req.headers['x-cron-secret'];
-        if (cronSecret !== configuredSecret) {
-            return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
-        }
-        const sqlPath = path.join(process.cwd(), 'supabase_fix.sql');
-        const sqlContent = fs.readFileSync(sqlPath, 'utf8');
-        const statements = sqlContent
-            .split(';')
-            .map(s => s.split('\n').filter(l => !l.trim().startsWith('--')).join('\n').trim())
-            .filter(s => s.length > 0);
-        const errors = [];
-        for (let i = 0; i < statements.length; i++) {
-            try {
-                await prisma_1.prisma.$executeRawUnsafe(statements[i]);
-            }
-            catch (err) {
-                errors.push({ index: i, error: err.message });
-            }
-        }
-        return res.json({
-            success: errors.length === 0,
-            data: { total: statements.length, succeeded: statements.length - errors.length, failed: errors.length, errors },
-        });
-    }
-    catch (error) {
-        return res.status(500).json({ success: false, error: { message: error.message } });
-    }
 });
 exports.default = router;
 //# sourceMappingURL=cron.js.map
