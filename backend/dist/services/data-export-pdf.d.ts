@@ -2,7 +2,8 @@
  * Data Export PDF Generator Service
  * US-32: Export User Data (GDPR Data Portability)
  *
- * Generates human-readable PDF reports of user data
+ * Stub: pdfkit/canvas removed — not available in Railway Nixpacks (no Python, no pre-built binary for Node 22).
+ * PDF export returns an error; JSON export continues to work normally.
  */
 interface UserExportData {
     exportInfo: {
@@ -105,8 +106,10 @@ interface UserExportData {
     } | null;
 }
 /**
- * Generate a human-readable PDF document of user data
+ * Generate a human-readable PDF document of user data.
+ * Currently stubbed — pdfkit is not available in the Railway deployment environment.
+ * Use JSON export instead.
  */
-export declare function generateDataExportPDF(data: UserExportData): Promise<Buffer>;
+export declare function generateDataExportPDF(_data: UserExportData): Promise<Buffer>;
 export default generateDataExportPDF;
 //# sourceMappingURL=data-export-pdf.d.ts.map
