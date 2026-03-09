@@ -279,6 +279,17 @@ The query limit middleware explicitly fails open (allows requests) on DB error. 
 ### ENH-06: Frontend WebSocket reconnection UX
 The reconnection service exists (`reconnection.ts`) but the frontend UX during reconnect (spinner, message queuing, toast notifications) should be polished.
 
+### ENH-00: Professional PDF Export — Beautiful Client-Facing Natal Chart Report
+**Status:** Backend `canvas` + `pdfkit` deps removed (were crashing Railway builds; feature was never implemented, only a stub existed).
+**Current state:** Users can download chart as PNG or basic screenshot-PDF via `ChartDownload` component (client-side, `html2canvas` + `jsPDF`). The `ProfessionalPDFExport` button calls the backend which returns a graceful error.
+**What's needed:**
+- Beautifully formatted A4 PDF with the Void Prism design aesthetic
+- SVG chart wheel rendered server-side (use `sharp` or `@resvg/resvg-js` — no native compilation needed)
+- Planet positions table, house cusps, aspects summary — all bilingual (BG/EN)
+- Cover page with the user's name, birth data, and logo
+- Consider: pdfkit for layout, `@resvg/resvg-js` to convert the existing SVG chart to PNG for embedding
+**Priority:** Medium — clients will love a polished downloadable report
+
 ### ENH-07: Aspect interpretation library
 The compatibility service uses hard-coded interpretation templates. Build a richer interpretation database with more nuanced descriptions per aspect type × planet combination.
 

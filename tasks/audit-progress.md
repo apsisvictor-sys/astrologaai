@@ -9,7 +9,7 @@
 | Phase | Status | Notes |
 |-------|--------|-------|
 | 1 — Railway Build Fix | ✅ Complete | See findings below |
-| 2 — Backend Env Vars | ⚠️ Partial | All fixable vars set; 4 need manual action |
+| 2 — Backend Env Vars | ✅ Complete | All vars set; yearly Stripe price IDs optional (no yearly plans yet) |
 | 3 — Frontend Env Vars | ✅ Complete | All critical vars set; 1 manual action (Stripe live key) |
 | 4 — Supabase Config | ✅ Complete | site_url fixed, redirect URLs updated, JWT expiry noted, Google OAuth verified |
 | 5 — Backend Code Audit | ✅ Complete | 2 issues fixed; 1 pre-existing type issue flagged |
@@ -421,24 +421,22 @@ Committed as "build: fresh backend dist — all audit fixes compiled"
 | 5 | Removed debug error exposure from `register()` catch; fixed `ChatContext` type for `recentMessages` |
 | 6 | Fixed `socket-client.ts` to use `getApiBaseUrl()` instead of inline env var |
 
-### Manual Actions Still Required Before Deploy
+### Manual Actions Completed (2026-03-09)
 
-1. **`ANTHROPIC_API_KEY` on Railway** — Get from console.anthropic.com and add to Railway environment. Without this, AI chat will fail entirely.
+1. ✅ **`ANTHROPIC_API_KEY`** — Set on Railway
+2. ✅ **`STRIPE_WEBHOOK_SECRET`** — Webhook registered programmatically at `/api/v1/subscription/webhook`, secret set on Railway (`whsec_vSA0TR800Qot6Rff5bBlog2bsrPnS2vU`, endpoint ID `we_1T91niIl9OIfRJkg3J0Bnh5V`)
+3. ✅ **`STRIPE_PUBLISHABLE_KEY`** on Vercel — Updated to live `pk_live_...` key
+4. ✅ **`CRON_SECRET`** — Confirmed set on Railway
 
-2. **Stripe Webhook Secret on Railway** — After first deploy:
-   - In Stripe Dashboard → Webhooks → Add endpoint → `https://astrologaai-backend-production.up.railway.app/api/v1/webhooks/stripe`
-   - Select events: `checkout.session.completed`, `customer.subscription.*`, `invoice.*`
-   - Copy `whsec_...` secret → set as `STRIPE_WEBHOOK_SECRET` in Railway
+### Remaining Optional Items (not blocking deploy)
 
-3. **Stripe Publishable Key on Vercel** — Replace `pk_test_...` with `pk_live_...` in Vercel's `STRIPE_PUBLISHABLE_KEY` env var (low urgency — only needed when Stripe checkout UI is added to frontend)
+- **Yearly Stripe Price IDs** — `STRIPE_PRO_PRICE_ID_YEARLY` / `STRIPE_PREMIUM_PRICE_ID_YEARLY` — only needed when yearly billing plans are offered
 
-4. **Yearly Stripe Price IDs on Railway** — Create yearly Pro + yearly Premium prices in Stripe Dashboard, set `STRIPE_PRO_PRICE_ID_YEARLY` and `STRIPE_PREMIUM_PRICE_ID_YEARLY` on Railway (only needed when yearly billing UI is built)
+### ✅ READY TO DEPLOY — No blockers remaining
 
-### Two Actions Before Triggering Deploy
-
-1. **Railway dashboard** — Confirm `ANTHROPIC_API_KEY` is set. Then click "Deploy" to pick up the new dist from the latest commit.
-
-2. **Vercel dashboard** — Trigger a redeployment (or it auto-deploys on git push) — the new `NEXT_PUBLIC_FRONTEND_URL` and `NEXT_PUBLIC_APP_URL` env vars added in Phase 3 will be included.
+**To deploy:**
+1. Push current commits to `main` → Vercel auto-deploys frontend
+2. In Railway dashboard → click Deploy on `astrologaai-backend` service to pick up new dist
 
 ---
 
