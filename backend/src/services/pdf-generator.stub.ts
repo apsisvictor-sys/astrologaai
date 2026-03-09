@@ -5,7 +5,6 @@
  * US-17: Generate Chart PDF
  */
 
-import { Readable } from 'stream';
 import { NatalChart } from './astrology';
 
 // Stub for PDF generation when dependencies are not available

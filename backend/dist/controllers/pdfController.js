@@ -254,7 +254,7 @@ async function getPDFStatus(req, res) {
         res.json({
             success: true,
             data: {
-                canGeneratePDF: true,
+                canGeneratePDF: false,
                 hasChart: !!birthProfile.birthChart,
                 profileName: birthProfile.name,
                 supportedLanguages: ['en', 'bg'],

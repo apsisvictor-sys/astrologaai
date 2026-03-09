@@ -70,6 +70,17 @@ export async function requestExport(req: Request, res: Response, next: NextFunct
       return;
     }
 
+    if (format === 'pdf') {
+      res.status(501).json({
+        success: false,
+        error: {
+          code: 'FEATURE_UNAVAILABLE',
+          message: 'PDF export is temporarily unavailable. Please use JSON format.',
+        },
+      });
+      return;
+    }
+
     const userId = req.user.id;
     const exportId = generateExportId();
     
