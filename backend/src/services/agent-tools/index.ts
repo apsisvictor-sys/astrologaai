@@ -28,7 +28,7 @@ const natalChartSchema = z.object({
 });
 
 const transitsSchema = z.object({
-    date: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).describe('The date for transits in YYYY-MM-DD format'),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('The date for transits in YYYY-MM-DD format'),
     latitude: z.number().optional().describe('Optional latitude for location-specific transits'),
     longitude: z.number().optional().describe('Optional longitude for location-specific transits'),
 });
@@ -52,7 +52,7 @@ const progressionsSchema = z.object({
         hour: z.number(), minute: z.number(),
         latitude: z.number(), longitude: z.number()
     }).describe("User's original birth data"),
-    targetDate: z.string().regex(/^\\d{4}-\\d{2}-\\d{2}$/).describe('The target date for the progression in YYYY-MM-DD format (usually current date)'),
+    targetDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('The target date for the progression in YYYY-MM-DD format (usually current date)'),
 });
 
 const solarReturnSchema = z.object({
