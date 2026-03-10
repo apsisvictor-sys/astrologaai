@@ -855,6 +855,60 @@ async function getUsage(req, res) {
         });
     }
 }
+/**
+ * POST /api/v1/chat/sessions/:id/import
+ * Import guest messages into an existing session
+ * Used when a guest user registers to migrate their homepage chat
+ */
+async function importGuestMessages(req, res) {
+    try {
+        const userId = req.user?.id;
+        const { id: sessionId } = req.params;
+        const { messages } = req.body;
+        if (!userId) {
+            res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
+            return;
+        }
+        if (!Array.isArray(messages) || messages.length === 0) {
+            res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'messages array required and must not be empty' } });
+            return;
+        }
+        // Verify session belongs to user
+        const session = await prisma.chatSession.findFirst({ where: { id: sessionId, userId } });
+        if (!session) {
+            res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Session not found' } });
+            return;
+        }
+        // Normalize: 'oracle' → 'ASSISTANT', 'user' → 'USER', skip empty
+        const normalizedMsgs = messages
+            .filter(m => m.content?.trim())
+            .map(m => ({
+            sessionId,
+            role: (m.role === 'oracle' || m.role === 'assistant') ? 'ASSISTANT' : 'USER',
+            content: m.content.trim(),
+            ...(m.timestamp ? { createdAt: new Date(m.timestamp) } : {}),
+        }));
+        if (normalizedMsgs.length === 0) {
+            res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'No valid messages to import' } });
+            return;
+        }
+        await prisma.chatMessage.createMany({ data: normalizedMsgs });
+        // Update session title if still default
+        if (!session.title || session.title === 'New conversation' || session.title === 'Нов разговор') {
+            await prisma.chatSession.update({
+                where: { id: sessionId },
+                data: { title: 'My first reading', updatedAt: new Date() },
+            });
+        }
+        console.log(`[Chat] Imported ${normalizedMsgs.length} guest messages into session ${sessionId} for user ${userId}`);
+        res.json({ success: true, data: { imported: normalizedMsgs.length, sessionId } });
+    }
+    catch (error) {
+        console.error('[Chat] Error importing guest messages:', error);
+        res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to import guest messages' } });
+    }
+}
+exports.importGuestMessages = importGuestMessages;
 exports.default = {
     sendMessage,
     listSessions,

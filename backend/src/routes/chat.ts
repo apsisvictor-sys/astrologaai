@@ -19,6 +19,7 @@ import {
   updateSession,
   getUsage,
   startNewConversation,
+  importGuestMessages,
 } from '../controllers/chatController';
 
 const router = Router();
@@ -37,6 +38,7 @@ router.delete('/sessions', clearAllSessions);
 router.get('/sessions/:id', getSession);
 router.patch('/sessions/:id', updateSession);
 router.delete('/sessions/:id', deleteSession);
+router.post('/sessions/:id/import', importGuestMessages);
 router.get('/usage', getUsage);
 
 export default router;
