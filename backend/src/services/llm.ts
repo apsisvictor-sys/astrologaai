@@ -221,10 +221,11 @@ export async function chatCompletion(
   const coreMessages = mapToCoreMessages(messages);
   const model = getProviderModel();
 
+  const { get_natal_chart, get_transits, ...remainingTools } = astrologyTools;
   const result = await generateText({
     model,
     messages: coreMessages,
-    tools: astrologyTools,
+    tools: remainingTools,
     temperature: config.temperature ?? 0.7,
   });
 

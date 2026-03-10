@@ -188,10 +188,11 @@ Answer every question with depth, nuance, and comprehensive multi-tool synthesis
 async function chatCompletion(messages, config = {}) {
     const coreMessages = mapToCoreMessages(messages);
     const model = getProviderModel();
+    const { get_natal_chart, get_transits, ...remainingTools } = agent_tools_1.astrologyTools;
     const result = await (0, ai_1.generateText)({
         model,
         messages: coreMessages,
-        tools: agent_tools_1.astrologyTools,
+        tools: remainingTools,
         temperature: config.temperature ?? 0.7,
     });
     return result.text;
