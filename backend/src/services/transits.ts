@@ -460,9 +460,11 @@ export function calculateTransitsToNatal(
   // Extract natal planet positions from chart
   const natalPlanets: Record<string, { sign: string; degree: number }> = {};
   
-  if (natalChart?.chartData) {
-    const chartData = natalChart.chartData;
-    ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'].forEach(planet => {
+  // Handle both wrapped { chartData: {...} } and raw { sun: {...}, ... } shapes
+  const chartData = natalChart?.chartData ?? natalChart;
+  if (chartData && typeof chartData === 'object') {
+    const planets = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
+    planets.forEach(planet => {
       if (chartData[planet]) {
         natalPlanets[planet] = {
           sign: chartData[planet].sign,
