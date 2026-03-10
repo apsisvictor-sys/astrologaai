@@ -177,8 +177,86 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(userData);
 
-      // Redirect to dashboard or onboarding
-      router.push(localePath('/dashboard'));
+      // Upload guest birth data if the user had a guest session
+      const guestBirthDataStr = localStorage.getItem('astrologaai_guest_birth_data');
+      if (guestBirthDataStr) {
+        try {
+          const gd = JSON.parse(guestBirthDataStr);
+          await fetch(`${API_URL}/api/v1/birth-data`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${tokens.accessToken}`,
+            },
+            body: JSON.stringify({
+              name: userData.fullName || userData.email || 'My Chart',
+              birthDate: gd.birthDate,
+              birthTime: gd.birthTime || null,
+              isUnknownTime: !gd.birthTime,
+              locationName: gd.locationName,
+              latitude: gd.latitude,
+              longitude: gd.longitude,
+            }),
+          });
+        } catch {
+          // Non-critical — don't block registration if upload fails
+        }
+        // Clear guest birth data key only — chat keys cleaned up below
+        localStorage.removeItem('astrologaai_guest_birth_data');
+      }
+
+      // Migrate guest chat session → first registered session
+      const guestMsgsStr = typeof window !== 'undefined' ? localStorage.getItem('astrologaai_guest_messages') : null;
+      const guestSessionStr = typeof window !== 'undefined' ? localStorage.getItem('astrologaai_guest_session') : null;
+
+      let migratedSessionId: string | null = null;
+
+      if (guestMsgsStr && guestSessionStr) {
+        try {
+          const guestMsgs: Array<{ role: string; content: string; timestamp: string }> = JSON.parse(guestMsgsStr);
+
+          if (guestMsgs.length > 0) {
+            // Create a new chat session
+            const sessionRes = await fetch(`${getApiBaseUrl()}/api/v1/chat/sessions`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${tokens.accessToken}`,
+              },
+              body: JSON.stringify({ title: 'My first reading' }),
+            });
+            const sessionData = await sessionRes.json();
+            const newSessionId = sessionData.data?.session?.id;
+
+            if (newSessionId) {
+              // Import all guest messages
+              await fetch(`${getApiBaseUrl()}/api/v1/chat/sessions/${newSessionId}/import`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${tokens.accessToken}`,
+                },
+                body: JSON.stringify({ messages: guestMsgs }),
+              });
+
+              migratedSessionId = newSessionId;
+            }
+          }
+        } catch (err) {
+          console.error('[Auth] Guest session migration failed (non-blocking):', err);
+        } finally {
+          // Always clear guest chat keys after registration
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('astrologaai_guest_messages');
+            localStorage.removeItem('astrologaai_guest_session');
+            localStorage.removeItem('astrologaai_guest_oracle_count');
+            localStorage.removeItem('astrologaai_guest_user_count');
+          }
+        }
+      }
+
+      // Redirect to migrated session if available, otherwise to /chat
+      router.push(localePath(migratedSessionId ? `/chat?session=${migratedSessionId}` : '/chat'));
     } catch (err) {
       const message = friendlyAuthError(err, response) || 'Registration failed';
       setError(message);
@@ -237,8 +315,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(userData);
 
-      // Redirect to dashboard
-      router.push(localePath('/dashboard'));
+      // Redirect to chat
+      router.push(localePath('/chat'));
     } catch (err) {
       const message = friendlyAuthError(err, response) || 'Login failed';
       setError(message);
@@ -320,8 +398,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setUser(userData);
 
-      // Redirect to dashboard
-      router.push(localePath('/dashboard'));
+      // Redirect to chat
+      router.push(localePath('/chat'));
     } catch (err) {
       const message = friendlyAuthError(err, response) || 'OAuth login failed';
       setError(message);
