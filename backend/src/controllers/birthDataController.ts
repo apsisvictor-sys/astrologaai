@@ -251,7 +251,6 @@ export async function createBirthProfile(req: Request, res: Response): Promise<v
 
     // Auto-compute natal chart immediately after profile creation
     try {
-      const birthDate = new Date(input.birthDate);
       const birthTime = input.isUnknownTime ? null : (input.birthTime || null);
       const [hour, minute] = birthTime ? birthTime.split(':').map(Number) : [12, 0];
 
@@ -259,8 +258,8 @@ export async function createBirthProfile(req: Request, res: Response): Promise<v
         year: birthDate.getFullYear(),
         month: birthDate.getMonth() + 1,
         day: birthDate.getDate(),
-        hour: hour || 12,
-        minute: minute || 0,
+        hour,
+        minute,
         latitude: input.latitude,
         longitude: input.longitude,
         timezone,

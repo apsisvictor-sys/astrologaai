@@ -216,11 +216,8 @@ async function createBirthProfile(req, res) {
         console.log(`[BirthData] Created profile ${profile.id} for user ${userId}`);
         // Auto-compute natal chart immediately after profile creation
         try {
-            const birthDate = new Date(input.birthDate);
             const birthTime = input.isUnknownTime ? null : (input.birthTime || null);
-            const timeParts = birthTime ? birthTime.split(':').map(Number) : [12, 0];
-            const hour = timeParts[0] || 12;
-            const minute = timeParts[1] || 0;
+            const [hour, minute] = birthTime ? birthTime.split(':').map(Number) : [12, 0];
             const birthDataInput = {
                 year: birthDate.getFullYear(),
                 month: birthDate.getMonth() + 1,
