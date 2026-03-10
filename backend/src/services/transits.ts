@@ -508,4 +508,53 @@ export function calculateTransitsToNatal(
   return aspects.sort((a, b) => a.orb - b.orb);
 }
 
+/**
+ * Get active transit-to-natal aspects for a user's chart.
+ * Fetches today's sky from astrology-api.io (cached 1h via getDailyTransits),
+ * then computes which transiting planets are aspecting the user's natal planets.
+ *
+ * @param natalChart - The user's natal chart object (birthChart.chartData from DB)
+ * @returns { skyPositions, aspectsToNatal, moonPhase, generatedAt }
+ */
+export async function getActiveTransitsForUser(natalChart: any): Promise<{
+  skyPositions: TransitPosition[];
+  aspectsToNatal: TransitAspect[];
+  moonPhase: MoonPhase;
+  generatedAt: string;
+}> {
+  const today = new Date();
+  const dateStr = today.toISOString().split('T')[0];
+
+  // Always get in-house data first (no API key needed, always available)
+  const dailyData = await getDailyTransits(today);
+  let skyPositions = dailyData.transits;
+
+  // Try to upgrade to real astrology-api.io data (more accurate positions)
+  try {
+    const { getAstrologyOrchestrator } = await import('./astrology/astrology-orchestrator');
+    const apiData = await getAstrologyOrchestrator().getTransits(dateStr);
+    if (apiData?.planets?.length > 0) {
+      skyPositions = apiData.planets.map((p: any) => ({
+        planet: p.name,
+        planetBg: PLANET_BG[p.name] || p.name,
+        sign: p.sign,
+        signBg: SIGN_BG[p.sign] || p.sign,
+        degree: typeof p.degree === 'number' ? Math.round(p.degree * 10) / 10 : parseFloat(p.degree || '0'),
+        retrograde: p.retrograde ?? false,
+      }));
+    }
+  } catch (err) {
+    console.warn('[Transits] astrology-api.io unavailable, using in-house calculation:', err instanceof Error ? err.message : err);
+  }
+
+  const aspectsToNatal = calculateTransitsToNatal(skyPositions, natalChart);
+
+  return {
+    skyPositions,
+    aspectsToNatal,
+    moonPhase: dailyData.moonPhase,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 export type { DailyTransits as DailyTransitsType, TransitAspect as TransitAspectType };

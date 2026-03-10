@@ -406,4 +406,40 @@ function calculateTransitsToNatal(transits, natalChart) {
     // Sort by orb (tightest aspects first)
     return aspects.sort((a, b) => a.orb - b.orb);
 }
+/**
+ * Get active transit-to-natal aspects for a user's chart.
+ */
+async function getActiveTransitsForUser(natalChart) {
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0];
+    // Always get in-house data first (no API key needed, always available)
+    const dailyData = await getDailyTransits(today);
+    let skyPositions = dailyData.transits;
+    // Try to upgrade to real astrology-api.io data (more accurate positions)
+    try {
+        const { getAstrologyOrchestrator } = await Promise.resolve().then(() => require('./astrology/astrology-orchestrator'));
+        const apiData = await getAstrologyOrchestrator().getTransits(dateStr);
+        if (apiData?.planets?.length > 0) {
+            skyPositions = apiData.planets.map((p) => ({
+                planet: p.name,
+                planetBg: PLANET_BG[p.name] || p.name,
+                sign: p.sign,
+                signBg: SIGN_BG[p.sign] || p.sign,
+                degree: typeof p.degree === 'number' ? Math.round(p.degree * 10) / 10 : parseFloat(p.degree || '0'),
+                retrograde: p.retrograde ?? false,
+            }));
+        }
+    }
+    catch (err) {
+        console.warn('[Transits] astrology-api.io unavailable, using in-house calculation:', err instanceof Error ? err.message : err);
+    }
+    const aspectsToNatal = calculateTransitsToNatal(skyPositions, natalChart);
+    return {
+        skyPositions,
+        aspectsToNatal,
+        moonPhase: dailyData.moonPhase,
+        generatedAt: new Date().toISOString(),
+    };
+}
+exports.getActiveTransitsForUser = getActiveTransitsForUser;
 //# sourceMappingURL=transits.js.map
