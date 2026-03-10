@@ -158,7 +158,7 @@ export default function ActiveTransitsPage() {
       })
       .catch(() => setError(locale === 'bg' ? 'Мрежова грешка' : 'Network error'))
       .finally(() => setIsLoading(false));
-  }, [authLoading, isAuthenticated]);
+  }, [authLoading, isAuthenticated, locale]);
 
   if (authLoading || isLoading) {
     return (
@@ -234,7 +234,13 @@ export default function ActiveTransitsPage() {
                     : 'Sun, Moon, Mercury, Venus, Mars · hours to days'}
                 />
                 <div className="space-y-3">
-                  {todayAspects.map((a, i) => <TransitCard key={i} aspect={a} locale={locale} />)}
+                  {todayAspects.map((a) => (
+                    <TransitCard
+                      key={`${a.transitPlanet}-${a.aspect}-${a.natalPlanet}`}
+                      aspect={a}
+                      locale={locale}
+                    />
+                  ))}
                 </div>
               </section>
             )}
@@ -250,7 +256,13 @@ export default function ActiveTransitsPage() {
                     : 'Jupiter, Saturn · weeks to months'}
                 />
                 <div className="space-y-3">
-                  {seasonAspects.map((a, i) => <TransitCard key={i} aspect={a} locale={locale} />)}
+                  {seasonAspects.map((a) => (
+                    <TransitCard
+                      key={`${a.transitPlanet}-${a.aspect}-${a.natalPlanet}`}
+                      aspect={a}
+                      locale={locale}
+                    />
+                  ))}
                 </div>
               </section>
             )}
@@ -266,7 +278,13 @@ export default function ActiveTransitsPage() {
                     : 'Uranus, Neptune, Pluto, Chiron · months to years'}
                 />
                 <div className="space-y-3">
-                  {longtermAspects.map((a, i) => <TransitCard key={i} aspect={a} locale={locale} />)}
+                  {longtermAspects.map((a) => (
+                    <TransitCard
+                      key={`${a.transitPlanet}-${a.aspect}-${a.natalPlanet}`}
+                      aspect={a}
+                      locale={locale}
+                    />
+                  ))}
                 </div>
               </section>
             )}
@@ -287,9 +305,9 @@ export default function ActiveTransitsPage() {
                 {locale === 'bg' ? 'Небесни позиции' : 'Current sky positions'}
               </h3>
               <div className="flex flex-wrap gap-2">
-                {data.skyPositions.map((p, i) => (
+                {data.skyPositions.map((p) => (
                   <span
-                    key={i}
+                    key={p.planet}
                     className="text-xs px-2 py-1 rounded"
                     style={{ background: COLORS.backgroundSecondary, color: COLORS.textSecondary }}
                   >
