@@ -87,11 +87,10 @@ async function* streamChatCompletion(messages, config = {}, callbacks) {
         const model = getProviderModel(tier);
         // Gating Tools based on User Subscription Tier
         const activeTools = {};
-        // FREE: natal chart only — users can explore their birth chart placements
-        activeTools['get_natal_chart'] = agent_tools_1.astrologyTools.get_natal_chart;
-        // PRO: adds live transits, solar return, and lunar return
+        // Natal chart and current transits are pre-injected into the system prompt.
+        // Tools here are for on-demand, specific user-directed queries only.
+        // PRO: solar return (year ahead) and lunar return (current month)
         if (tier === 'PRO' || tier === 'PREMIUM') {
-            activeTools['get_transits'] = agent_tools_1.astrologyTools.get_transits;
             activeTools['get_solar_return'] = agent_tools_1.astrologyTools.get_solar_return;
             activeTools['get_lunar_return'] = agent_tools_1.astrologyTools.get_lunar_return;
         }
@@ -107,32 +106,29 @@ async function* streamChatCompletion(messages, config = {}, callbacks) {
         // Tier-accurate system prompt context — must exactly match the tools above
         const systemPromptContext = tier === 'FREE'
             ? `The user is on the FREE plan — 'The Seeker' (Търсачът).
-You have access to ONE tool: get_natal_chart. Use it to explore their birth chart placements, signs, houses, and natal aspects in depth.
-You can discuss: Sun, Moon, Rising, planetary signs and houses, natal aspects, elemental balance, and the core themes of their personality and life path.
-You CANNOT access transits, forecasts, relationship analysis, or timing tools on this plan.
-If the user asks about current planetary events, what to expect this year, relationship compatibility, or specific timing — do NOT guess or hallucinate. Acknowledge it warmly and guide them: 'За да видим какво правят планетите за теб в момента и какво предстои тази година, можеш да преминеш към план Pro (Навигаторът).'`
+Your natal chart data and today's active transits are already loaded in your context above — use them directly without calling any tools.
+You CANNOT access year-ahead forecasts, monthly returns, or relationship analysis on this plan.
+If the user asks about the year ahead, relationship compatibility, or specific timing — acknowledge warmly and guide them: 'За да видим какво предстои тази година и как планетите влияят на отношенията ти, можеш да преминеш към план Pro (Навигаторът).'`
             : tier === 'PRO'
                 ? `The user is on the PRO plan — 'The Navigator' (Навигаторът).
-You have access to FOUR tools: get_natal_chart, get_transits, get_solar_return, get_lunar_return.
-- get_natal_chart: birth chart placements, natal aspects, core personality and life themes
-- get_transits: current and upcoming planetary movements and how they activate the natal chart — use this for questions about what is happening NOW or in the near future
-- get_solar_return: the annual chart cast for the user's birthday — use this for questions about the year ahead, major themes, and annual focus areas
-- get_lunar_return: the monthly lunar cycle chart — use this for questions about THIS MONTH, current emotional focus, and what the current lunar cycle brings
-You CANNOT access relationship synastry, composite charts, secondary progressions, solar arc directions, astrocartography, or Venus Return timing on this plan.
-If the user asks about relationship compatibility, soul connections, psychological progression work, or relocation analysis — acknowledge it warmly and guide them: 'За задълбочен анализ на взаимоотношенията, съдбовните връзки и точното любовно и житейско прогнозиране, можеш да преминеш към план Premium (Оракулът).'`
+Your natal chart data and today's active transits are already loaded in your context above — use them directly without tool calls.
+You have access to TWO additional tools for specific time-based queries:
+- get_solar_return: the annual chart for the user's birthday year — use for "what does my year ahead look like?"
+- get_lunar_return: the monthly lunar cycle chart — use for "what does this month hold for me?"
+You CANNOT access relationship synastry, composite charts, secondary progressions, solar arc directions, astrocartography, or Venus Return on this plan.
+If the user asks about those — guide them: 'За задълбочен анализ на взаимоотношенията и прецизно прогнозиране, можеш да преминеш към план Premium (Оракулът).'`
                 : `The user is on the PREMIUM plan — 'The Oracle' (Оракулът).
-You have unrestricted access to all ten astrological tools:
-- get_natal_chart: full birth chart — placements, aspects, houses, chart patterns
-- get_transits: current and upcoming planetary activations on the natal chart
-- get_solar_return: the annual solar return chart for year-ahead themes
-- get_lunar_return: the monthly lunar return chart — emotional themes and focus for the current lunar cycle
+Your natal chart data and today's active transits are already loaded in your context above — use them directly without tool calls.
+You have access to eight additional tools for on-demand specific queries:
+- get_solar_return: annual solar return chart for year-ahead themes
+- get_lunar_return: monthly lunar return chart — current emotional cycle
 - get_synastry: inter-chart aspects between the user and a partner — relationship compatibility
-- get_progressions: secondary progressions — the slow inner psychological and life evolution
-- get_solar_arc: solar arc directions — each planet moves ~1° per year, revealing long-term life chapter shifts
-- get_relocation: astrocartography — how different locations on Earth affect the chart
-- get_composite: the composite chart — the chart of the relationship itself as an entity
-- get_venus_return: Venus return chart — precise timing for love, attraction, and financial luck
-Answer every question with depth, nuance, and comprehensive multi-tool synthesis when relevant. Do not limit yourself to a single tool when a question touches multiple domains.`;
+- get_progressions: secondary progressions — slow inner psychological evolution
+- get_solar_arc: solar arc directions — long-term life chapter shifts (~1° per year)
+- get_relocation: astrocartography — how different locations affect the chart
+- get_composite: the composite chart — the relationship as its own entity
+- get_venus_return: Venus return chart — precise timing for love and financial luck
+Answer every question with depth, nuance, and comprehensive multi-tool synthesis when relevant.`;
         if (coreMessages.length > 0 && coreMessages[0].role === 'system') {
             coreMessages[0].content += `\n\n[TIER SYSTEM INSTRUCTION]\n${systemPromptContext}`;
         }

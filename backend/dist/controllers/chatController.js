@@ -22,6 +22,7 @@ exports.getUsage = getUsage;
 const client_1 = require("@prisma/client");
 const redis_1 = require("../utils/redis");
 const llm_1 = require("../services/llm");
+const transits_1 = require("../services/transits");
 const subscription_tiers_1 = require("../config/subscription-tiers");
 const prisma = new client_1.PrismaClient();
 // ============================================
@@ -245,8 +246,48 @@ async function sendMessage(req, res) {
                 role: m.role.toLowerCase(),
                 content: m.content
             }));
+        // Pre-compute active transits for Oracle context (avoids tool calls for this universal data)
+        let transitsSummary;
+        if (chartSummary) {
+            try {
+                // Re-fetch the raw chart data to pass to getActiveTransitsForUser
+                let rawChartData = null;
+                if (session.birthProfileId || birthProfileId) {
+                    const profileId = (session.birthProfileId || birthProfileId);
+                    const bp = await prisma.birthProfile.findUnique({
+                        where: { id: profileId },
+                        include: { birthChart: true },
+                    });
+                    rawChartData = bp?.birthChart?.chartData ?? null;
+                }
+                else {
+                    const uc = await prisma.birthChart.findFirst({
+                        where: { userId },
+                        orderBy: { createdAt: 'desc' },
+                    });
+                    rawChartData = uc?.chartData ?? null;
+                }
+                if (rawChartData) {
+                    const { skyPositions, aspectsToNatal, moonPhase } = await transits_1.getActiveTransitsForUser(rawChartData);
+                    const aspectLines = aspectsToNatal.slice(0, 12).map(a => `- ${a.transitPlanetBg} ${a.aspectBg} natal ${a.natalPlanetBg} | orb ${a.orb}° | ${a.influence} | ${a.description}`).join('\n');
+                    const skyLines = skyPositions.map(p => `${p.planetBg}: ${p.signBg} ${p.degree}°${p.retrograde ? ' ℞' : ''}`).join(', ');
+                    transitsSummary = `TODAY'S SKY (${new Date().toISOString().split('T')[0]}):
+${skyLines}
+
+Moon: ${moonPhase.phaseBg} (${moonPhase.illumination}% illuminated) in ${moonPhase.moonSignBg}
+
+ACTIVE TRANSITS TO NATAL CHART (sorted by orb — tightest = most powerful):
+${aspectLines || 'No major aspects within orb today.'}`;
+                }
+            }
+            catch (err) {
+                console.warn('[Chat] Failed to compute active transits for system prompt:', err instanceof Error ? err.message : err);
+                // Non-fatal — Oracle continues without transit context
+            }
+        }
         const systemPrompt = (0, llm_1.buildSystemPrompt)({
             chartSummary,
+            transitsSummary,
             language: userLanguage,
             conversationHistory,
             sessionSummary, // US-09: Add session summary for follow-up context
@@ -871,6 +912,10 @@ async function importGuestMessages(req, res) {
         }
         if (!Array.isArray(messages) || messages.length === 0) {
             res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'messages array required and must not be empty' } });
+            return;
+        }
+        if (messages.length > 50) {
+            res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Cannot import more than 50 messages at once' } });
             return;
         }
         // Verify session belongs to user
