@@ -7,7 +7,7 @@ interface InputOvalProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 export const InputOval = forwardRef<HTMLInputElement, InputOvalProps>(
-  ({ className, onSend, isLoading, ...props }, ref) => {
+  ({ className, onSend, isLoading, disabled, ...props }, ref) => {
     return (
       <div className={cn(
         'relative flex items-center w-full',
@@ -18,12 +18,13 @@ export const InputOval = forwardRef<HTMLInputElement, InputOvalProps>(
       )}>
         <input
           ref={ref}
+          disabled={disabled}
           className="flex-1 bg-transparent px-6 py-4 text-text-primary placeholder-text-muted outline-none text-sm"
           {...props}
         />
         <button
           onClick={onSend}
-          disabled={isLoading}
+          disabled={isLoading || disabled}
           className="mr-2 w-9 h-9 rounded-full gradient-button flex items-center justify-center shrink-0 disabled:opacity-50"
         >
           {isLoading ? (
