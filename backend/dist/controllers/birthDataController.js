@@ -20,6 +20,7 @@ exports.getHistoricalChart = getHistoricalChart;
 const prisma_1 = require("../utils/prisma");
 const geocoding_1 = require("../services/geocoding");
 const redis_1 = require("../utils/redis");
+const astrology_1 = require("../services/astrology");
 const MAX_PROFILES_PER_USER = 10;
 /**
  * GET /api/v1/birth-data
@@ -213,6 +214,36 @@ async function createBirthProfile(req, res) {
             },
         });
         console.log(`[BirthData] Created profile ${profile.id} for user ${userId}`);
+        // Auto-compute natal chart immediately after profile creation
+        try {
+            const birthDate = new Date(input.birthDate);
+            const birthTime = input.isUnknownTime ? null : (input.birthTime || null);
+            const timeParts = birthTime ? birthTime.split(':').map(Number) : [12, 0];
+            const hour = timeParts[0] || 12;
+            const minute = timeParts[1] || 0;
+            const birthDataInput = {
+                year: birthDate.getFullYear(),
+                month: birthDate.getMonth() + 1,
+                day: birthDate.getDate(),
+                hour,
+                minute,
+                latitude: input.latitude,
+                longitude: input.longitude,
+                timezone,
+            };
+            const chart = await astrology_1.calculateNatalChart(birthDataInput);
+            await prisma_1.prisma.birthChart.create({
+                data: {
+                    userId,
+                    birthProfileId: profile.id,
+                    chartData: chart,
+                },
+            });
+            console.log(`[BirthData] Chart computed for profile ${profile.id}`);
+        }
+        catch (chartError) {
+            console.error('[BirthData] Chart computation failed (non-blocking):', chartError);
+        }
         res.status(201).json({
             success: true,
             data: { profile },

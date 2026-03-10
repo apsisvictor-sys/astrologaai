@@ -248,7 +248,40 @@ export async function createBirthProfile(req: Request, res: Response): Promise<v
     });
     
     console.log(`[BirthData] Created profile ${profile.id} for user ${userId}`);
-    
+
+    // Auto-compute natal chart immediately after profile creation
+    try {
+      const birthDate = new Date(input.birthDate);
+      const birthTime = input.isUnknownTime ? null : (input.birthTime || null);
+      const [hour, minute] = birthTime ? birthTime.split(':').map(Number) : [12, 0];
+
+      const birthDataInput: BirthDataInput = {
+        year: birthDate.getFullYear(),
+        month: birthDate.getMonth() + 1,
+        day: birthDate.getDate(),
+        hour: hour || 12,
+        minute: minute || 0,
+        latitude: input.latitude,
+        longitude: input.longitude,
+        timezone,
+      };
+
+      const chart = await calculateNatalChart(birthDataInput);
+
+      await prisma.birthChart.create({
+        data: {
+          userId,
+          birthProfileId: profile.id,
+          chartData: chart as any,
+        },
+      });
+
+      console.log(`[BirthData] Chart computed for profile ${profile.id}`);
+    } catch (chartError) {
+      // Non-blocking: profile is saved, chart will be missing but won't block the user
+      console.error('[BirthData] Chart computation failed (non-blocking):', chartError);
+    }
+
     res.status(201).json({
       success: true,
       data: { profile },
