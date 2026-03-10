@@ -225,36 +225,33 @@ function translateToBulgarian(text: string): string {
  * Get current planetary transits
  * Uses astrology-api.io or fallback calculation
  */
-async function getCurrentTransits(): Promise<Transit[]> {
-  const transits: Transit[] = [];
-  const today = new Date();
-  
-  // Simplified transit calculation
-  // In production, this would call astrology-api.io transit endpoint
-  const planets = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'];
-  const signs = ['Pisces', 'Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 
-                'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius'];
-  
-  // Get approximate planet positions based on date
-  const dayOfYear = Math.floor((today.getTime() - new Date(today.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
-  
-  planets.forEach((planet, index) => {
-    // Simplified calculation - real implementation would use ephemeris data
-    const speed = index < 2 ? 1 : 0.5 + Math.random() * 0.5; // Approximate daily motion
-    const basePosition = (index * 30 + dayOfYear * speed) % 360;
-    const signIndex = Math.floor(basePosition / 30);
-    const degree = basePosition % 30;
-    
-    transits.push({
-      planet,
-      planetBg: PLANET_TRANSLATIONS[planet] || planet,
-      sign: signs[signIndex],
-      signBg: SIGN_TRANSLATIONS_FULL[signs[signIndex]] || signs[signIndex],
-      degree: Math.round(degree * 10) / 10,
-    });
-  });
-  
-  return transits;
+async function getCurrentTransits(natalChart?: any): Promise<Transit[]> {
+  if (natalChart) {
+    try {
+      const { getActiveTransitsForUser } = await import('./transits');
+      const { skyPositions } = await getActiveTransitsForUser(natalChart);
+      return skyPositions.map(p => ({
+        planet: p.planet,
+        planetBg: p.planetBg,
+        sign: p.sign,
+        signBg: p.signBg,
+        degree: p.degree,
+      }));
+    } catch (err) {
+      console.warn('[Forecast] getActiveTransitsForUser failed, using fallback:', err instanceof Error ? err.message : err);
+    }
+  }
+
+  // Fallback: use in-house Swiss Ephemeris calculation (always available)
+  const { getDailyTransits } = await import('./transits');
+  const daily = await getDailyTransits(new Date());
+  return daily.transits.map(p => ({
+    planet: p.planet,
+    planetBg: p.planetBg,
+    sign: p.sign,
+    signBg: p.signBg,
+    degree: p.degree,
+  }));
 }
 
 /**
@@ -488,7 +485,7 @@ export async function generateDailyForecast(
   const natalChart = await calculateNatalChart(birthData);
   
   // Get current transits
-  const transits = await getCurrentTransits();
+  const transits = await getCurrentTransits(natalChart);
   
   // Analyze transit impact on natal chart
   const analyzedTransits = analyzeTransitImpact(transits, natalChart);

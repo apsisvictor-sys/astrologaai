@@ -178,29 +178,32 @@ router.get('/transits', async (req: Request, res: Response) => {
       });
     }
     
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        birthData: true,
-      },
+    const birthChart = await prisma.birthChart.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
     });
-    
-    if (!user || !user.birthData) {
+
+    if (!birthChart?.chartData) {
       return res.status(400).json({
         success: false,
         error: {
-          code: 'BIRTH_DATA_MISSING',
-          message: 'Please add your birth data first',
+          code: 'CHART_NOT_FOUND',
+          message: 'Natal chart not computed yet. Save your birth data first.',
         },
       });
     }
-    
-    // For now, return a placeholder - real implementation would use astrology API
+
+    const { getActiveTransitsForUser } = await import('../services/transits');
+    const transitData = await getActiveTransitsForUser(birthChart.chartData);
+
     res.json({
       success: true,
       data: {
-        message: 'Transits endpoint - to be implemented with astrology-api.io integration',
-        userId,
+        date: new Date().toISOString().split('T')[0],
+        skyPositions: transitData.skyPositions,
+        aspectsToNatal: transitData.aspectsToNatal,
+        moonPhase: transitData.moonPhase,
+        generatedAt: transitData.generatedAt,
       },
     });
   } catch (error) {
