@@ -211,6 +211,7 @@ async function sendMessage(req, res) {
         const session = await getOrCreateSession(userId, sessionId, birthProfileId);
         // Get user's birth chart for context
         let chartSummary;
+        let rawChartData = null;
         if (session.birthProfileId || birthProfileId) {
             const profileId = session.birthProfileId || birthProfileId;
             const birthProfile = await prisma.birthProfile.findUnique({
@@ -219,6 +220,7 @@ async function sendMessage(req, res) {
             });
             if (birthProfile?.birthChart?.chartData) {
                 const chart = birthProfile.birthChart.chartData;
+                rawChartData = chart;
                 chartSummary = (0, llm_1.generateChartSummary)(chart, userLanguage);
             }
         }
@@ -230,6 +232,7 @@ async function sendMessage(req, res) {
             });
             if (userChart?.chartData) {
                 const chart = userChart.chartData;
+                rawChartData = chart;
                 chartSummary = (0, llm_1.generateChartSummary)(chart, userLanguage);
             }
         }
@@ -248,37 +251,18 @@ async function sendMessage(req, res) {
             }));
         // Pre-compute active transits for Oracle context (avoids tool calls for this universal data)
         let transitsSummary;
-        if (chartSummary) {
+        if (chartSummary && rawChartData) {
             try {
-                // Re-fetch the raw chart data to pass to getActiveTransitsForUser
-                let rawChartData = null;
-                if (session.birthProfileId || birthProfileId) {
-                    const profileId = (session.birthProfileId || birthProfileId);
-                    const bp = await prisma.birthProfile.findUnique({
-                        where: { id: profileId },
-                        include: { birthChart: true },
-                    });
-                    rawChartData = bp?.birthChart?.chartData ?? null;
-                }
-                else {
-                    const uc = await prisma.birthChart.findFirst({
-                        where: { userId },
-                        orderBy: { createdAt: 'desc' },
-                    });
-                    rawChartData = uc?.chartData ?? null;
-                }
-                if (rawChartData) {
-                    const { skyPositions, aspectsToNatal, moonPhase } = await transits_1.getActiveTransitsForUser(rawChartData);
-                    const aspectLines = aspectsToNatal.slice(0, 12).map(a => `- ${a.transitPlanetBg} ${a.aspectBg} natal ${a.natalPlanetBg} | orb ${a.orb}° | ${a.influence} | ${a.description}`).join('\n');
-                    const skyLines = skyPositions.map(p => `${p.planetBg}: ${p.signBg} ${p.degree}°${p.retrograde ? ' ℞' : ''}`).join(', ');
-                    transitsSummary = `TODAY'S SKY (${new Date().toISOString().split('T')[0]}):
+                const { skyPositions, aspectsToNatal, moonPhase } = await transits_1.getActiveTransitsForUser(rawChartData);
+                const aspectLines = aspectsToNatal.slice(0, 12).map(a => `- ${a.transitPlanetBg} ${a.aspectBg} natal ${a.natalPlanetBg} | orb ${a.orb}° | ${a.influence} | ${a.description}`).join('\n');
+                const skyLines = skyPositions.map(p => `${p.planetBg}: ${p.signBg} ${p.degree}°${p.retrograde ? ' ℞' : ''}`).join(', ');
+                transitsSummary = `TODAY'S SKY (${new Date().toISOString().split('T')[0]}):
 ${skyLines}
 
 Moon: ${moonPhase.phaseBg} (${moonPhase.illumination}% illuminated) in ${moonPhase.moonSignBg}
 
 ACTIVE TRANSITS TO NATAL CHART (sorted by orb — tightest = most powerful):
 ${aspectLines || 'No major aspects within orb today.'}`;
-                }
             }
             catch (err) {
                 console.warn('[Chat] Failed to compute active transits for system prompt:', err instanceof Error ? err.message : err);
