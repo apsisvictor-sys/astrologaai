@@ -11,6 +11,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { formatDate } from '@/lib/format';
 
 interface UsageCounterProps {
   used: number;
@@ -39,10 +40,7 @@ export function UsageCounter({
   }
 
   const isLimited = remaining === 0 || (typeof remaining === 'number' && remaining <= 0);
-  const resetDate = new Date(resetAt).toLocaleDateString(language === 'bg' ? 'bg-BG' : 'en-US', {
-    day: 'numeric',
-    month: 'long',
-  });
+  const resetDate = formatDate(resetAt, 'long', language === 'bg' ? 'bg-BG' : undefined);
 
   // Translations
   const texts = {

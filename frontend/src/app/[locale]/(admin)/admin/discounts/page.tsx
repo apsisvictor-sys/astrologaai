@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { adminGet, adminPost, adminPatch } from '@/lib/admin-api';
+import { formatDate } from '@/lib/format';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -72,11 +73,7 @@ function getPresetDates(days: number): { startDate: string; endDate: string } {
 
 function fmtDate(iso: string | null): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return formatDate(iso);
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────

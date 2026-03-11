@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { adminGet, adminPatch } from '@/lib/admin-api';
+import { formatDate } from '@/lib/format';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -57,11 +58,7 @@ const TIER_BADGE: Record<Tier, string> = {
 
 function fmtDate(iso: string): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return formatDate(iso);
 }
 
 function presetRange(days: number | 'today'): { startDate: string; endDate: string } {

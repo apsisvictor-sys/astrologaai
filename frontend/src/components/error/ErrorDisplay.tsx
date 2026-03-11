@@ -8,6 +8,7 @@
 
 import React from 'react';
 import styles from './ErrorDisplay.module.css';
+import { formatDateTime } from '@/lib/format';
 
 // ============================================
 // Types
@@ -68,22 +69,7 @@ export function ErrorDisplay({
   const formatTimestamp = (timestamp: string): string => {
     try {
       const date = new Date(timestamp);
-      if (language === 'bg') {
-        return date.toLocaleString('bg-BG', {
-          year: 'numeric',
-          month: 'short',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        });
-      }
-      return date.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      });
+      return formatDateTime(date);
     } catch {
       return timestamp;
     }

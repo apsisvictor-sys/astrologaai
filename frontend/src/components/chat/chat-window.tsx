@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useChat } from '@/lib/chat-context';
+import { getApiBaseUrl } from '@/lib/runtime-config';
 import { MessageList } from './message-list';
 import { ChatInputBar } from './chat-input-bar';
 import { EmptyState } from './empty-state';
+import { OracleWelcome } from './oracle-welcome';
 
 interface ChatWindowProps {
   sessionId?: string;
@@ -15,6 +17,7 @@ interface ChatWindowProps {
 export function ChatWindow({ sessionId }: ChatWindowProps) {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const [hasBirthData, setHasBirthData] = useState<boolean | null>(null);
   const {
     messages,
     isLoading,
@@ -39,6 +42,18 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
       router.push('/login');
     }
   }, [authLoading, isAuthenticated, router]);
+
+  // Check if user has birth data (for oracle welcome state)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const token = localStorage.getItem('astrologaai_access_token');
+    fetch(`${getApiBaseUrl()}/api/v1/birth-data`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(data => setHasBirthData((data.data?.profiles?.length || 0) > 0))
+      .catch(() => setHasBirthData(true)); // fail safe — don't block chat on error
+  }, [isAuthenticated]);
 
   // Session init
   useEffect(() => {
@@ -87,7 +102,11 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
 
       {/* Messages or empty state */}
       {messages.length === 0 && !isLoading && !isStreaming ? (
-        <EmptyState onPrompt={(text) => sendMessage(text)} />
+        hasBirthData === false ? (
+          <OracleWelcome onBirthDataSaved={() => setHasBirthData(true)} />
+        ) : (
+          <EmptyState onPrompt={(text) => sendMessage(text)} />
+        )
       ) : (
         <MessageList
           messages={messages}

@@ -1,6 +1,7 @@
 'use client';
 
 import { ChatMessage } from '@/lib/chat-context-ws';
+import { formatTime } from '@/lib/format';
 
 interface MessageItemProps {
   message: ChatMessage;
@@ -35,7 +36,7 @@ export function MessageItem({ message }: MessageItemProps) {
           <span className="text-[10px] font-medium text-white/40">The Oracle</span>
           {message.createdAt && (
             <span className="text-[10px] text-text-muted ml-auto">
-              {new Date(message.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              {formatTime(message.createdAt)}
             </span>
           )}
         </div>

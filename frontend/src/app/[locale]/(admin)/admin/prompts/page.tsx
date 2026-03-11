@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { adminGet, adminPut, adminPost } from '@/lib/admin-api';
+import { formatDateTime } from '@/lib/format';
 
 interface PromptSummary {
   name: string;
@@ -107,7 +108,7 @@ export default function PromptsPage() {
 
   const formatDate = (dateStr: string) => {
     try {
-      return new Date(dateStr).toLocaleString();
+      return formatDateTime(dateStr);
     } catch {
       return dateStr;
     }

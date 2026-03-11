@@ -25,6 +25,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter, Link } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { formatDate } from '@/lib/format';
 
 // Design System Colors
 const COLORS = {
@@ -343,7 +344,7 @@ export default function EditProfilePage() {
               <input
                 readOnly
                 value={[
-                  new Date(birthProfile.birthDate).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-GB', { day: 'numeric', month: 'long', year: 'numeric' }),
+                  formatDate(birthProfile.birthDate, 'long', locale === 'bg' ? 'bg-BG' : undefined),
                   birthProfile.isUnknownTime ? (locale === 'bg' ? 'час неизвестен' : 'time unknown') : birthProfile.birthTime || '',
                   birthProfile.locationName,
                 ].filter(Boolean).join(' · ')}

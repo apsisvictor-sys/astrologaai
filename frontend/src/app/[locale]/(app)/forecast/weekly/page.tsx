@@ -12,6 +12,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter, Link } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { formatDate, formatDateTime } from '@/lib/format';
 
 // Design system colors
 const colors = {
@@ -166,27 +167,15 @@ export default function WeeklyForecastPage() {
 
   // Format date range
   const formatDateRange = (start: string, end: string) => {
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-
-    const startStr = startDate.toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US', {
-      day: 'numeric',
-      month: 'long'
-    });
-    const endStr = endDate.toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
-
+    const bgLocale = locale === 'bg' ? 'bg-BG' : undefined;
+    const startStr = formatDate(start, 'long', bgLocale);
+    const endStr = formatDate(end, 'long', bgLocale);
     return `${startStr} - ${endStr}`;
   };
 
   // Get day name
-  const getDayName = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US', { weekday: 'long' });
-  };
+  const getDayName = (dateStr: string) =>
+    formatDate(dateStr, 'weekday', locale === 'bg' ? 'bg-BG' : undefined);
 
   // Check if week is current
   const isCurrentWeek = () => {
@@ -405,7 +394,7 @@ export default function WeeklyForecastPage() {
             <div className="text-sm mb-1" style={{ color: colors.textSecondary }}>🏢 {t('forecast.career')}</div>
             <div className="font-bold" style={{ color: colors.primary }}>
               {forecast.bestDays?.career
-                ? new Date(forecast.bestDays.career).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US', { weekday: 'short', day: 'numeric' })
+                ? formatDate(forecast.bestDays.career, 'weekday-short', locale === 'bg' ? 'bg-BG' : undefined)
                 : '-'}
             </div>
           </div>
@@ -416,7 +405,7 @@ export default function WeeklyForecastPage() {
             <div className="text-sm mb-1" style={{ color: colors.textSecondary }}>💕 {t('forecast.love')}</div>
             <div className="font-bold" style={{ color: colors.secondary }}>
               {forecast.bestDays?.love
-                ? new Date(forecast.bestDays.love).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US', { weekday: 'short', day: 'numeric' })
+                ? formatDate(forecast.bestDays.love, 'weekday-short', locale === 'bg' ? 'bg-BG' : undefined)
                 : '-'}
             </div>
           </div>
@@ -427,7 +416,7 @@ export default function WeeklyForecastPage() {
             <div className="text-sm mb-1" style={{ color: colors.textSecondary }}>⚖️ {locale === 'bg' ? 'Решения' : 'Decisions'}</div>
             <div className="font-bold" style={{ color: colors.warning }}>
               {forecast.bestDays?.decisions
-                ? new Date(forecast.bestDays.decisions).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US', { weekday: 'short', day: 'numeric' })
+                ? formatDate(forecast.bestDays.decisions, 'weekday-short', locale === 'bg' ? 'bg-BG' : undefined)
                 : '-'}
             </div>
           </div>
@@ -438,7 +427,7 @@ export default function WeeklyForecastPage() {
             <div className="text-sm mb-1" style={{ color: colors.textSecondary }}>🧘 {locale === 'bg' ? 'Грижа за себе си' : 'Self Care'}</div>
             <div className="font-bold" style={{ color: colors.success }}>
               {forecast.bestDays?.selfCare
-                ? new Date(forecast.bestDays.selfCare).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US', { weekday: 'short', day: 'numeric' })
+                ? formatDate(forecast.bestDays.selfCare, 'weekday-short', locale === 'bg' ? 'bg-BG' : undefined)
                 : '-'}
             </div>
           </div>
@@ -547,10 +536,7 @@ export default function WeeklyForecastPage() {
                     className="w-24 shrink-0 text-sm font-medium"
                     style={{ color: colors.primary }}
                   >
-                    {new Date(transit.date).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US', {
-                      day: 'numeric',
-                      month: 'short'
-                    })}
+                    {formatDate(transit.date)}
                   </div>
                   <div className="flex-1">
                     <div
@@ -575,7 +561,7 @@ export default function WeeklyForecastPage() {
         {/* Footer Info */}
         <div className="mt-8 text-center text-sm" style={{ color: colors.textSecondary }}>
           <p>
-            {t('forecast.lastUpdated')} {new Date(forecast.generatedAt).toLocaleString(locale === 'bg' ? 'bg-BG' : 'en-US')}
+            {t('forecast.lastUpdated')} {formatDateTime(forecast.generatedAt)}
           </p>
           <div className="mt-2 flex justify-center gap-4">
             <Link

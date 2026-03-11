@@ -12,6 +12,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { EnvelopeIcon, ArrowLeftIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
+import { getApiBaseUrl } from '@/lib/runtime-config';
 
 export default function ForgotPasswordPage() {
   const t = useTranslations();
@@ -27,7 +28,7 @@ export default function ForgotPasswordPage() {
     setError('');
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/forgot-password`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/forgot-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

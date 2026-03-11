@@ -46,7 +46,6 @@ const COLORS = {
 interface NotificationTypes {
   dailyHoroscope: boolean;
   weeklyForecast: boolean;
-  transitAlerts: boolean;  // US-17: Transit Alerts
   newReading: boolean;
   partnerUpdates: boolean;
   marketing: boolean;
@@ -54,14 +53,11 @@ interface NotificationTypes {
 
 interface NotificationChannels {
   email: boolean;
-  push: boolean;
-  sms: boolean;
 }
 
 interface NotificationPreferences {
   types: NotificationTypes;
   channels: NotificationChannels;
-  phoneNumber: string | null;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
@@ -203,27 +199,14 @@ export default function NotificationPreferencesPage() {
     types: {
       dailyHoroscope: true,
       weeklyForecast: true,
-      transitAlerts: true,  // US-17: enabled by default
       newReading: true,
       partnerUpdates: false,
       marketing: false,
     },
     channels: {
       email: true,
-      push: false,
-      sms: false,
     },
-    phoneNumber: null,
   });
-  const [phoneNumberInput, setPhoneNumberInput] = useState('');
-  const [pushSupported, setPushSupported] = useState(false);
-
-  // Check push notification support
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setPushSupported('Notification' in window);
-    }
-  }, []);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -255,8 +238,7 @@ export default function NotificationPreferencesPage() {
       if (data.success) {
         setPreferences({
           types: data.data.preferences.types,
-          channels: data.data.preferences.channels,
-          phoneNumber: data.data.preferences.phoneNumber,
+          channels: { email: data.data.preferences.channels.email ?? true },
         });
       }
     } catch (error) {
@@ -306,7 +288,6 @@ export default function NotificationPreferencesPage() {
         body: JSON.stringify({
           types: preferences.types,
           channels: preferences.channels,
-          phoneNumber: phoneNumberInput || null,
         }),
       });
 
@@ -357,12 +338,6 @@ export default function NotificationPreferencesPage() {
       title: t('forecast.weekly'),
       description: locale === 'bg' ? 'Седмична астрологична прогноза' : 'Weekly astrological forecast',
       icon: '🌙',
-    },
-    {
-      id: 'transitAlerts',
-      title: t('alerts.transit.title'),
-      description: t('alerts.transit.description'),
-      icon: '🌌',
     },
     {
       id: 'newReading',
@@ -494,57 +469,6 @@ export default function NotificationPreferencesPage() {
               onChange={() => handleChannelToggle('email')}
             />
 
-            {/* Push Channel */}
-            <ChannelCard
-              id="push"
-              title={locale === 'bg' ? 'Push известия' : 'Push Notifications'}
-              description={locale === 'bg' ? 'Известия на вашето устройство' : 'Notifications on your device'}
-              icon="🔔"
-              enabled={preferences.channels.push}
-              onChange={() => pushSupported && handleChannelToggle('push')}
-              extra={
-                !pushSupported ? (
-                  <p className="text-xs mt-2" style={{ color: COLORS.textMuted }}>
-                    {locale === 'bg' ? 'Вашето устройство не поддържа push известия' : 'Your device does not support push notifications'}
-                  </p>
-                ) : null
-              }
-            />
-
-            {/* SMS Channel */}
-            <ChannelCard
-              id="sms"
-              title="SMS"
-              description={locale === 'bg' ? 'Текстови съобщения на телефона' : 'Text messages to your phone'}
-              icon="📱"
-              enabled={preferences.channels.sms}
-              onChange={() => handleChannelToggle('sms')}
-              extra={
-                <div className="mt-3">
-                  <label
-                    className="block text-sm mb-1"
-                    style={{ color: COLORS.textSecondary }}
-                  >
-                    {locale === 'bg' ? 'Телефонен номер' : 'Phone Number'}
-                  </label>
-                  <input
-                    type="tel"
-                    placeholder="+359 888 123 456"
-                    value={phoneNumberInput}
-                    onChange={(e) => setPhoneNumberInput(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg text-sm"
-                    style={{
-                      background: COLORS.backgroundPrimary,
-                      border: `1px solid ${COLORS.border}`,
-                      color: COLORS.textPrimary,
-                    }}
-                  />
-                  <p className="text-xs mt-1" style={{ color: COLORS.textMuted }}>
-                    {locale === 'bg' ? 'Нужен е за SMS известия (по желание)' : 'Required for SMS notifications (optional)'}
-                  </p>
-                </div>
-              }
-            />
           </div>
         </div>
 

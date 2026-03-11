@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { formatDate, formatTime as fmtTime } from '@/lib/format';
 
 // Design system colors
 const colors = {
@@ -40,23 +41,10 @@ interface BirthProfileCardProps {
 }
 
 export default function BirthProfileCard({ profile, onDelete, isDeleting }: BirthProfileCardProps) {
-  const formatDate = (date: Date | string) => {
-    return new Date(date).toLocaleDateString('en-GB', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  };
-
-  const formatTime = (time: string | null, isUnknown: boolean) => {
-    if (isUnknown || !time) {
-      return 'Unknown (12:00 PM)';
-    }
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours, 10);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour % 12 || 12;
-    return `${hour12}:${minutes} ${ampm}`;
+  const formatDateLong = (date: Date | string) => formatDate(date, 'long');
+  const formatTimeDisplay = (time: string | null, isUnknown: boolean) => {
+    if (isUnknown || !time) return 'Unknown';
+    return fmtTime(time);
   };
 
   return (
@@ -135,7 +123,7 @@ export default function BirthProfileCard({ profile, onDelete, isDeleting }: Birt
           <svg className="w-4 h-4" style={{ color: colors.primary }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <span style={{ color: colors.textSecondary }}>{formatDate(profile.birthDate)}</span>
+          <span style={{ color: colors.textSecondary }}>{formatDateLong(profile.birthDate)}</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -143,7 +131,7 @@ export default function BirthProfileCard({ profile, onDelete, isDeleting }: Birt
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <span style={{ color: colors.textSecondary }}>
-            {formatTime(profile.birthTime, profile.isUnknownTime)}
+            {formatTimeDisplay(profile.birthTime, profile.isUnknownTime)}
           </span>
         </div>
 

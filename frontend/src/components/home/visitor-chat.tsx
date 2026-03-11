@@ -212,16 +212,17 @@ export function VisitorChat({ onRegisterPrompt: _ }: VisitorChatProps) {
         buffer = lines.pop() || '';
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
+          let evt: { type: string; content?: string; message?: string };
           try {
-            const evt = JSON.parse(line.slice(6));
-            if (evt.type === 'chunk' && evt.content) {
-              accumulated += evt.content;
-              setStreamingContent(accumulated);
-            } else if (evt.type === 'error') {
-              throw new Error(evt.message || 'Stream error');
-            }
-          } catch (parseErr) {
-            // skip malformed SSE lines
+            evt = JSON.parse(line.slice(6));
+          } catch {
+            continue; // skip malformed SSE lines
+          }
+          if (evt.type === 'chunk' && evt.content) {
+            accumulated += evt.content;
+            setStreamingContent(accumulated);
+          } else if (evt.type === 'error') {
+            throw new Error(evt.message || 'Stream error');
           }
         }
       }

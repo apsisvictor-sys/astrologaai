@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { formatDate } from '@/lib/format';
 import { MoonPhaseCard }  from './moon-phase-card';
 import { TransitList }    from './transit-list';
 import { LockedSection }  from './locked-section';
@@ -95,10 +96,8 @@ interface DailyForecast {
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatDate(dateStr: string, locale: string): string {
-  return new Date(dateStr).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  });
+function formatForecastDate(dateStr: string, locale: string): string {
+  return formatDate(dateStr, 'long', locale === 'bg' ? 'bg-BG' : undefined);
 }
 
 const ENERGY_CONFIG = {
@@ -359,7 +358,7 @@ export function ForecastPanel() {
             <div className="flex items-center justify-between">
               <h1 className="text-xl font-bold text-white">Daily Forecast</h1>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-text-muted">{formatDate(forecast.date, locale)}</span>
+                <span className="text-xs text-text-muted">{formatForecastDate(forecast.date, locale)}</span>
                 <button
                   onClick={fetchForecast}
                   className="w-7 h-7 rounded-full flex items-center justify-center transition-colors hover:bg-white/[0.06]"

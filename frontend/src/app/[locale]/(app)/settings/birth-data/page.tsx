@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter, Link } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { formatDate } from '@/lib/format';
 
 const COLORS = {
   backgroundPrimary: '#0D0010',
@@ -229,7 +230,7 @@ export default function BirthDataSettingsPage() {
         {profile && !editing && (
           <div className="p-5 rounded-2xl space-y-3" style={{ background: COLORS.backgroundSecondary, border: `1px solid ${COLORS.border}` }}>
             <div className="flex flex-col gap-3">
-              <Row label="Date of birth" value={new Date(profile.birthDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })} />
+              <Row label="Date of birth" value={formatDate(profile.birthDate, 'long')} />
               <Row label="Time of birth" value={profile.isUnknownTime ? 'Unknown' : profile.birthTime || 'Not set'} />
               <Row label="Birth city" value={profile.locationName} />
             </div>

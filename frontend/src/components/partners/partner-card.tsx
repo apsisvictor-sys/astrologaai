@@ -2,6 +2,7 @@
 
 import { useRouter } from '@/i18n/navigation';
 import { Partner } from '@/lib/partners-api';
+import { formatDate } from '@/lib/format';
 
 interface PartnerCardProps {
   partner: Partner;
@@ -28,10 +29,8 @@ function signSym(sign?: string) {
   return sign ? (SIGN_SYMBOLS[sign] ?? '') + ' ' + sign : '—';
 }
 
-function formatDate(dateStr: string, language: 'bg' | 'en') {
-  return new Date(dateStr).toLocaleDateString(language === 'bg' ? 'bg-BG' : 'en-US', {
-    year: 'numeric', month: 'short', day: 'numeric',
-  });
+function fmtPartnerDate(dateStr: string, language: 'bg' | 'en') {
+  return formatDate(dateStr, 'short', language === 'bg' ? 'bg-BG' : undefined);
 }
 
 export function PartnerCard({ partner, onEdit, onDelete, language = 'bg' }: PartnerCardProps) {
@@ -98,7 +97,7 @@ export function PartnerCard({ partner, onEdit, onDelete, language = 'bg' }: Part
 
       {/* Birth data */}
       <p className="text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
-        {formatDate(partner.birthData.date, language)}
+        {fmtPartnerDate(partner.birthData.date, language)}
         {partner.birthData.time ? ` · ${partner.birthData.time}` : ' · time unknown'}
       </p>
       <p className="text-xs mb-4" style={{ color: 'rgba(255,255,255,0.4)' }}>

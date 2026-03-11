@@ -26,6 +26,7 @@ import { useTranslations, useLocale } from 'next-intl';
 import { useRouter, Link } from '@/i18n/navigation';
 import { useParams } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { formatDate, formatTime } from '@/lib/format';
 import ChartLoading from '@/components/chart/chart-loading';
 import ChartVisualization, { NatalChart } from '@/components/chart/chart-visualization';
 import CircularChartWheel from '@/components/chart/circular-chart-wheel';
@@ -227,21 +228,12 @@ export default function NatalChartPage() {
     }
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
-  };
+  const formatDateLong = (date: string) =>
+    formatDate(date, 'long', locale === 'bg' ? 'bg-BG' : undefined);
 
-  const formatTime = (time: string | null, isUnknown: boolean) => {
-    if (isUnknown || !time) return locale === 'bg' ? 'Неизвестно (12:00)' : 'Unknown (12:00 PM)';
-    const [hours, minutes] = time.split(':');
-    const hour = parseInt(hours, 10);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour % 12 || 12;
-    return `${hour12}:${minutes} ${ampm}`;
+  const formatBirthTime = (time: string | null, isUnknown: boolean) => {
+    if (isUnknown || !time) return locale === 'bg' ? 'Неизвестно' : 'Unknown';
+    return formatTime(time);
   };
 
   // Handle planet click from wheel
@@ -292,7 +284,7 @@ export default function NatalChartPage() {
               </h1>
               {profile && (
                 <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
-                  {formatDate(profile.birthDate)} • {formatTime(profile.birthTime, profile.isUnknownTime)} • {profile.locationName}
+                  {formatDateLong(profile.birthDate)} • {formatBirthTime(profile.birthTime, profile.isUnknownTime)} • {profile.locationName}
                 </p>
               )}
             </div>
@@ -320,7 +312,7 @@ export default function NatalChartPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <span style={{ color: colors.success }}>
-                {t('forecast.cached')} • {t('forecast.lastUpdated')} {new Date(chart.calculatedAt).toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US')}
+                {t('forecast.cached')} • {t('forecast.lastUpdated')} {formatDate(chart.calculatedAt)}
               </span>
             </div>
             <button

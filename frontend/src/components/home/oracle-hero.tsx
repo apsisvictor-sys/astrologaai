@@ -5,49 +5,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { OracleAvatar } from './oracle-avatar';
 import { VisitorChat } from './visitor-chat';
 import { InputOval } from '@/components/ui/input-oval';
-import { useRouter } from '@/i18n/navigation';
 
 const QUICK_PROMPTS = ['Daily Horoscope', 'Birth Chart Analysis', 'Love Compatibility'];
 
 export function OracleHero() {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showRegisterPrompt, setShowRegisterPrompt] = useState(false);
-  const router = useRouter();
-
-  if (showRegisterPrompt) {
-    return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="glass-panel glow-primary p-8 rounded-3xl text-center max-w-md mx-auto"
-      >
-        <div
-          className="w-14 h-14 mx-auto mb-5 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center"
-          style={{ boxShadow: '0 0 20px rgba(228,26,255,0.3)' }}
-        >
-          <span className="text-2xl" style={{ filter: 'drop-shadow(0 0 8px #e41aff)' }}>✦</span>
-        </div>
-        <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Your chart is ready.</h2>
-        <p className="text-text-secondary text-sm mb-7 leading-relaxed">
-          Create your free account to save your chart, continue this conversation, and access your full cosmic blueprint.
-        </p>
-        <div className="flex flex-col gap-3">
-          <button
-            onClick={() => router.push('/register')}
-            className="gradient-button text-white font-bold py-3 px-8 rounded-full"
-          >
-            Create Free Account
-          </button>
-          <button
-            onClick={() => router.push('/pricing')}
-            className="text-sm text-text-muted hover:text-white transition-colors"
-          >
-            View all plans
-          </button>
-        </div>
-      </motion.div>
-    );
-  }
 
   return (
     <div className="w-full max-w-xl mx-auto">
@@ -122,7 +84,7 @@ export function OracleHero() {
               <span className="ml-auto text-[10px] uppercase tracking-widest text-text-muted">AI Astrologer</span>
             </div>
 
-            <VisitorChat onRegisterPrompt={() => setShowRegisterPrompt(true)} />
+            <VisitorChat onRegisterPrompt={() => {}} />
           </motion.div>
         )}
       </AnimatePresence>

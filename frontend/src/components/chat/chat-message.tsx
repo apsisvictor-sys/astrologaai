@@ -10,6 +10,7 @@
 
 import React from 'react';
 import { StreamingCursor } from './typing-indicator';
+import { formatTime } from '@/lib/format';
 
 interface ChatMessageProps {
   role: 'user' | 'assistant';
@@ -78,10 +79,7 @@ export function ChatMessage({
         {/* Timestamp */}
         {createdAt && !isStreaming && (
           <div className={`text-xs mt-2 ${isUser ? 'text-white/70' : 'text-[#64748B]'}`}>
-            {new Date(createdAt).toLocaleTimeString('bg-BG', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
+            {formatTime(createdAt)}
           </div>
         )}
 

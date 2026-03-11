@@ -24,22 +24,47 @@ export function MessageList({
   hasMoreMessages,
   onLoadMore,
 }: MessageListProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const isAtBottomRef = useRef(true);
+  const streamScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (!isLoadingMore) {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [messages, streamingContent, isLoadingMore]);
-
+  // Track whether user is near the bottom
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (e.currentTarget.scrollTop < 50 && hasMoreMessages && !isLoadingMore) {
+    const el = e.currentTarget;
+    isAtBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+
+    // Load more when scrolled to very top
+    if (el.scrollTop < 50 && hasMoreMessages && !isLoadingMore) {
       onLoadMore();
     }
   };
 
+  // Scroll to bottom on new messages — only if user is already at bottom
+  useEffect(() => {
+    if (isLoadingMore) return;
+    if (isAtBottomRef.current && containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [messages, isLoadingMore]);
+
+  // During streaming: scroll to bottom (debounced 150ms) — only if at bottom
+  useEffect(() => {
+    if (!isStreaming || !streamingContent) return;
+    if (!isAtBottomRef.current) return;
+    if (streamScrollTimer.current) clearTimeout(streamScrollTimer.current);
+    streamScrollTimer.current = setTimeout(() => {
+      if (containerRef.current && isAtBottomRef.current) {
+        containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      }
+    }, 150);
+    return () => {
+      if (streamScrollTimer.current) clearTimeout(streamScrollTimer.current);
+    };
+  }, [streamingContent, isStreaming]);
+
   return (
     <div
+      ref={containerRef}
       className="flex-1 overflow-y-auto px-4 py-6 space-y-5"
       onScroll={handleScroll}
     >
@@ -92,7 +117,6 @@ export function MessageList({
       {/* Thinking indicator */}
       {(isLoading || (isStreaming && !streamingContent)) && <ToolIndicator />}
 
-      <div ref={bottomRef} />
     </div>
   );
 }

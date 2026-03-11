@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { formatDate } from '@/lib/format';
 
 // Design system colors
 const colors = {
@@ -492,11 +493,7 @@ export default function BirthDataForm() {
                     <div>
                       <span className="text-sm" style={{ color: colors.textSecondary }}>Birth Date</span>
                       <p className="font-medium" style={{ color: colors.textPrimary }}>
-                        {new Date(formData.birthDate).toLocaleDateString('en-GB', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                        })}
+                        {formatDate(formData.birthDate, 'long')}
                       </p>
                     </div>
                     <div>

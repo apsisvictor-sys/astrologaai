@@ -48,9 +48,12 @@ async function searchLocations(query, limit = 10) {
     }
     const cacheKey = `geocoding:search:${query.toLowerCase()}:${limit}`;
     try {
-        // Check cache first
+        // Check cache first (with timeout to prevent hanging if Redis is in bad state)
         if (isRedisAvailable()) {
-            const cached = await redis_1.redisClient.get(cacheKey);
+            const cached = await Promise.race([
+                redis_1.redisClient.get(cacheKey),
+                new Promise(resolve => setTimeout(() => resolve(null), 500)),
+            ]);
             if (cached) {
                 console.log(`[Geocoding] Cache hit for: ${query}`);
                 return JSON.parse(cached);
@@ -63,7 +66,7 @@ async function searchLocations(query, limit = 10) {
             format: 'json',
             addressdetails: '1',
             limit: String(limit),
-            'accept-language': 'bg,en',
+            'accept-language': 'en,bg',
         });
         const response = await rateLimitedFetch(url);
         if (!response.ok) {
@@ -86,9 +89,12 @@ async function searchLocations(query, limit = 10) {
                 city,
             };
         });
-        // Cache results
+        // Cache results (fire-and-forget with timeout)
         if (isRedisAvailable()) {
-            await redis_1.redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(transformed));
+            Promise.race([
+                redis_1.redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(transformed)),
+                new Promise(resolve => setTimeout(resolve, 500)),
+            ]).catch(() => {});
         }
         return transformed;
     }
@@ -103,9 +109,12 @@ async function searchLocations(query, limit = 10) {
 async function reverseGeocode(lat, lon) {
     const cacheKey = `geocoding:reverse:${lat.toFixed(4)}:${lon.toFixed(4)}`;
     try {
-        // Check cache first
+        // Check cache first (with timeout)
         if (isRedisAvailable()) {
-            const cached = await redis_1.redisClient.get(cacheKey);
+            const cached = await Promise.race([
+                redis_1.redisClient.get(cacheKey),
+                new Promise(resolve => setTimeout(() => resolve(null), 500)),
+            ]);
             if (cached) {
                 return JSON.parse(cached);
             }
@@ -115,7 +124,7 @@ async function reverseGeocode(lat, lon) {
             lon: String(lon),
             format: 'json',
             addressdetails: '1',
-            'accept-language': 'bg,en',
+            'accept-language': 'en,bg',
         });
         const response = await rateLimitedFetch(url);
         if (!response.ok) {
@@ -138,9 +147,12 @@ async function reverseGeocode(lat, lon) {
             country: result.address?.country || '',
             city,
         };
-        // Cache result
+        // Cache result (fire-and-forget with timeout)
         if (isRedisAvailable()) {
-            await redis_1.redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(transformed));
+            Promise.race([
+                redis_1.redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(transformed)),
+                new Promise(resolve => setTimeout(resolve, 500)),
+            ]).catch(() => {});
         }
         return transformed;
     }

@@ -26,6 +26,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter, Link } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { formatDate } from '@/lib/format';
 
 // Design System Colors
 const COLORS = {
@@ -302,14 +303,8 @@ export default function SubscriptionManagementPage() {
   };
   
   // Format date
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString(locale === 'bg' ? 'bg-BG' : 'en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
+  const formatDateDisplay = (dateString: string) =>
+    formatDate(dateString, 'long', locale === 'bg' ? 'bg-BG' : undefined);
   
   // Format currency
   const formatCurrency = (amount: number, currency: string) => {
@@ -464,7 +459,7 @@ export default function SubscriptionManagementPage() {
             
             {subscription?.usage.resetDate && (
               <p className="text-xs mt-2" style={{ color: COLORS.textMuted }}>
-                {locale === 'bg' ? 'Нулиране на' : 'Resets on'} {formatDate(subscription.usage.resetDate)}
+                {locale === 'bg' ? 'Нулиране на' : 'Resets on'} {formatDateDisplay(subscription.usage.resetDate)}
               </p>
             )}
           </div>
@@ -480,7 +475,7 @@ export default function SubscriptionManagementPage() {
                   {t('management.nextPaymentDate')}
                 </h3>
                 <p className="text-lg font-semibold" style={{ color: COLORS.textPrimary }}>
-                  {formatDate(subscription.billing.currentPeriodEnd)}
+                  {formatDateDisplay(subscription.billing.currentPeriodEnd)}
                 </p>
                 {isCanceled && (
                   <p className="text-sm mt-1" style={{ color: COLORS.warning }}>
@@ -672,7 +667,7 @@ export default function SubscriptionManagementPage() {
                         {invoice.number || `#${invoice.id.slice(-8)}`}
                       </td>
                       <td className="py-3 px-2" style={{ color: COLORS.textSecondary }}>
-                        {formatDate(invoice.createdAt)}
+                        {formatDateDisplay(invoice.createdAt)}
                       </td>
                       <td className="py-3 px-2" style={{ color: COLORS.textPrimary }}>
                         {formatCurrency(invoice.amount, invoice.currency)}
