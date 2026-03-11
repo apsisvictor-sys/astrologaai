@@ -109,7 +109,7 @@ app.get('/r/:slug', async (req: Request, res: Response) => {
       data: { clicks: { increment: 1 } },
     });
   } catch (_err) {
-    // Slug not found or inactive — still redirect gracefully
+    console.warn('[Referral] Click increment failed for slug:', slug, _err);
   }
   const frontendUrl = process.env.FRONTEND_URL || 'https://astrologa.bg';
   res.redirect(302, `${frontendUrl}?ref=${encodeURIComponent(slug)}`);
