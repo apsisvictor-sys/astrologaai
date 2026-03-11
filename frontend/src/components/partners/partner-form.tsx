@@ -1,7 +1,17 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Partner, CreatePartnerData, UpdatePartnerData, partnersApi, PartnersAPIError } from '@/lib/partners-api';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
+
+interface LocationSuggestion {
+  city: string;
+  country: string;
+  displayName: string;
+  latitude: number;
+  longitude: number;
+}
 
 interface PartnerFormProps {
   partner?: Partner | null;
@@ -17,18 +27,6 @@ const RELATIONSHIP_TYPES = [
   { value: 'business', label: 'Business', color: '#A78BFA' },
   { value: 'other',    label: 'Other',    color: '#64748B' },
 ];
-
-// Simplified geocoding for common cities
-const CITY_COORDS: Record<string, { lat: number; lng: number; tz: string }> = {
-  'sofia':    { lat: 42.6977, lng: 23.3219, tz: 'Europe/Sofia' },
-  'софия':   { lat: 42.6977, lng: 23.3219, tz: 'Europe/Sofia' },
-  'plovdiv':  { lat: 42.1354, lng: 24.7453, tz: 'Europe/Sofia' },
-  'пловдив': { lat: 42.1354, lng: 24.7453, tz: 'Europe/Sofia' },
-  'varna':    { lat: 43.2141, lng: 27.9147, tz: 'Europe/Sofia' },
-  'варна':   { lat: 43.2141, lng: 27.9147, tz: 'Europe/Sofia' },
-  'burgas':   { lat: 42.5048, lng: 27.4626, tz: 'Europe/Sofia' },
-  'бургас':  { lat: 42.5048, lng: 27.4626, tz: 'Europe/Sofia' },
-};
 
 const inputStyle = {
   background: 'rgba(255,255,255,0.04)',
@@ -64,20 +62,50 @@ export function PartnerForm({ partner, onSuccess, onCancel, language = 'bg' }: P
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Location search state
+  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
+  const [locationSearching, setLocationSearching] = useState(false);
+  const [locationConfirmed, setLocationConfirmed] = useState(!!partner?.birthData?.location);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const currentQueryRef = useRef('');
+
   function set(field: string, value: string | boolean | number) {
     setForm(prev => ({ ...prev, [field]: value }));
     setErrors(prev => { const n = { ...prev }; delete n[field]; return n; });
   }
 
-  function handleLocation(val: string) {
-    set('locationName', val);
-    const key = val.toLowerCase().split(',')[0].trim();
-    const coords = CITY_COORDS[key];
-    if (coords) {
-      set('latitude', coords.lat);
-      set('longitude', coords.lng);
-      set('timezone', coords.tz);
+  async function searchLocation(query: string) {
+    currentQueryRef.current = query;
+    if (query.length < 2) { setLocationSuggestions([]); setLocationSearching(false); return; }
+    setLocationSearching(true);
+    try {
+      const res = await fetch(`${API_URL}/api/v1/locations/search?q=${encodeURIComponent(query)}`);
+      const data = await res.json();
+      if (currentQueryRef.current !== query) return;
+      setLocationSuggestions(data.data?.locations || []);
+    } catch {
+      if (currentQueryRef.current === query) setLocationSuggestions([]);
+    } finally {
+      if (currentQueryRef.current === query) setLocationSearching(false);
     }
+  }
+
+  function handleLocationChange(val: string) {
+    set('locationName', val);
+    setLocationConfirmed(false);
+    set('latitude', 0);
+    set('longitude', 0);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => searchLocation(val), 300);
+  }
+
+  function selectLocation(s: LocationSuggestion) {
+    const label = s.city ? `${s.city}${s.country ? ', ' + s.country : ''}` : s.displayName;
+    set('locationName', label);
+    set('latitude', s.latitude);
+    set('longitude', s.longitude);
+    setLocationSuggestions([]);
+    setLocationConfirmed(true);
   }
 
   function validate(): boolean {
@@ -86,6 +114,7 @@ export function PartnerForm({ partner, onSuccess, onCancel, language = 'bg' }: P
     if (!form.birthDate) e.birthDate = 'Birth date is required';
     else if (new Date(form.birthDate) > new Date()) e.birthDate = 'Birth date cannot be in the future';
     if (!form.locationName.trim()) e.locationName = 'Birth location is required';
+    else if (!locationConfirmed) e.locationName = 'Select a location from the dropdown';
     if (form.birthTime && !form.isUnknownTime && !/^([01]?\d|2[0-3]):[0-5]\d$/.test(form.birthTime)) {
       e.birthTime = 'Use HH:MM format';
     }
@@ -237,15 +266,38 @@ export function PartnerForm({ partner, onSuccess, onCancel, language = 'bg' }: P
         </div>
 
         {/* Location */}
-        <div>
+        <div className="relative">
           <label style={labelStyle}>Birth Location *</label>
-          <input
-            type="text"
-            value={form.locationName}
-            onChange={e => handleLocation(e.target.value)}
-            placeholder="e.g. Sofia, Bulgaria"
-            style={{ ...inputStyle, borderColor: errors.locationName ? '#EF4444' : 'rgba(255,255,255,0.1)' }}
-          />
+          <div className="relative">
+            <input
+              type="text"
+              value={form.locationName}
+              onChange={e => handleLocationChange(e.target.value)}
+              placeholder="e.g. Sofia, Bulgaria"
+              style={{ ...inputStyle, borderColor: errors.locationName ? '#EF4444' : locationConfirmed ? 'rgba(16,185,129,0.5)' : 'rgba(255,255,255,0.1)' }}
+            />
+            {locationSearching && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full border-2 animate-spin" style={{ borderColor: 'rgba(228,26,255,0.6)', borderTopColor: 'transparent' }} />
+            )}
+          </div>
+          {locationSuggestions.length > 0 && !locationConfirmed && (
+            <div className="absolute top-full left-0 right-0 mt-1 rounded-xl overflow-hidden z-20" style={{ background: '#1a0b1c', border: '1px solid rgba(228,26,255,0.2)' }}>
+              {locationSuggestions.slice(0, 5).map((s, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="w-full text-left px-4 py-2.5 text-sm transition-colors"
+                  style={{ color: 'rgba(255,255,255,0.8)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  onClick={() => selectLocation(s)}
+                >
+                  <div>{s.city || s.displayName}</div>
+                  {s.country && <div className="text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>{s.displayName}</div>}
+                </button>
+              ))}
+            </div>
+          )}
           {errors.locationName && <p className="mt-1 text-xs" style={{ color: '#EF4444' }}>{errors.locationName}</p>}
         </div>
 

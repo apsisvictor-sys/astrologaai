@@ -154,6 +154,9 @@ export default function PricingPage() {
   const [faqOpen, setFaqOpen] = useState<number[]>([]);
   const [userUsage, setUserUsage] = useState<{ queriesThisMonth: number; queriesLimit: number } | null>(null);
   const [currentTier, setCurrentTier] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoOpen, setPromoOpen] = useState(false);
+  const [promoError, setPromoError] = useState('');
 
   // Fetch usage data only (for the FREE usage bar)
   useEffect(() => {
@@ -179,21 +182,28 @@ export default function PricingPage() {
   const handleCheckout = async (tier: string) => {
     if (tier === 'FREE') return router.push('/register');
     if (!isAuthenticated) return router.push('/login?redirect=/pricing');
+    setPromoError('');
     try {
       setCheckoutLoading(tier);
       const token = localStorage.getItem('astrologaai_access_token');
+      const body: Record<string, string> = {
+        tier,
+        billingPeriod,
+        successUrl: `${getFrontendBaseUrl()}/${locale === 'en' ? 'en/' : ''}dashboard?checkout=success`,
+        cancelUrl: `${getFrontendBaseUrl()}/${locale === 'en' ? 'en/' : ''}pricing?checkout=cancel`,
+      };
+      if (promoCode.trim()) body.promoCode = promoCode.trim().toUpperCase();
       const res = await fetch(`${API_URL}/api/v1/subscription/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          tier,
-          billingPeriod,
-          successUrl: `${getFrontendBaseUrl()}/${locale === 'en' ? 'en/' : ''}dashboard?checkout=success`,
-          cancelUrl: `${getFrontendBaseUrl()}/${locale === 'en' ? 'en/' : ''}pricing?checkout=cancel`,
-        }),
+        body: JSON.stringify(body),
       });
       const result = await res.json();
-      if (result.data?.checkoutUrl) window.location.href = result.data.checkoutUrl;
+      if (result.data?.checkoutUrl) {
+        window.location.href = result.data.checkoutUrl;
+      } else if (!result.success) {
+        setPromoError('Invalid or expired promo code.');
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -396,6 +406,57 @@ export default function PricingPage() {
             );
           })}
         </div>
+
+        {/* ── Promo Code ── */}
+        {isAuthenticated && (
+          <motion.div
+            className="max-w-sm mx-auto mb-10 text-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.6 }}
+          >
+            {!promoOpen ? (
+              <button
+                onClick={() => setPromoOpen(true)}
+                className="text-sm transition-colors"
+                style={{ color: 'rgba(255,255,255,0.35)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.65)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}
+              >
+                Have a promo code?
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={promoCode}
+                  onChange={e => { setPromoCode(e.target.value.toUpperCase()); setPromoError(''); }}
+                  placeholder="PROMO CODE"
+                  className="flex-1 rounded-xl px-4 py-2.5 text-sm font-mono tracking-wider text-white outline-none transition-colors"
+                  style={{
+                    background: 'rgba(255,255,255,0.05)',
+                    border: promoError ? '1px solid rgba(239,68,68,0.5)' : '1px solid rgba(228,26,255,0.25)',
+                  }}
+                />
+                <button
+                  onClick={() => { setPromoOpen(false); setPromoCode(''); setPromoError(''); }}
+                  className="px-3 py-2.5 rounded-xl text-sm transition-colors"
+                  style={{ color: 'rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.04)' }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+            {promoError && (
+              <p className="mt-2 text-xs" style={{ color: '#EF4444' }}>{promoError}</p>
+            )}
+            {promoCode && !promoError && (
+              <p className="mt-2 text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                Code will be applied at checkout
+              </p>
+            )}
+          </motion.div>
+        )}
 
         {/* ── Trust Row ── */}
         <motion.div

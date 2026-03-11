@@ -287,7 +287,7 @@ router.get('/status', authMiddleware, async (req: Request, res: Response) => {
 // POST /api/v1/subscription/checkout - Create Stripe checkout session
 router.post('/checkout', authMiddleware, async (req: Request, res: Response) => {
   try {
-    const { tier, billingPeriod = 'monthly' } = req.body;
+    const { tier, billingPeriod = 'monthly', promoCode } = req.body;
     
     // Validate tier
     if (!['PRO', 'PREMIUM'].includes(tier)) {
@@ -366,10 +366,20 @@ router.post('/checkout', authMiddleware, async (req: Request, res: Response) => 
       });
     }
     
-    // Resolve optional discount from referral link
+    // Resolve optional discount — user-entered promo code takes priority over referral
     let discounts: { promotion_code: string }[] | undefined;
-    if (user?.referredBySlug) {
-      try {
+    try {
+      if (promoCode) {
+        // Direct promo code entered by user
+        const dc = await prisma.discountCode.findUnique({
+          where: { code: promoCode.trim().toUpperCase(), isActive: true },
+          select: { stripePromotionCodeId: true },
+        });
+        if (dc?.stripePromotionCodeId) {
+          discounts = [{ promotion_code: dc.stripePromotionCodeId }];
+        }
+      } else if (user?.referredBySlug) {
+        // Fall back to discount from referral link
         const referralLink = await prisma.referralLink.findUnique({
           where: { slug: user.referredBySlug, isActive: true },
           select: { discountCode: true },
@@ -383,9 +393,9 @@ router.post('/checkout', authMiddleware, async (req: Request, res: Response) => 
             discounts = [{ promotion_code: dc.stripePromotionCodeId }];
           }
         }
-      } catch (err) {
-        console.warn('[Checkout] Failed to resolve referral discount:', err);
       }
+    } catch (err) {
+      console.warn('[Checkout] Failed to resolve discount:', err);
     }
 
     // Create checkout session
