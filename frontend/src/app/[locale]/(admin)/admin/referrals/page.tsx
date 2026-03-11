@@ -39,10 +39,10 @@ function fmtPercent(rate: number): string {
   return (rate * 100).toFixed(0) + '%';
 }
 
-const BASE_URL = 'https://astrologaai.com';
+const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
 
 function buildRefUrl(slug: string): string {
-  return `${BASE_URL}?ref=${slug}`;
+  return `${BACKEND_URL}/r/${slug}`;
 }
 
 // ─── Spinner ─────────────────────────────────────────────────────────────────

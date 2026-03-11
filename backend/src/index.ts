@@ -13,6 +13,7 @@ import { config } from 'dotenv';
 import { createServer } from 'http';
 import { runtimeConfig, isOriginAllowed } from './config/runtime';
 import { getEnvValidationReport } from './config/envValidation';
+import { prisma } from './utils/prisma';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -30,6 +31,7 @@ import compatibilityRoutes from './routes/compatibility'; // US-20: Compatibilit
 import cronRoutes from './routes/cron'; // US-36: Monthly Reset Cron
 import astrologyRoutes from './routes/astrology'; // US-33: Astrology API Fallback
 import adminRoutes from './routes/admin'; // Step 11: Admin Dashboard
+import guestChatRoutes from './routes/guestChat';
 
 // US-37: Rate limit headers middleware
 import { rateLimitHeadersMiddleware, fetchRateLimitStatus } from './middleware/rateLimitHeaders';
@@ -41,7 +43,7 @@ import type { AuthenticatedSocket } from './socket';
 // US-30: Chart regeneration processor
 import { startRegenerationProcessor } from './services/chart-regeneration';
 
-config();
+config({ override: true });
 
 const app: Express = express();
 const PORT = runtimeConfig.port;
@@ -97,6 +99,21 @@ app.use(fetchRateLimitStatus);
 // ============================================
 // ROUTES
 // ============================================
+
+// GET /r/:slug — Referral click tracking redirect
+app.get('/r/:slug', async (req: Request, res: Response) => {
+  const { slug } = req.params;
+  try {
+    await prisma.referralLink.update({
+      where: { slug, isActive: true },
+      data: { clicks: { increment: 1 } },
+    });
+  } catch (_err) {
+    // Slug not found or inactive — still redirect gracefully
+  }
+  const frontendUrl = process.env.FRONTEND_URL || 'https://astrologa.bg';
+  res.redirect(302, `${frontendUrl}?ref=${encodeURIComponent(slug)}`);
+});
 
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
@@ -165,6 +182,7 @@ app.get('/health/astrology', async (req: Request, res: Response) => {
 // API routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/user', userRoutes);
+app.use('/api/v1/chat/guest', guestChatRoutes); // Guest (unauthenticated) chat — must be before /api/v1/chat
 app.use('/api/v1/chat', chatRoutes);
 app.use('/api/v1/birth-chart', birthChartRoutes);
 app.use('/api/v1/birth-data', birthDataRoutes);

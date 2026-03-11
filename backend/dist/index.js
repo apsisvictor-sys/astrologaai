@@ -51,6 +51,7 @@ const dotenv_1 = require("dotenv");
 const http_1 = require("http");
 const runtime_1 = require("./config/runtime");
 const envValidation_1 = require("./config/envValidation");
+const { prisma } = require("./utils/prisma");
 // Import routes
 const auth_1 = __importDefault(require("./routes/auth"));
 const user_1 = __importDefault(require("./routes/user"));
@@ -67,13 +68,14 @@ const compatibility_1 = __importDefault(require("./routes/compatibility")); // U
 const cron_1 = __importDefault(require("./routes/cron")); // US-36: Monthly Reset Cron
 const astrology_1 = __importDefault(require("./routes/astrology")); // US-33: Astrology API Fallback
 const admin_1 = __importDefault(require("./routes/admin")); // Step 11: Admin Dashboard
+const guestChat_1 = __importDefault(require("./routes/guestChat"));
 // US-37: Rate limit headers middleware
 const rateLimitHeaders_1 = require("./middleware/rateLimitHeaders");
 // Import Socket.io
 const socket_1 = require("./socket");
 // US-30: Chart regeneration processor
 const chart_regeneration_1 = require("./services/chart-regeneration");
-(0, dotenv_1.config)();
+(0, dotenv_1.config)({ override: true });
 const app = (0, express_1.default)();
 // Trust Railway's proxy (required for express-rate-limit to work correctly behind Railway)
 app.set('trust proxy', 1);
@@ -118,6 +120,21 @@ app.use(rateLimitHeaders_1.fetchRateLimitStatus);
 // ============================================
 // ROUTES
 // ============================================
+// GET /r/:slug — Referral click tracking redirect
+app.get('/r/:slug', async (req, res) => {
+    const { slug } = req.params;
+    try {
+        await prisma.referralLink.update({
+            where: { slug, isActive: true },
+            data: { clicks: { increment: 1 } },
+        });
+    }
+    catch (_err) {
+        // Slug not found or inactive — still redirect gracefully
+    }
+    const frontendUrl = process.env.FRONTEND_URL || 'https://astrologa.bg';
+    res.redirect(302, `${frontendUrl}?ref=${encodeURIComponent(slug)}`);
+});
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({
@@ -181,6 +198,7 @@ app.get('/health/astrology', async (req, res) => {
 // API routes
 app.use('/api/v1/auth', auth_1.default);
 app.use('/api/v1/user', user_1.default);
+app.use('/api/v1/chat/guest', guestChat_1.default); // Guest (unauthenticated) chat — must be before /api/v1/chat
 app.use('/api/v1/chat', chat_1.default);
 app.use('/api/v1/birth-chart', birthChart_1.default);
 app.use('/api/v1/birth-data', birthData_1.default);
