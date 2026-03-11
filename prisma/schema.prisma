@@ -33,7 +33,9 @@ model User {
   dailyQueryCount   Int       @default(0) @map("daily_query_count")
   lastQueryDate     DateTime? @map("last_query_date")
   bonusQueries      Int       @default(0) @map("bonus_queries")
-  
+  isSuspended       Boolean   @default(false) @map("is_suspended")
+  referredBySlug    String?   @map("referred_by_slug")
+
   // US-28: Email change verification
   pendingEmail      String?   @unique @map("pending_email")       // New email awaiting verification
   pendingEmailToken String?   @map("pending_email_token")        // Verification token
@@ -457,6 +459,7 @@ model ReferralLink {
   commissionRate Float     @default(0.2) @map("commission_rate")  // 0.20 = 20%
   clicks         Int       @default(0)
   isActive       Boolean   @default(true) @map("is_active")
+  discountCode   String?   @map("discount_code")
   createdAt      DateTime  @default(now()) @map("created_at")
   conversions    ReferralConversion[]
 
