@@ -49,6 +49,9 @@ vi.mock('../src/utils/redis', () => ({
 // Mock Prisma
 vi.mock('../src/utils/prisma', () => ({
   prisma: {
+    user: {
+      findUnique: vi.fn(),
+    },
     usageRecord: {
       findUnique: vi.fn(),
       upsert: vi.fn(),

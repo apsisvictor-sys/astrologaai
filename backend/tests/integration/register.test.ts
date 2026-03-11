@@ -51,7 +51,7 @@ vi.mock('../../src/utils/prisma', () => {
 });
 
 // Import controller directly for testing without rate limiting
-import { AuthController } from '../../src/controllers/authController';
+import AuthController from '../../src/controllers/authController';
 import prisma from '../../src/utils/prisma';
 
 // Create test app without rate limiting for most tests
@@ -192,7 +192,7 @@ describe('POST /api/v1/auth/register', () => {
       expect(response.status).toBe(201);
       expect(response.body.success).toBe(true);
       expect(response.body.data.user).toBeDefined();
-      expect(response.body.data.session).toBeDefined();
+      expect(response.body.data.tokens).toBeDefined();
       expect(response.body.data.user.email).toBe('newuser@example.com');
       expect(response.body.data.user.tier).toBe('FREE');
       expect(response.body.data.user.language).toBe('bg');

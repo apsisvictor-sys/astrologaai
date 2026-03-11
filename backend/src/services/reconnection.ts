@@ -11,8 +11,8 @@ import { redisClient } from '../utils/redis';
 const prisma = new PrismaClient();
 
 // Configuration
-const HEARTBEAT_INTERVAL_MS = 30000; // 30 seconds
-const MAX_RECONNECT_ATTEMPTS = 3; // US-38: Maximum 3 retry attempts
+export const HEARTBEAT_INTERVAL_MS = 30000; // 30 seconds
+export const MAX_RECONNECT_ATTEMPTS = 3; // US-38: Maximum 3 retry attempts
 const STREAM_STATE_TTL_SECONDS = 3600; // 1 hour
 
 /**

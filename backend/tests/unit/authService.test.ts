@@ -69,28 +69,23 @@ describe('AuthService', () => {
       expect(tokens.refreshToken).toBeDefined();
       expect(tokens.expiresIn).toBeGreaterThan(0);
 
-      // Verify access token
-      const decodedAccess = jwt.decode(tokens.accessToken) as { userId: string; email: string };
-      expect(decodedAccess.userId).toBe('user-123');
+      // Verify access token — payload uses 'sub' claim for userId (standard JWT)
+      const decodedAccess = jwt.decode(tokens.accessToken) as { sub: string; email: string };
+      expect(decodedAccess.sub).toBe('user-123');
       expect(decodedAccess.email).toBe('test@example.com');
 
       // Verify refresh token
-      const decodedRefresh = jwt.decode(tokens.refreshToken) as { userId: string; email: string; type: string };
-      expect(decodedRefresh.userId).toBe('user-123');
+      const decodedRefresh = jwt.decode(tokens.refreshToken) as { sub: string; email: string; type: string };
+      expect(decodedRefresh.sub).toBe('user-123');
       expect(decodedRefresh.email).toBe('test@example.com');
       expect(decodedRefresh.type).toBe('refresh');
     });
 
     it('should generate tokens with correct expiration times', () => {
-      const originalEnv = process.env.JWT_EXPIRES_IN;
-      process.env.JWT_EXPIRES_IN = '1h';
-
       const tokens = AuthService.generateTokens('user-123', 'test@example.com');
-      
-      // 1 hour = 3600 seconds
-      expect(tokens.expiresIn).toBe(3600);
 
-      process.env.JWT_EXPIRES_IN = originalEnv;
+      // JWT_CONFIG is mocked with expiresIn: '15m' = 900 seconds
+      expect(tokens.expiresIn).toBe(900);
     });
   });
 
@@ -114,9 +109,9 @@ describe('AuthService', () => {
 
   describe('verifyToken', () => {
     it('should return decoded payload for valid token', () => {
-      const payload = { userId: 'user-123', email: 'test@example.com' };
-      const secret = process.env.JWT_SECRET || 'default-secret-change-in-production';
-      
+      // Service uses 'sub' claim — mock must return { sub, email }
+      const payload = { sub: 'user-123', email: 'test@example.com' };
+
       // Mock jwt.verify to return the payload
       (jwt.verify as vi.Mock).mockReturnValue(payload);
 

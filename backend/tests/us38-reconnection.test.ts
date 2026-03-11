@@ -187,7 +187,7 @@ describe('US-38: Reconnection Service', () => {
 
     it('should limit queue to 50 messages', async () => {
       // Create 50 existing messages
-      const existingMessages = Array(50).fill(null).map((_, i) => 
+      const existingMessages = Array(50).fill(null).map((_, i) =>
         JSON.stringify({ content: `Message ${i}`, queuedAt: '2026-01-01T00:00:00Z' })
       );
 
@@ -200,8 +200,8 @@ describe('US-38: Reconnection Service', () => {
 
       await queueMessage(userId, newMessage);
 
-      // Should still be called but with updated queue
-      expect(mockRedisClient.rPush).toHaveBeenCalled();
+      // Queue is full (50 messages), so new message should NOT be added
+      expect(mockRedisClient.rPush).not.toHaveBeenCalled();
     });
 
     it('should get queued messages', async () => {
@@ -253,7 +253,7 @@ describe('US-38: Reconnection Service', () => {
 
     it('should indicate cannot reconnect when at limit', async () => {
       mockRedisClient.get.mockResolvedValueOnce(
-        JSON.stringify({ reconnectCount: MAX_RECONNECT_ATTEMPTS })
+        JSON.stringify({ reconnectCount: 3 }) // MAX_RECONNECT_ATTEMPTS = 3
       );
 
       const status = await getReconnectionStatus(userId);
@@ -284,9 +284,11 @@ describe('US-38: Reconnection Service', () => {
     });
 
     it('should increment reconnect count on failure', async () => {
-      mockRedisClient.get.mockResolvedValueOnce(
-        JSON.stringify({ reconnectCount: 1 })
-      );
+      const existingMeta = JSON.stringify({ reconnectCount: 1 });
+      // updateConnectionMeta reads meta first, then the failure branch reads it again
+      mockRedisClient.get
+        .mockResolvedValueOnce(existingMeta)
+        .mockResolvedValueOnce(existingMeta);
 
       await recordReconnectionAttempt(userId, false);
 
@@ -303,7 +305,7 @@ describe('US-38: Reconnection Service', () => {
     });
 
     it('should have correct max reconnect attempts', () => {
-      expect(MAX_RECONNECT_ATTEMPTS).toBe(5);
+      expect(MAX_RECONNECT_ATTEMPTS).toBe(3);
     });
   });
 });

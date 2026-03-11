@@ -10,10 +10,10 @@ const SUPPORTED_LANGUAGES = ['bg', 'en'];
 exports.registerSchema = zod_1.z.object({
     email: zod_1.z
         .string()
-        .email('Invalid email format')
         .min(1, 'Email is required')
         .max(255, 'Email must be less than 255 characters')
-        .transform((email) => email.toLowerCase().trim()),
+        .transform((email) => email.toLowerCase().trim())
+        .pipe(zod_1.z.string().email('Invalid email format')),
     password: zod_1.z
         .string()
         .min(8, 'Password must be at least 8 characters')
@@ -34,8 +34,8 @@ exports.registerSchema = zod_1.z.object({
 exports.loginSchema = zod_1.z.object({
     email: zod_1.z
         .string()
-        .email('Invalid email format')
-        .transform((email) => email.toLowerCase().trim()),
+        .transform((email) => email.toLowerCase().trim())
+        .pipe(zod_1.z.string().email('Invalid email format')),
     password: zod_1.z.string().min(1, 'Password is required'),
 });
 function formatZodErrors(error) {

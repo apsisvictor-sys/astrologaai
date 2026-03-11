@@ -9,10 +9,10 @@ const SUPPORTED_LANGUAGES = ['bg', 'en'] as const;
 export const registerSchema = z.object({
   email: z
     .string()
-    .email('Invalid email format')
     .min(1, 'Email is required')
     .max(255, 'Email must be less than 255 characters')
-    .transform((email) => email.toLowerCase().trim()),
+    .transform((email) => email.toLowerCase().trim())
+    .pipe(z.string().email('Invalid email format')),
   password: z
     .string()
     .min(8, 'Password must be at least 8 characters')
@@ -39,8 +39,8 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export const loginSchema = z.object({
   email: z
     .string()
-    .email('Invalid email format')
-    .transform((email) => email.toLowerCase().trim()),
+    .transform((email) => email.toLowerCase().trim())
+    .pipe(z.string().email('Invalid email format')),
   password: z.string().min(1, 'Password is required'),
 });
 

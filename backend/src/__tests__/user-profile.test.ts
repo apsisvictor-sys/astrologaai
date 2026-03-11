@@ -43,7 +43,21 @@ let mockProfile = {
 
 testApp.put('/api/v1/user/profile', (req, res) => {
   const { fullName, email } = req.body;
-  
+
+  // Validate email format if provided
+  if (email !== undefined) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Invalid email format',
+        },
+      });
+    }
+  }
+
   if (email && email !== mockProfile.email) {
     // Simulate sending verification email
     mockProfile.pendingEmail = email;
