@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter, Link } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate } from '@/lib/format';
+import { apiGet, apiRequest } from '@/lib/api-client';
 
 const COLORS = {
   backgroundPrimary: '#0D0010',
@@ -19,8 +20,6 @@ const COLORS = {
   success: '#10B981',
   error: '#EF4444',
 };
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
 
 interface BirthProfile {
   id: string;
@@ -72,13 +71,8 @@ export default function BirthDataSettingsPage() {
     if (!isAuthenticated) return;
     const load = async () => {
       try {
-        const token = localStorage.getItem('astrologaai_access_token');
-        const res = await fetch(`${API_URL}/api/v1/birth-data`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        const existing = data.data?.profiles?.[0] || null;
+        const result = await apiGet<{ profiles?: BirthProfile[] }>('/api/v1/birth-data');
+        const existing = result.data?.profiles?.[0] || null;
         setProfile(existing);
         if (!existing) setEditing(true); // No data yet — go straight to form
       } catch {
@@ -120,15 +114,11 @@ export default function BirthDataSettingsPage() {
     const id = setTimeout(async () => {
       setLocationSearching(true);
       try {
-        const token = localStorage.getItem('astrologaai_access_token');
-        const res = await fetch(
-          `${API_URL}/api/v1/locations/search?q=${encodeURIComponent(location)}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+        const result = await apiGet<{ locations?: LocationResult[] }>(
+          `/api/v1/locations/search?q=${encodeURIComponent(location)}`,
+          { skipAuth: true }
         );
-        if (res.ok) {
-          const data = await res.json();
-          setLocationResults(data.data?.locations || []);
-        }
+        setLocationResults(result.data?.locations || []);
       } catch { /* ignore */ }
       finally { setLocationSearching(false); }
     }, 300);
@@ -142,7 +132,6 @@ export default function BirthDataSettingsPage() {
     setSaveStatus('saving');
     setSaveError('');
     try {
-      const token = localStorage.getItem('astrologaai_access_token');
       const payload = {
         name: user?.fullName || user?.email || 'My Chart',
         birthDate,
@@ -155,24 +144,14 @@ export default function BirthDataSettingsPage() {
         longitude: selectedLocation.longitude,
       };
 
-      const url = profile
-        ? `${API_URL}/api/v1/birth-data/${profile.id}`
-        : `${API_URL}/api/v1/birth-data`;
+      const endpoint = profile ? `/api/v1/birth-data/${profile.id}` : '/api/v1/birth-data';
       const method = profile ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
+      const result = await apiRequest<{ profile?: BirthProfile; birthProfile?: BirthProfile }>(endpoint, {
         method,
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error?.message || 'Failed to save');
-      }
-
-      const data = await res.json();
-      setProfile(data.data?.profile || data.data?.birthProfile || null);
+      setProfile(result.data?.profile || result.data?.birthProfile || null);
       setSaveStatus('success');
       setEditing(false);
       setTimeout(() => setSaveStatus('idle'), 3000);

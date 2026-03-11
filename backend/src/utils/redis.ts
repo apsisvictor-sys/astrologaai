@@ -5,15 +5,10 @@
  * US-34: Graceful fallback when Redis is unavailable
  */
 
-import { createClient } from 'redis';
+// Redis disabled — using in-memory fallback only.
+// Re-enable by restoring the createClient() connection when Redis is needed.
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-
-const globalForRedis = globalThis as unknown as {
-  redisClient: ReturnType<typeof createClient> | undefined;
-};
-
-// In-memory fallback cache for when Redis is unavailable
+// In-memory fallback cache
 const memoryCache = new Map<string, { value: string; expiresAt: number }>();
 
 function createMemoryFallbackClient() {
@@ -33,50 +28,22 @@ function createMemoryFallbackClient() {
       keys.forEach(k => memoryCache.delete(k));
     },
     lPush: async (_key: string, _value: string) => { },
+    rPush: async (_key: string, _value: string) => { },
+    lPop: async (_key: string) => null,
     lTrim: async (_key: string, _start: number, _stop: number) => { },
     keys: async (_pattern: string) => [] as string[],
     ping: async () => 'PONG',
     on: () => { },
     connect: async () => { },
-  } as unknown as ReturnType<typeof createClient>;
+  };
 }
 
-export const redisClient = globalForRedis.redisClient ?? createClient({
-  url: REDIS_URL,
-});
+console.log('[Redis] Using in-memory fallback (Redis disabled)');
 
-if (process.env.NODE_ENV !== 'production') {
-  globalForRedis.redisClient = redisClient;
-}
-
-// Track connection status
-let redisConnected = false;
-
-// Connect to Redis with graceful fallback
-redisClient.connect().then(() => {
-  redisConnected = true;
-  console.log('[Redis] Connected successfully');
-}).catch((error) => {
-  console.warn('[Redis] Connection failed, using in-memory fallback:', error.message);
-  // Replace with memory fallback client
-  const fallback = createMemoryFallbackClient();
-  Object.assign(redisClient, fallback);
-});
-
-redisClient.on('error', (error) => {
-  // Don't spam logs with connection errors
-  if (!error.message.includes('ECONNREFUSED')) {
-    console.error('[Redis] Client error:', error);
-  }
-});
-
-redisClient.on('connect', () => {
-  redisConnected = true;
-  console.log('[Redis] Connected successfully');
-});
+export const redisClient = createMemoryFallbackClient() as any;
 
 export function isRedisConnected(): boolean {
-  return redisConnected;
+  return false;
 }
 
 // ============================================

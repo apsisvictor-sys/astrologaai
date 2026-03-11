@@ -19,7 +19,6 @@ exports.getChartHistory = getChartHistory;
 exports.getHistoricalChart = getHistoricalChart;
 const prisma_1 = require("../utils/prisma");
 const geocoding_1 = require("../services/geocoding");
-const redis_1 = require("../utils/redis");
 const astrology_1 = require("../services/astrology");
 const MAX_PROFILES_PER_USER = 10;
 /**
@@ -227,6 +226,7 @@ async function createBirthProfile(req, res) {
                 latitude: input.latitude,
                 longitude: input.longitude,
                 timezone,
+                locationName: input.locationName,
             };
             const chart = await astrology_1.calculateNatalChart(birthDataInput);
             await prisma_1.prisma.birthChart.create({
@@ -370,29 +370,40 @@ async function updateBirthProfile(req, res) {
                 ...(input.isUnknownTime !== undefined && { isUnknownTime: input.isUnknownTime }),
             },
         });
-        // US-30: If birth data changed, trigger background chart regeneration
-        let regenerationJobId = null;
+        // If birth data changed, delete old chart and regenerate inline
         if (birthDataChanged) {
-            // Delete existing chart (we already archived it)
             if (existing.birthChart) {
                 await prisma_1.prisma.birthChart.delete({
                     where: { id: existing.birthChart.id },
                 });
             }
-            // Queue background regeneration job
-            regenerationJobId = `chart_regen:${id}:${Date.now()}`;
-            const jobData = {
-                jobId: regenerationJobId,
-                profileId: id,
-                userId,
-                createdAt: new Date().toISOString(),
-                status: 'pending',
-            };
-            // Store job in Redis for tracking (expires in 1 hour)
-            await redis_1.redisClient.setEx(`job:${regenerationJobId}`, 3600, JSON.stringify(jobData));
-            // Add to regeneration queue
-            await redis_1.redisClient.rPush('chart_regeneration_queue', JSON.stringify(jobData));
-            console.log(`[BirthData] Queued chart regeneration job ${regenerationJobId}`);
+            try {
+                const effectiveBirthDate = birthDate ?? existing.birthDate;
+                const effectiveBirthTime = input.isUnknownTime ? null
+                    : (input.birthTime !== undefined ? input.birthTime : existing.birthTime);
+                const [hour, minute] = effectiveBirthTime
+                    ? effectiveBirthTime.split(':').map(Number)
+                    : [12, 0];
+                const birthDataInput = {
+                    year: effectiveBirthDate.getFullYear(),
+                    month: effectiveBirthDate.getMonth() + 1,
+                    day: effectiveBirthDate.getDate(),
+                    hour,
+                    minute,
+                    latitude: input.latitude ?? existing.latitude,
+                    longitude: input.longitude ?? existing.longitude,
+                    timezone: timezone ?? existing.timezone,
+                    locationName: input.locationName ?? existing.locationName,
+                };
+                const chart = await astrology_1.calculateNatalChart(birthDataInput);
+                await prisma_1.prisma.birthChart.create({
+                    data: { userId, birthProfileId: id, chartData: chart },
+                });
+                console.log(`[BirthData] Chart regenerated for profile ${id}`);
+            }
+            catch (chartError) {
+                console.error('[BirthData] Chart regeneration failed (non-blocking):', chartError);
+            }
         }
         console.log(`[BirthData] Updated profile ${id} for user ${userId}`);
         res.json({
@@ -400,10 +411,8 @@ async function updateBirthProfile(req, res) {
             data: {
                 profile,
                 chartArchived,
-                regenerationQueued: !!regenerationJobId,
-                regenerationJobId,
                 message: birthDataChanged
-                    ? 'Birth data updated. Chart regeneration in progress.'
+                    ? 'Birth data updated. Chart regenerated.'
                     : 'Profile updated successfully.',
             },
         });
@@ -531,24 +540,7 @@ async function getRegenerationStatus(req, res) {
             });
             return;
         }
-        // Check job status in Redis
-        if (jobId && typeof jobId === 'string') {
-            const jobDataStr = await redis_1.redisClient.get(`job:${jobId}`);
-            if (jobDataStr) {
-                const jobData = JSON.parse(jobDataStr);
-                res.json({
-                    success: true,
-                    data: {
-                        status: jobData.status || 'pending',
-                        message: jobData.status === 'processing'
-                            ? 'Chart regeneration in progress...'
-                            : 'Chart regeneration pending...',
-                    },
-                });
-                return;
-            }
-        }
-        // No chart and no job found
+        // No chart found
         res.json({
             success: true,
             data: {

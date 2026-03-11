@@ -16,7 +16,7 @@ const redis_1 = require("../utils/redis");
 // ============================================
 // Constants
 // ============================================
-const ASTROLOGY_API_URL = process.env.ASTROLOGY_API_URL || 'https://json.astrology-api.io/v1';
+const ASTROLOGY_API_URL = process.env.ASTROLOGY_API_URL || 'https://api.astrology-api.io';
 const ASTROLOGY_API_KEY = process.env.ASTROLOGY_API_KEY;
 const CHART_CACHE_TTL = 2592000; // 30 days in seconds (updated from 24h)
 const CHART_CACHE_TTL_LEGACY = 86400; // 24 hours for legacy cache keys
@@ -75,6 +75,38 @@ const SIGN_TRANSLATIONS = {
     Aquarius: 'Водолей',
     Pisces: 'Риби',
 };
+// Sign abbreviations from v3 API (3-letter) → full name
+const SIGN_ABBR_TO_FULL = {
+    Ari: 'Aries', Tau: 'Taurus', Gem: 'Gemini', Can: 'Cancer',
+    Leo: 'Leo', Vir: 'Virgo', Lib: 'Libra', Sco: 'Scorpio',
+    Sag: 'Sagittarius', Cap: 'Capricorn', Aqu: 'Aquarius', Pis: 'Pisces',
+};
+// Country name → ISO 2-letter code for v3 API
+const COUNTRY_TO_CODE = {
+    'Greece': 'GR', 'Bulgaria': 'BG', 'Germany': 'DE', 'France': 'FR',
+    'United Kingdom': 'GB', 'UK': 'GB', 'Great Britain': 'GB',
+    'United States': 'US', 'USA': 'US', 'Italy': 'IT', 'Spain': 'ES',
+    'Russia': 'RU', 'Turkey': 'TR', 'Romania': 'RO', 'Serbia': 'RS',
+    'North Macedonia': 'MK', 'Macedonia': 'MK', 'Albania': 'AL',
+    'Croatia': 'HR', 'Bosnia and Herzegovina': 'BA', 'Bosnia': 'BA',
+    'Montenegro': 'ME', 'Slovenia': 'SI', 'Austria': 'AT',
+    'Netherlands': 'NL', 'Belgium': 'BE', 'Switzerland': 'CH',
+    'Poland': 'PL', 'Czech Republic': 'CZ', 'Czechia': 'CZ',
+    'Hungary': 'HU', 'Slovakia': 'SK', 'Ukraine': 'UA', 'Belarus': 'BY',
+    'Sweden': 'SE', 'Norway': 'NO', 'Denmark': 'DK', 'Finland': 'FI',
+    'Portugal': 'PT', 'Canada': 'CA', 'Australia': 'AU',
+    'China': 'CN', 'Japan': 'JP', 'India': 'IN', 'Brazil': 'BR',
+    'Mexico': 'MX', 'Argentina': 'AR', 'South Africa': 'ZA',
+    'Egypt': 'EG', 'Israel': 'IL', 'UAE': 'AE',
+    'United Arab Emirates': 'AE', 'Saudi Arabia': 'SA',
+};
+function parseLocationForV3(locationName) {
+    const parts = locationName.split(',').map(p => p.trim());
+    const city = parts[0] || locationName;
+    const country = parts[parts.length - 1] || '';
+    const countryCode = COUNTRY_TO_CODE[country] || country.substring(0, 2).toUpperCase();
+    return { city, countryCode };
+}
 // Aspect translations (English to Bulgarian)
 const ASPECT_TRANSLATIONS = {
     conjunction: 'съвпад',
@@ -364,15 +396,18 @@ function calculateModalityDistribution(planets) {
  * - Layer 3: Legacy exact birth data (24h TTL) - backward compatibility
  */
 async function calculateNatalChart(birthData) {
-    // Check if API key is configured
-    if (!ASTROLOGY_API_KEY) {
+    // Check if API key is configured (read lazily to avoid module-init capture issue)
+    if (!process.env.ASTROLOGY_API_KEY) {
         console.warn('[Astrology] No API key configured, using fallback calculation');
         return generateFallbackChart(birthData);
     }
     const legacyCacheKey = generateCacheKey(birthData);
     // Try Layer 3: Legacy cache first (backward compatibility, fastest lookup)
     try {
-        const cached = await redis_1.redisClient.get(legacyCacheKey);
+        const cached = await Promise.race([
+            redis_1.redisClient.get(legacyCacheKey),
+            new Promise(resolve => setTimeout(() => resolve(null), 500)),
+        ]);
         if (cached) {
             console.log(`[Astrology] Cache hit (Layer 3 - legacy) for ${legacyCacheKey}`);
             return JSON.parse(cached);
@@ -381,25 +416,45 @@ async function calculateNatalChart(birthData) {
     catch (error) {
         console.warn('[Astrology] Cache read error:', error);
     }
-    // Call astrology-api.io
+    // Call astrology-api.io v3
     try {
-        const response = await fetch(`${ASTROLOGY_API_URL}/natal-chart`, {
+        // Parse city and country code from locationName ("City, Country")
+        let city = 'Unknown';
+        let countryCode = 'US';
+        if (birthData.locationName) {
+            const parsed = parseLocationForV3(birthData.locationName);
+            city = parsed.city;
+            countryCode = parsed.countryCode;
+        }
+        const apiUrl = process.env.ASTROLOGY_API_URL || 'https://api.astrology-api.io';
+        const apiKey = process.env.ASTROLOGY_API_KEY;
+        const response = await fetch(`${apiUrl}/api/v3/charts/natal`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${ASTROLOGY_API_KEY}`,
+                'Authorization': `Bearer ${apiKey}`,
                 'Content-Type': 'application/json',
+                'User-Agent': 'AstrologaAI/1.0',
             },
             body: JSON.stringify({
-                year: birthData.year,
-                month: birthData.month,
-                day: birthData.day,
-                hour: birthData.hour,
-                minute: birthData.minute,
-                latitude: birthData.latitude,
-                longitude: birthData.longitude,
-                timezone: birthData.timezone || 'UTC',
-                house_system: 'placidus',
-                zodiac_type: 'tropical',
+                subject: {
+                    name: 'subject',
+                    birth_data: {
+                        year: birthData.year,
+                        month: birthData.month,
+                        day: birthData.day,
+                        hour: birthData.hour,
+                        minute: birthData.minute,
+                        second: 0,
+                        city,
+                        country_code: countryCode,
+                    },
+                },
+                options: {
+                    house_system: 'P',
+                    zodiac_type: 'Tropic',
+                    active_points: ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto', 'True_Node', 'Chiron'],
+                    precision: 4,
+                },
             }),
         });
         if (!response.ok) {
@@ -408,30 +463,100 @@ async function calculateNatalChart(birthData) {
             throw new Error(`Astrology API error: ${response.status}`);
         }
         const apiData = await response.json();
-        // Transform API response to our format
-        const planets = {
-            sun: transformPlanetData(apiData, 'sun'),
-            moon: transformPlanetData(apiData, 'moon'),
-            rising: transformPlanetData(apiData, 'rising'),
-            mercury: transformPlanetData(apiData, 'mercury'),
-            venus: transformPlanetData(apiData, 'venus'),
-            mars: transformPlanetData(apiData, 'mars'),
-            jupiter: transformPlanetData(apiData, 'jupiter'),
-            saturn: transformPlanetData(apiData, 'saturn'),
-            uranus: transformPlanetData(apiData, 'uranus'),
-            neptune: transformPlanetData(apiData, 'neptune'),
-            pluto: transformPlanetData(apiData, 'pluto'),
-            northNode: transformPlanetData(apiData, 'north_node'),
-            southNode: transformPlanetData(apiData, 'south_node'),
-            chiron: transformPlanetData(apiData, 'chiron'),
+        // Build planet lookup from v3 planetary_positions array
+        const planetLookup = {};
+        for (const p of (apiData.chart_data?.planetary_positions || [])) {
+            planetLookup[p.name] = p;
+        }
+        // Map v3 API planet name → internal key
+        const API_NAME_TO_KEY = {
+            Sun: 'sun', Moon: 'moon', Mercury: 'mercury', Venus: 'venus',
+            Mars: 'mars', Jupiter: 'jupiter', Saturn: 'saturn', Uranus: 'uranus',
+            Neptune: 'neptune', Pluto: 'pluto', True_Node: 'northNode', Chiron: 'chiron',
         };
-        // Try to get lilith if available
-        try {
-            planets.lilith = transformPlanetData(apiData, 'lilith');
+        // Transform a single planet from v3 format
+        const transformV3Planet = (p, key) => {
+            const sign = SIGN_ABBR_TO_FULL[p.sign] || p.sign;
+            return {
+                name: key,
+                sign,
+                signBg: SIGN_TRANSLATIONS[sign] || sign,
+                degree: parseFloat(p.degree ?? 0),
+                house: parseInt(p.house ?? 1, 10),
+                retrograde: p.is_retrograde === true,
+                symbol: PLANET_SYMBOLS[key] || '',
+            };
+        };
+        // Extract ascendant (rising) from subject_data
+        const ascData = apiData.subject_data?.ascendant;
+        const ascSign = SIGN_ABBR_TO_FULL[ascData?.sign] || ascData?.sign || 'Aries';
+        const rising = {
+            name: 'rising',
+            sign: ascSign,
+            signBg: SIGN_TRANSLATIONS[ascSign] || ascSign,
+            degree: parseFloat(ascData?.position ?? 0),
+            house: 1,
+            retrograde: false,
+            symbol: 'ASC',
+        };
+        // Build planets map
+        const planets = { rising };
+        for (const [apiName, key] of Object.entries(API_NAME_TO_KEY)) {
+            const p = planetLookup[apiName];
+            if (p) {
+                planets[key] = transformV3Planet(p, key);
+            }
         }
-        catch {
-            // Lilith is optional
+        // Compute south node as opposite of north node (180° away)
+        const nnData = planetLookup['True_Node'];
+        if (nnData) {
+            const nnAbs = parseFloat(nnData.absolute_longitude ?? 0);
+            const snAbs = (nnAbs + 180) % 360;
+            const snSignIdx = Math.floor(snAbs / 30);
+            const snSign = ZODIAC_ORDER[snSignIdx] || 'Libra';
+            const snDegree = snAbs % 30;
+            const nnHouse = parseInt(nnData.house ?? 1, 10);
+            const snHouse = ((nnHouse - 1 + 6) % 12) + 1;
+            planets.southNode = {
+                name: 'southNode',
+                sign: snSign,
+                signBg: SIGN_TRANSLATIONS[snSign] || snSign,
+                degree: snDegree,
+                house: snHouse,
+                retrograde: true,
+                symbol: '☋',
+            };
         }
+        else {
+            planets.southNode = {
+                name: 'southNode', sign: 'Libra', signBg: 'Везни',
+                degree: 0, house: 7, retrograde: true, symbol: '☋',
+            };
+        }
+        // Transform houses from v3 house_cusps array
+        const houses = (apiData.chart_data?.house_cusps || []).map((h) => {
+            const sign = SIGN_ABBR_TO_FULL[h.sign] || h.sign;
+            return {
+                number: parseInt(h.house, 10),
+                sign,
+                signBg: SIGN_TRANSLATIONS[sign] || sign,
+                degree: parseFloat(h.degree ?? 0),
+            };
+        });
+        // Transform aspects from v3 aspects array
+        const aspects = (apiData.chart_data?.aspects || []).map((a) => {
+            const aspectType = (a.aspect_type || 'conjunction').toLowerCase();
+            const p1 = (a.point1 || '').toLowerCase().replace('true_node', 'northNode');
+            const p2 = (a.point2 || '').toLowerCase().replace('true_node', 'northNode');
+            return {
+                planet1: p1,
+                planet2: p2,
+                aspect: aspectType,
+                aspectBg: ASPECT_TRANSLATIONS[aspectType] || aspectType,
+                orb: parseFloat(a.orb ?? 0),
+                nature: ASPECT_NATURE[aspectType] || 'neutral',
+            };
+        }).filter((a) => a.planet1 && a.planet2);
         const chart = {
             sun: planets.sun,
             moon: planets.moon,
@@ -447,13 +572,12 @@ async function calculateNatalChart(birthData) {
             northNode: planets.northNode,
             southNode: planets.southNode,
             chiron: planets.chiron,
-            lilith: planets.lilith,
-            houses: transformHousesData(apiData),
-            aspects: transformAspectsData(apiData),
+            houses,
+            aspects,
             elements: calculateElementDistribution(planets),
             modalities: calculateModalityDistribution(planets),
             calculatedAt: new Date().toISOString(),
-            source: 'astrology-api.io',
+            source: 'astrology-api.io-v3',
         };
         // ========================================
         // 3-Layer Caching Strategy

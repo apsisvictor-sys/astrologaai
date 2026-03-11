@@ -17,10 +17,7 @@ exports.storeResetToken = storeResetToken;
 exports.getResetToken = getResetToken;
 exports.invalidateResetToken = invalidateResetToken;
 exports.invalidateUserSessions = invalidateUserSessions;
-const redis_1 = require("redis");
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
-const globalForRedis = globalThis;
-// In-memory fallback cache for when Redis is unavailable
+// Redis disabled — using in-memory fallback only.
 const memoryCache = new Map();
 function createMemoryFallbackClient() {
     return {
@@ -39,6 +36,8 @@ function createMemoryFallbackClient() {
             keys.forEach(k => memoryCache.delete(k));
         },
         lPush: async (_key, _value) => { },
+        rPush: async (_key, _value) => { },
+        lPop: async (_key) => null,
         lTrim: async (_key, _start, _stop) => { },
         keys: async (_pattern) => [],
         ping: async () => 'PONG',
@@ -46,36 +45,10 @@ function createMemoryFallbackClient() {
         connect: async () => { },
     };
 }
-exports.redisClient = globalForRedis.redisClient ?? (0, redis_1.createClient)({
-    url: REDIS_URL,
-});
-if (process.env.NODE_ENV !== 'production') {
-    globalForRedis.redisClient = exports.redisClient;
-}
-// Track connection status
-let redisConnected = false;
-// Connect to Redis with graceful fallback
-exports.redisClient.connect().then(() => {
-    redisConnected = true;
-    console.log('[Redis] Connected successfully');
-}).catch((error) => {
-    console.warn('[Redis] Connection failed, using in-memory fallback:', error.message);
-    // Replace with memory fallback client
-    const fallback = createMemoryFallbackClient();
-    Object.assign(exports.redisClient, fallback);
-});
-exports.redisClient.on('error', (error) => {
-    // Don't spam logs with connection errors
-    if (!error.message.includes('ECONNREFUSED')) {
-        console.error('[Redis] Client error:', error);
-    }
-});
-exports.redisClient.on('connect', () => {
-    redisConnected = true;
-    console.log('[Redis] Connected successfully');
-});
+console.log('[Redis] Using in-memory fallback (Redis disabled)');
+exports.redisClient = createMemoryFallbackClient();
 function isRedisConnected() {
-    return redisConnected;
+    return false;
 }
 // ============================================
 // Session Context Management (US-09)

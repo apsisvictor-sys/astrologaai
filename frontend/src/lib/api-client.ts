@@ -17,6 +17,7 @@ const API_URL = getApiBaseUrl();
 
 // Storage keys
 const ACCESS_TOKEN_KEY = 'astrologaai_access_token';
+const REFRESH_TOKEN_KEY = 'astrologaai_refresh_token';
 const USER_KEY = 'astrologaai_user';
 
 // US-37: Exponential backoff configuration
@@ -82,6 +83,32 @@ function getAccessToken(): string | null {
 }
 
 /**
+ * Attempt to refresh the access token using the stored refresh token
+ */
+async function refreshAccessToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
+  if (!refreshToken) return null;
+  try {
+    const res = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refreshToken }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const newToken = data.data?.accessToken;
+    if (newToken) {
+      localStorage.setItem(ACCESS_TOKEN_KEY, newToken);
+      return newToken;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * API request options
  */
 export interface ApiRequestOptions extends RequestInit {
@@ -131,7 +158,8 @@ export async function apiRequest<T = unknown>(
 
   // US-37: Retry loop with exponential backoff
   let lastError: ApiError | null = null;
-  
+  let tokenRefreshed = false;
+
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {
@@ -142,8 +170,19 @@ export async function apiRequest<T = unknown>(
       const data = await response.json();
 
       if (!response.ok) {
+        // Handle 401: attempt token refresh once, then retry
+        if (response.status === 401 && !skipAuth && !tokenRefreshed) {
+          const newToken = await refreshAccessToken();
+          if (newToken) {
+            requestHeaders['Authorization'] = `Bearer ${newToken}`;
+            tokenRefreshed = true;
+            attempt--; // don't count the refresh attempt against retry limit
+            continue;
+          }
+        }
+
         // US-37: Check if we should retry
-        const shouldRetry = !skipRetry && 
+        const shouldRetry = !skipRetry &&
                            attempt < maxRetries && 
                            RETRY_CONFIG.retryableStatusCodes.includes(response.status);
         

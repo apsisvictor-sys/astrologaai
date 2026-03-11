@@ -10,8 +10,7 @@ import { adaptChartForWheel } from '@/components/chart/adapt-chart-for-wheel';
 import type { BackendNatalChart } from '@/components/chart/natal-chart-adapter';
 import type { NatalChart } from '@/components/chart/circular-chart-wheel';
 import { Sparkles, MessageSquare, Compass, Settings, Users, ArrowRight } from 'lucide-react';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
+import { apiGet } from '@/lib/api-client';
 
 interface BirthProfile {
   id: string;
@@ -95,14 +94,8 @@ export default function DashboardPage({
   async function loadChart() {
     setPhase('loading');
     try {
-      const token = localStorage.getItem('astrologaai_access_token');
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const profilesRes = await fetch(`${API_URL}/api/v1/birth-data`, { headers });
-      if (!profilesRes.ok) throw new Error('Failed to load profiles');
-      const profilesData = await profilesRes.json();
-      const profiles: BirthProfile[] =
-        profilesData.data?.profiles ?? profilesData.data ?? [];
+      const profilesResult = await apiGet<{ profiles?: BirthProfile[] }>('/api/v1/birth-data');
+      const profiles: BirthProfile[] = profilesResult.data?.profiles ?? [];
 
       if (!profiles.length) {
         setPhase('no-birth-data');
@@ -113,11 +106,8 @@ export default function DashboardPage({
       setProfileName(primary.name);
       setIsUnknownTime(primary.isUnknownTime);
 
-      const chartRes = await fetch(`${API_URL}/api/v1/birth-chart/${primary.id}`, { headers });
-      if (!chartRes.ok) throw new Error('Failed to load chart');
-      const chartData = await chartRes.json();
-      const chart: BackendNatalChart =
-        chartData.data?.chart ?? chartData.data ?? chartData;
+      const chartResult = await apiGet<{ chart?: BackendNatalChart }>(`/api/v1/birth-chart/${primary.id}`);
+      const chart: BackendNatalChart = chartResult.data?.chart ?? (chartResult.data as BackendNatalChart);
 
       setRawChart(chart);
       setAdaptedChart(adaptChartForWheel(chart));
