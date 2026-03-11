@@ -136,12 +136,12 @@ const PLANET_DESCRIPTIONS: Record<string, { en: string; bg: string }> = {
 
 // Aspect colors
 const ASPECT_COLORS: Record<string, string> = {
-  conjunction: '#e41aff',
-  sextile: '#10B981',
+  conjunction: colors.primary,
+  sextile: colors.success,
   square: '#ff0080',
-  trine: '#00f0ff',
+  trine: colors.secondary,
   opposition: '#ff6b6b',
-  quincunx: '#F59E0B',
+  quincunx: colors.warning,
 };
 
 interface PlanetPosition {
@@ -581,7 +581,7 @@ export default function CircularChartWheel({
   };
 
   return (
-    <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
+    <div className="relative w-full" style={{ aspectRatio: '1 / 1', maxWidth: size }}>
       <svg
         ref={svgRef}
         width="100%"
@@ -612,7 +612,7 @@ export default function CircularChartWheel({
           style={{
             left: tooltip.x + 15,
             top: tooltip.y + 15,
-            background: '#0D0010',
+            background: colors.background,
             border: '1px solid rgba(228,26,255,0.3)',
             borderRadius: '12px',
             boxShadow: '0 4px 30px rgba(228,26,255,0.15)',
