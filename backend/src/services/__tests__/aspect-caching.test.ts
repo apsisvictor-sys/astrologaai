@@ -8,7 +8,7 @@
  * 4. Orb bucket logic works correctly
  */
 
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from 'vitest';
 
 // Note: These tests require the functions to be exported from astrology.ts
 // For now, this is a documentation of expected behavior

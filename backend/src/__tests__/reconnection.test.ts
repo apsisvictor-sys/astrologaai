@@ -11,12 +11,12 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const { mockRedis } = vi.hoisted(() => {
   return {
     mockRedis: {
-      setex: vi.fn().mockResolvedValue('OK'),
+      setEx: vi.fn().mockResolvedValue('OK'),
       set: vi.fn().mockResolvedValue('OK'),
       get: vi.fn().mockResolvedValue(null),
       del: vi.fn().mockResolvedValue(1),
-      lrange: vi.fn().mockResolvedValue([]),
-      rpush: vi.fn().mockResolvedValue(1),
+      lRange: vi.fn().mockResolvedValue([]),
+      rPush: vi.fn().mockResolvedValue(1),
     },
   };
 });
@@ -49,7 +49,7 @@ describe('Reconnection Service', () => {
 
       await storeStreamState(testUserId, testConversationId, state);
 
-      expect(mockRedis.setex).toHaveBeenCalledWith(
+      expect(mockRedis.setEx).toHaveBeenCalledWith(
         `stream:state:${testUserId}:${testConversationId}`,
         3600,
         JSON.stringify(state)
@@ -58,7 +58,7 @@ describe('Reconnection Service', () => {
 
     it('should handle errors gracefully without throwing', async () => {
       const { storeStreamState } = await import('../services/reconnection');
-      mockRedis.setex.mockRejectedValueOnce(new Error('Redis error'));
+      mockRedis.setEx.mockRejectedValueOnce(new Error('Redis error'));
 
       // Should not throw
       await expect(
@@ -116,7 +116,7 @@ describe('Reconnection Service', () => {
   describe('queueMessage', () => {
     it('should add message to queue', async () => {
       const { queueMessage } = await import('../services/reconnection');
-      mockRedis.lrange.mockResolvedValueOnce([]);
+      mockRedis.lRange.mockResolvedValueOnce([]);
 
       await queueMessage(testUserId, {
         conversationId: testConversationId,
@@ -124,7 +124,7 @@ describe('Reconnection Service', () => {
         language: 'bg',
       });
 
-      expect(mockRedis.rpush).toHaveBeenCalled();
+      expect(mockRedis.rPush).toHaveBeenCalled();
     });
 
     it('should limit queue size to 50 messages', async () => {
@@ -133,7 +133,7 @@ describe('Reconnection Service', () => {
       const existingMessages = Array(50).fill(null).map((_, i) => 
         JSON.stringify({ content: `Message ${i}` })
       );
-      mockRedis.lrange.mockResolvedValueOnce(existingMessages);
+      mockRedis.lRange.mockResolvedValueOnce(existingMessages);
 
       await queueMessage(testUserId, {
         conversationId: testConversationId,
@@ -141,14 +141,14 @@ describe('Reconnection Service', () => {
       });
 
       // Should not add more messages
-      expect(mockRedis.rpush).not.toHaveBeenCalled();
+      expect(mockRedis.rPush).not.toHaveBeenCalled();
     });
   });
 
   describe('getQueuedMessages', () => {
     it('should return empty array when no messages', async () => {
       const { getQueuedMessages } = await import('../services/reconnection');
-      mockRedis.lrange.mockResolvedValueOnce([]);
+      mockRedis.lRange.mockResolvedValueOnce([]);
 
       const result = await getQueuedMessages(testUserId);
 
@@ -161,7 +161,7 @@ describe('Reconnection Service', () => {
         { conversationId: 'conv-1', content: 'Hello', queuedAt: '2024-01-01T00:00:00Z' },
         { conversationId: 'conv-2', content: 'World', queuedAt: '2024-01-01T00:00:01Z' },
       ];
-      mockRedis.lrange.mockResolvedValueOnce(
+      mockRedis.lRange.mockResolvedValueOnce(
         messages.map(m => JSON.stringify(m))
       );
 

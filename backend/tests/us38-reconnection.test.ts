@@ -10,26 +10,23 @@
  * 6. Max reconnection attempts
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi, mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
-// Mock Redis client - must be declared before vi.mock
-const mockRedisClient = {
-  setex: vi.fn().mockResolvedValue('OK'),
-  get: vi.fn().mockResolvedValue(null),
-  del: vi.fn().mockResolvedValue(1),
-  lrange: vi.fn().mockResolvedValue([]),
-  rpush: vi.fn().mockResolvedValue(1),
-};
+// Use vi.hoisted so mockRedisClient is available inside vi.mock factory AND test body
+const { mockRedisClient } = vi.hoisted(() => ({
+  mockRedisClient: {
+    setEx: vi.fn().mockResolvedValue('OK'),
+    set: vi.fn().mockResolvedValue('OK'),
+    get: vi.fn().mockResolvedValue(null),
+    del: vi.fn().mockResolvedValue(1),
+    lRange: vi.fn().mockResolvedValue([]),
+    rPush: vi.fn().mockResolvedValue(1),
+  },
+}));
 
 // Mock the redis module - vi.mock is hoisted
 vi.mock('../src/utils/redis', () => ({
-  redisClient: {
-    setex: vi.fn().mockResolvedValue('OK'),
-    get: vi.fn().mockResolvedValue(null),
-    del: vi.fn().mockResolvedValue(1),
-    lrange: vi.fn().mockResolvedValue([]),
-    rpush: vi.fn().mockResolvedValue(1),
-  },
+  redisClient: mockRedisClient,
 }));
 
 import { 
@@ -69,7 +66,7 @@ describe('US-38: Reconnection Service', () => {
 
       await storeStreamState(userId, conversationId, state);
 
-      expect(mockRedisClient.setex).toHaveBeenCalledWith(
+      expect(mockRedisClient.setEx).toHaveBeenCalledWith(
         `stream:state:${userId}:${conversationId}`,
         3600,
         JSON.stringify(state)
@@ -110,7 +107,7 @@ describe('US-38: Reconnection Service', () => {
     });
 
     it('should handle Redis errors gracefully when storing state', async () => {
-      mockRedisClient.setex.mockRejectedValueOnce(new Error('Redis error'));
+      mockRedisClient.setEx.mockRejectedValueOnce(new Error('Redis error'));
 
       // Should not throw
       await expect(
@@ -179,13 +176,13 @@ describe('US-38: Reconnection Service', () => {
         messageId: 'msg-789',
       };
 
-      mockRedisClient.lrange.mockResolvedValueOnce([]);
+      mockRedisClient.lRange.mockResolvedValueOnce([]);
       mockRedisClient.del.mockResolvedValueOnce(1);
-      mockRedisClient.rpush.mockResolvedValue(1);
+      mockRedisClient.rPush.mockResolvedValue(1);
 
       await queueMessage(userId, message);
 
-      expect(mockRedisClient.rpush).toHaveBeenCalled();
+      expect(mockRedisClient.rPush).toHaveBeenCalled();
     });
 
     it('should limit queue to 50 messages', async () => {
@@ -194,7 +191,7 @@ describe('US-38: Reconnection Service', () => {
         JSON.stringify({ content: `Message ${i}`, queuedAt: '2026-01-01T00:00:00Z' })
       );
 
-      mockRedisClient.lrange.mockResolvedValueOnce(existingMessages);
+      mockRedisClient.lRange.mockResolvedValueOnce(existingMessages);
 
       const newMessage = {
         conversationId: 'conv-456',
@@ -204,7 +201,7 @@ describe('US-38: Reconnection Service', () => {
       await queueMessage(userId, newMessage);
 
       // Should still be called but with updated queue
-      expect(mockRedisClient.rpush).toHaveBeenCalled();
+      expect(mockRedisClient.rPush).toHaveBeenCalled();
     });
 
     it('should get queued messages', async () => {
@@ -213,7 +210,7 @@ describe('US-38: Reconnection Service', () => {
         { content: 'Message 2', queuedAt: '2026-01-01T00:01:00Z' },
       ];
 
-      mockRedisClient.lrange.mockResolvedValueOnce(
+      mockRedisClient.lRange.mockResolvedValueOnce(
         queuedMessages.map(m => JSON.stringify(m))
       );
 
@@ -224,7 +221,7 @@ describe('US-38: Reconnection Service', () => {
     });
 
     it('should return empty array when Redis unavailable', async () => {
-      mockRedisClient.lrange.mockRejectedValueOnce(new Error('Redis error'));
+      mockRedisClient.lRange.mockRejectedValueOnce(new Error('Redis error'));
 
       const result = await getQueuedMessages(userId);
 

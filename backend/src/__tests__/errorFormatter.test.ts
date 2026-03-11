@@ -27,17 +27,17 @@ const mockRequest = (headers: any = {}, user: any = null) => ({
 
 const mockResponse = () => {
   const res: any = {};
-  res.status = jest.fn().mockReturnValue(res);
-  res.json = jest.fn().mockReturnValue(res);
-  res.setHeader = jest.fn().mockReturnValue(res);
+  res.status = vi.fn().mockReturnValue(res);
+  res.json = vi.fn().mockReturnValue(res);
+  res.setHeader = vi.fn().mockReturnValue(res);
   return res as Response;
 };
 
-const mockNext = jest.fn() as NextFunction;
+const mockNext = vi.fn() as NextFunction;
 
 describe('Error Formatter Middleware', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('detectLanguage', () => {
@@ -196,7 +196,7 @@ describe('Error Formatter Middleware', () => {
       expect(res.setHeader).toHaveBeenCalledWith('Content-Language', 'bg');
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'application/json');
       
-      const response = (res.json as jest.Mock).mock.calls[0][0];
+      const response = (res.json as vi.Mock).mock.calls[0][0];
       expect(response.success).toBe(false);
       expect(response.error.code).toBe('VALID_REQUIRED_FIELD');
     });
@@ -229,7 +229,7 @@ describe('Error Formatter Middleware', () => {
       const res = mockResponse();
       
       // Mock formatErrorResponse to throw error
-      jest.spyOn(require('../middleware/errorFormatter'), 'formatErrorResponse')
+      vi.spyOn(require('../middleware/errorFormatter'), 'formatErrorResponse')
         .mockImplementation(() => { throw new Error('Formatting failed'); });
       
       const error = createAppError('SERVER_INTERNAL_ERROR', 'Internal error');
@@ -239,7 +239,7 @@ describe('Error Formatter Middleware', () => {
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalled();
       
-      const response = (res.json as jest.Mock).mock.calls[0][0];
+      const response = (res.json as vi.Mock).mock.calls[0][0];
       expect(response.error.code).toBe('SERVER_INTERNAL_ERROR');
       expect(response.error.message).toBe('An unexpected error occurred.');
     });

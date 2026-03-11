@@ -3,39 +3,52 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 
-// Mock jsonwebtoken before importing routes
-jest.mock('jsonwebtoken', () => ({
-  sign: jest.fn().mockImplementation((payload) => {
-    const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
-    return `mock-token-header.${base64Payload}.mock-signature`;
-  }),
-  verify: jest.fn(),
-  decode: jest.fn().mockImplementation((token) => {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      try {
-        return JSON.parse(Buffer.from(parts[1], 'base64').toString());
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }),
+// Mock jwt utility so JWT_SECRET module-load check doesn't throw
+vi.mock('../../src/utils/jwt', () => ({
+  JWT_SECRET: 'test-secret-for-integration-tests',
+  JWT_CONFIG: { expiresIn: '15m', refreshExpiresIn: '7d' },
+  getJWTSecret: () => 'test-secret-for-integration-tests',
 }));
 
+// Mock jsonwebtoken before importing routes
+vi.mock('jsonwebtoken', () => {
+  const jwtMock = {
+    sign: vi.fn().mockImplementation((payload) => {
+      const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
+      return `mock-token-header.${base64Payload}.mock-signature`;
+    }),
+    verify: vi.fn(),
+    decode: vi.fn().mockImplementation((token) => {
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        try {
+          return JSON.parse(Buffer.from(parts[1], 'base64').toString());
+        } catch {
+          return null;
+        }
+      }
+      return null;
+    }),
+  };
+  return { default: jwtMock, ...jwtMock };
+});
+
 // Mock Prisma before importing routes
-jest.mock('../../src/utils/prisma', () => ({
-  user: {
-    findUnique: jest.fn(),
-    create: jest.fn(),
-  },
-  profile: {
-    create: jest.fn(),
-  },
-  usageRecord: {
-    create: jest.fn(),
-  },
-}));
+vi.mock('../../src/utils/prisma', () => {
+  const prismaMock = {
+    user: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
+    profile: {
+      create: vi.fn(),
+    },
+    usageRecord: {
+      create: vi.fn(),
+    },
+  };
+  return { default: prismaMock, ...prismaMock };
+});
 
 // Import controller directly for testing without rate limiting
 import { AuthController } from '../../src/controllers/authController';
@@ -59,7 +72,7 @@ describe('POST /api/v1/auth/register', () => {
   let app: express.Application;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     app = createTestApp();
   });
 
@@ -153,8 +166,8 @@ describe('POST /api/v1/auth/register', () => {
   describe('Successful registration (mocked)', () => {
     it('should return 201 for successful registration', async () => {
       // Setup mock return values
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.user.create as jest.Mock).mockResolvedValue({
+      (prisma.user.findUnique as vi.Mock).mockResolvedValue(null);
+      (prisma.user.create as vi.Mock).mockResolvedValue({
         id: 'new-user-id',
         email: 'newuser@example.com',
         fullName: 'Test User',
@@ -163,8 +176,8 @@ describe('POST /api/v1/auth/register', () => {
         emailVerified: false,
         createdAt: new Date(),
       });
-      (prisma.profile.create as jest.Mock).mockResolvedValue({});
-      (prisma.usageRecord.create as jest.Mock).mockResolvedValue({});
+      (prisma.profile.create as vi.Mock).mockResolvedValue({});
+      (prisma.usageRecord.create as vi.Mock).mockResolvedValue({});
 
       const validData = {
         email: 'newuser@example.com',
@@ -187,7 +200,7 @@ describe('POST /api/v1/auth/register', () => {
 
     it('should return 409 for duplicate email', async () => {
       // Setup mock to simulate existing user
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+      (prisma.user.findUnique as vi.Mock).mockResolvedValue({
         id: 'existing-user',
         email: 'existing@example.com',
       });
@@ -205,8 +218,8 @@ describe('POST /api/v1/auth/register', () => {
     });
 
     it('should normalize email to lowercase', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.user.create as jest.Mock).mockResolvedValue({
+      (prisma.user.findUnique as vi.Mock).mockResolvedValue(null);
+      (prisma.user.create as vi.Mock).mockResolvedValue({
         id: 'new-user-id',
         email: 'test@example.com', // Should be lowercased
         fullName: null,
@@ -215,8 +228,8 @@ describe('POST /api/v1/auth/register', () => {
         emailVerified: false,
         createdAt: new Date(),
       });
-      (prisma.profile.create as jest.Mock).mockResolvedValue({});
-      (prisma.usageRecord.create as jest.Mock).mockResolvedValue({});
+      (prisma.profile.create as vi.Mock).mockResolvedValue({});
+      (prisma.usageRecord.create as vi.Mock).mockResolvedValue({});
 
       const response = await request(app)
         .post('/api/v1/auth/register')
@@ -227,7 +240,7 @@ describe('POST /api/v1/auth/register', () => {
 
       expect(response.status).toBe(201);
       // Check that user.create was called with lowercase email
-      const createCall = (prisma.user.create as jest.Mock).mock.calls[0][0];
+      const createCall = (prisma.user.create as vi.Mock).mock.calls[0][0];
       expect(createCall.data.email).toBe('test@example.com');
     });
   });

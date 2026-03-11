@@ -7,30 +7,35 @@ import winston from 'winston';
 import { errorLogger, sanitizeContext, generateRequestId } from '../utils/errorLogger';
 
 // Mock winston logger
-jest.mock('winston', () => {
+vi.mock('winston', () => {
   const mockLogger = {
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
     level: 'info',
     transports: [],
     defaultMeta: {},
   };
-  
-  return {
-    createLogger: jest.fn(() => mockLogger),
+
+  const winstonMock = {
+    createLogger: vi.fn(() => mockLogger),
     format: {
-      combine: jest.fn(),
-      timestamp: jest.fn(),
-      json: jest.fn(),
-      colorize: jest.fn(),
-      printf: jest.fn(),
+      combine: vi.fn(),
+      timestamp: vi.fn(),
+      json: vi.fn(),
+      colorize: vi.fn(),
+      printf: vi.fn(),
     },
     transports: {
-      Console: jest.fn(),
-      File: jest.fn(),
+      Console: vi.fn(),
+      File: vi.fn(),
     },
+  };
+
+  return {
+    default: winstonMock,
+    ...winstonMock,
   };
 });
 
@@ -38,8 +43,8 @@ describe('Error Logger', () => {
   let mockWinstonLogger: any;
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    mockWinstonLogger = (winston.createLogger as jest.Mock)();
+    vi.clearAllMocks();
+    mockWinstonLogger = (winston.createLogger as vi.Mock)();
   });
 
   describe('Basic Logging Functions', () => {
@@ -52,7 +57,7 @@ describe('Error Logger', () => {
       expect(mockWinstonLogger.debug).toHaveBeenCalled();
       
       // Reset mock
-      (mockWinstonLogger.debug as jest.Mock).mockClear();
+      (mockWinstonLogger.debug as vi.Mock).mockClear();
       
       // Test in production
       process.env.NODE_ENV = 'production';
@@ -393,7 +398,7 @@ describe('Error Logger', () => {
         arrayField: [1, 2, 3],
       });
       
-      const logEntry = (mockWinstonLogger.info as jest.Mock).mock.calls[0][1];
+      const logEntry = (mockWinstonLogger.info as vi.Mock).mock.calls[0][1];
       
       // Check required fields
       expect(logEntry).toHaveProperty('timestamp');
@@ -417,7 +422,7 @@ describe('Error Logger', () => {
     test('should include error code when provided', () => {
       errorLogger.error('Error message', 'SERVER_INTERNAL_ERROR');
       
-      const logEntry = (mockWinstonLogger.error as jest.Mock).mock.calls[0][1];
+      const logEntry = (mockWinstonLogger.error as vi.Mock).mock.calls[0][1];
       expect(logEntry).toHaveProperty('errorCode', 'SERVER_INTERNAL_ERROR');
     });
     
@@ -435,7 +440,7 @@ describe('Error Logger', () => {
         stackTrace: 'stack trace here',
       });
       
-      const logEntry = (mockWinstonLogger.warn as jest.Mock).mock.calls[0][1];
+      const logEntry = (mockWinstonLogger.warn as vi.Mock).mock.calls[0][1];
       
       expect(logEntry.userId).toBe('user-123');
       expect(logEntry.requestId).toBe('req-456');

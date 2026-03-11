@@ -17,7 +17,7 @@ import { describe, it, expect, vi } from 'vitest';
 describe('Language Directive Injection - Chat System', () => {
   describe('getLanguageDirective', () => {
     it('should return Bulgarian directive for bg language', async () => {
-      const { getLanguageDirective } = await import('../src/services/llm-legacy');
+      const { getLanguageDirective } = await import('../src/services/llm-helpers');
       
       const directive = getLanguageDirective('bg');
       
@@ -27,7 +27,7 @@ describe('Language Directive Injection - Chat System', () => {
     });
 
     it('should return English directive for en language', async () => {
-      const { getLanguageDirective } = await import('../src/services/llm-legacy');
+      const { getLanguageDirective } = await import('../src/services/llm-helpers');
       
       const directive = getLanguageDirective('en');
       
@@ -38,7 +38,7 @@ describe('Language Directive Injection - Chat System', () => {
 
   describe('buildSystemPrompt', () => {
     it('should include Bulgarian language directive in system prompt', async () => {
-      const { buildSystemPrompt } = await import('../src/services/llm-legacy');
+      const { buildSystemPrompt } = await import('../src/services/llm-helpers');
       
       const context = {
         language: 'bg' as const,
@@ -53,7 +53,7 @@ describe('Language Directive Injection - Chat System', () => {
     });
 
     it('should include English language directive in system prompt', async () => {
-      const { buildSystemPrompt } = await import('../src/services/llm-legacy');
+      const { buildSystemPrompt } = await import('../src/services/llm-helpers');
       
       const context = {
         language: 'en' as const,
@@ -67,7 +67,7 @@ describe('Language Directive Injection - Chat System', () => {
     });
 
     it('should include chart context when provided', async () => {
-      const { buildSystemPrompt } = await import('../src/services/llm-legacy');
+      const { buildSystemPrompt } = await import('../src/services/llm-helpers');
       
       const context = {
         language: 'bg' as const,
@@ -82,7 +82,7 @@ describe('Language Directive Injection - Chat System', () => {
     });
 
     it('should include session summary for context persistence', async () => {
-      const { buildSystemPrompt } = await import('../src/services/llm-legacy');
+      const { buildSystemPrompt } = await import('../src/services/llm-helpers');
       
       const context = {
         language: 'bg' as const,
@@ -102,7 +102,7 @@ describe('Language Directive Injection - Chat System', () => {
 
   describe('generateSessionSummary', () => {
     it('should generate summary with language parameter', async () => {
-      const { generateSessionSummary } = await import('../src/services/llm-legacy');
+      const { generateSessionSummary } = await import('../src/services/llm-helpers');
       
       const messages = [
         { role: 'user', content: 'What about my career?' },
@@ -269,7 +269,7 @@ describe('Chat Controller - Language Handling', () => {
 
 describe('Language Directive Integration', () => {
   it('should pass language through entire chat flow', async () => {
-    const { buildSystemPrompt, getLanguageDirective } = await import('../src/services/llm-legacy');
+    const { buildSystemPrompt, getLanguageDirective } = await import('../src/services/llm-helpers');
     
     // Simulate chat flow with Bulgarian
     const context = {

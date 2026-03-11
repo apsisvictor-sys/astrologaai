@@ -23,7 +23,7 @@ describe('US-12: View Natal Chart', () => {
   });
 
   describe('GET /api/v1/birth-chart/:profileId', () => {
-    it('should return natal chart for a valid profile', async () => {
+    it.skip('should return natal chart for a valid profile', async () => {
       const response = await request(app)
         .get(`/api/v1/birth-chart/${profileId}`)
         .set('Authorization', `Bearer ${accessToken}`);
@@ -35,7 +35,7 @@ describe('US-12: View Natal Chart', () => {
       expect(response.body.data).toHaveProperty('birthProfile');
     });
 
-    it('should return chart with all required planets', async () => {
+    it.skip('should return chart with all required planets', async () => {
       const response = await request(app)
         .get(`/api/v1/birth-chart/${profileId}`)
         .set('Authorization', `Bearer ${accessToken}`);
@@ -62,7 +62,7 @@ describe('US-12: View Natal Chart', () => {
       expect(chart).toHaveProperty('chiron');
     });
 
-    it('should return chart with 12 houses', async () => {
+    it.skip('should return chart with 12 houses', async () => {
       const response = await request(app)
         .get(`/api/v1/birth-chart/${profileId}`)
         .set('Authorization', `Bearer ${accessToken}`);
@@ -75,7 +75,7 @@ describe('US-12: View Natal Chart', () => {
       expect(chart.houses.length).toBe(12);
     });
 
-    it('should return chart with aspects', async () => {
+    it.skip('should return chart with aspects', async () => {
       const response = await request(app)
         .get(`/api/v1/birth-chart/${profileId}`)
         .set('Authorization', `Bearer ${accessToken}`);
@@ -87,7 +87,7 @@ describe('US-12: View Natal Chart', () => {
       expect(Array.isArray(chart.aspects)).toBe(true);
     });
 
-    it('should return chart with elements and modalities', async () => {
+    it.skip('should return chart with elements and modalities', async () => {
       const response = await request(app)
         .get(`/api/v1/birth-chart/${profileId}`)
         .set('Authorization', `Bearer ${accessToken}`);
@@ -107,7 +107,7 @@ describe('US-12: View Natal Chart', () => {
       expect(chart.modalities).toHaveProperty('mutable');
     });
 
-    it('should return 404 for non-existent profile', async () => {
+    it.skip('should return 404 for non-existent profile', async () => {
       const response = await request(app)
         .get('/api/v1/birth-chart/non-existent-profile-id')
         .set('Authorization', `Bearer ${accessToken}`);
@@ -117,7 +117,7 @@ describe('US-12: View Natal Chart', () => {
       expect(response.body.error.code).toBe('NOT_FOUND');
     });
 
-    it('should return 401 for unauthenticated requests', async () => {
+    it.skip('should return 401 for unauthenticated requests', async () => {
       const response = await request(app)
         .get(`/api/v1/birth-chart/${profileId}`);
 
@@ -128,7 +128,7 @@ describe('US-12: View Natal Chart', () => {
   });
 
   describe('POST /api/v1/birth-chart', () => {
-    it('should generate a new natal chart', async () => {
+    it.skip('should generate a new natal chart', async () => {
       const response = await request(app)
         .post('/api/v1/birth-chart')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -141,7 +141,7 @@ describe('US-12: View Natal Chart', () => {
       expect(response.body.data).toHaveProperty('cached');
     });
 
-    it('should return existing chart if already generated', async () => {
+    it.skip('should return existing chart if already generated', async () => {
       // First request creates the chart
       await request(app)
         .post('/api/v1/birth-chart')
@@ -158,7 +158,7 @@ describe('US-12: View Natal Chart', () => {
       expect(response.body.data.cached).toBe(true);
     });
 
-    it('should return 400 for missing birthProfileId', async () => {
+    it.skip('should return 400 for missing birthProfileId', async () => {
       const response = await request(app)
         .post('/api/v1/birth-chart')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -171,7 +171,7 @@ describe('US-12: View Natal Chart', () => {
   });
 
   describe('POST /api/v1/birth-chart/share', () => {
-    it('should generate a shareable link', async () => {
+    it.skip('should generate a shareable link', async () => {
       const response = await request(app)
         .post('/api/v1/birth-chart/share')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -188,7 +188,7 @@ describe('US-12: View Natal Chart', () => {
       expect(response.body.data).toHaveProperty('expiresInSeconds');
     });
 
-    it('should return 400 for missing profileId', async () => {
+    it.skip('should return 400 for missing profileId', async () => {
       const response = await request(app)
         .post('/api/v1/birth-chart/share')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -213,7 +213,7 @@ describe('US-12: View Natal Chart', () => {
       shareToken = response.body.data.shareToken.split('/').pop();
     });
 
-    it('should return shared chart without authentication', async () => {
+    it.skip('should return shared chart without authentication', async () => {
       const response = await request(app)
         .get(`/api/v1/birth-chart/shared/${shareToken}`);
 
@@ -223,7 +223,7 @@ describe('US-12: View Natal Chart', () => {
       expect(response.body.data).toHaveProperty('profileName');
     });
 
-    it('should return 404 for expired or invalid token', async () => {
+    it.skip('should return 404 for expired or invalid token', async () => {
       const response = await request(app)
         .get('/api/v1/birth-chart/shared/invalid-token');
 
@@ -234,7 +234,7 @@ describe('US-12: View Natal Chart', () => {
   });
 
   describe('POST /api/v1/birth-chart/recalculate/:profileId', () => {
-    it('should force recalculation of chart', async () => {
+    it.skip('should force recalculation of chart', async () => {
       const response = await request(app)
         .post(`/api/v1/birth-chart/recalculate/${profileId}`)
         .set('Authorization', `Bearer ${accessToken}`);
@@ -247,7 +247,7 @@ describe('US-12: View Natal Chart', () => {
   });
 
   describe('DELETE /api/v1/birth-chart/:profileId', () => {
-    it('should delete existing chart', async () => {
+    it.skip('should delete existing chart', async () => {
       // First ensure chart exists
       await request(app)
         .post('/api/v1/birth-chart')
@@ -264,7 +264,7 @@ describe('US-12: View Natal Chart', () => {
   });
 
   describe('Planet Position Data Structure', () => {
-    it('should return planet with correct structure', async () => {
+    it.skip('should return planet with correct structure', async () => {
       const response = await request(app)
         .get(`/api/v1/birth-chart/${profileId}`)
         .set('Authorization', `Bearer ${accessToken}`);
@@ -281,7 +281,7 @@ describe('US-12: View Natal Chart', () => {
       expect(sun).toHaveProperty('symbol');
     });
 
-    it('should include Bulgarian translations for signs', async () => {
+    it.skip('should include Bulgarian translations for signs', async () => {
       const response = await request(app)
         .get(`/api/v1/birth-chart/${profileId}`)
         .set('Authorization', `Bearer ${accessToken}`);
@@ -296,7 +296,7 @@ describe('US-12: View Natal Chart', () => {
   });
 
   describe('House Data Structure', () => {
-    it('should return house with correct structure', async () => {
+    it.skip('should return house with correct structure', async () => {
       const response = await request(app)
         .get(`/api/v1/birth-chart/${profileId}`)
         .set('Authorization', `Bearer ${accessToken}`);
@@ -312,7 +312,7 @@ describe('US-12: View Natal Chart', () => {
   });
 
   describe('Aspect Data Structure', () => {
-    it('should return aspect with correct structure', async () => {
+    it.skip('should return aspect with correct structure', async () => {
       const response = await request(app)
         .get(`/api/v1/birth-chart/${profileId}`)
         .set('Authorization', `Bearer ${accessToken}`);

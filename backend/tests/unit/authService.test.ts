@@ -1,50 +1,64 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+
+// Mock jwt utility so JWT_SECRET module-load check doesn't throw
+vi.mock('../../src/utils/jwt', () => ({
+  JWT_SECRET: 'test-secret-for-unit-tests',
+  JWT_CONFIG: { expiresIn: '15m', refreshExpiresIn: '7d' },
+  getJWTSecret: () => 'test-secret-for-unit-tests',
+}));
+
 import { AuthService } from '../../src/services/authService';
 
 // Mock jsonwebtoken
-jest.mock('jsonwebtoken', () => ({
-  sign: jest.fn().mockImplementation((payload, secret, options) => {
-    // Return a mock JWT token format
-    const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
-    return `mock-token-header.${base64Payload}.mock-signature`;
-  }),
-  verify: jest.fn(),
-  decode: jest.fn().mockImplementation((token) => {
-    // Extract payload from mock token
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      try {
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-        return payload;
-      } catch {
-        return null;
+vi.mock('jsonwebtoken', () => {
+  const jwtMock = {
+    sign: vi.fn().mockImplementation((payload, secret, options) => {
+      // Return a mock JWT token format
+      const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
+      return `mock-token-header.${base64Payload}.mock-signature`;
+    }),
+    verify: vi.fn(),
+    decode: vi.fn().mockImplementation((token) => {
+      // Extract payload from mock token
+      const parts = token.split('.');
+      if (parts.length === 3) {
+        try {
+          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
+          return payload;
+        } catch {
+          return null;
+        }
       }
-    }
-    return null;
-  }),
-}));
+      return null;
+    }),
+  };
+  return { default: jwtMock, ...jwtMock };
+});
 
 // Mock Prisma
-jest.mock('../../src/utils/prisma', () => ({
-  user: {
-    findUnique: jest.fn(),
-    create: jest.fn(),
-  },
-  profile: {
-    create: jest.fn(),
-  },
-  usageRecord: {
-    create: jest.fn(),
-  },
-}));
+vi.mock('../../src/utils/prisma', () => {
+  const prismaMock = {
+    user: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+    },
+    profile: {
+      create: vi.fn(),
+    },
+    usageRecord: {
+      create: vi.fn(),
+    },
+  };
+  return { default: prismaMock, ...prismaMock };
+});
 
 // Import the mocked prisma
 import prisma from '../../src/utils/prisma';
 
 describe('AuthService', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('generateTokens', () => {
@@ -104,7 +118,7 @@ describe('AuthService', () => {
       const secret = process.env.JWT_SECRET || 'default-secret-change-in-production';
       
       // Mock jwt.verify to return the payload
-      (jwt.verify as jest.Mock).mockReturnValue(payload);
+      (jwt.verify as vi.Mock).mockReturnValue(payload);
 
       const result = AuthService.verifyToken('valid-token');
 
@@ -115,7 +129,7 @@ describe('AuthService', () => {
 
     it('should return null for invalid token', () => {
       // Mock jwt.verify to throw an error
-      (jwt.verify as jest.Mock).mockImplementation(() => {
+      (jwt.verify as vi.Mock).mockImplementation(() => {
         throw new Error('Invalid token');
       });
 
@@ -125,7 +139,7 @@ describe('AuthService', () => {
 
     it('should return null for expired token', () => {
       // Mock jwt.verify to throw an expired error
-      (jwt.verify as jest.Mock).mockImplementation(() => {
+      (jwt.verify as vi.Mock).mockImplementation(() => {
         const error = new Error('Token expired');
         (error as Error & { name: string }).name = 'TokenExpiredError';
         throw error;
@@ -138,7 +152,7 @@ describe('AuthService', () => {
 
   describe('register', () => {
     it('should throw error if user already exists', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue({
+      (prisma.user.findUnique as vi.Mock).mockResolvedValue({
         id: 'existing-user',
         email: 'existing@example.com',
       });
@@ -156,8 +170,8 @@ describe('AuthService', () => {
     });
 
     it('should create user with correct default values', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.user.create as jest.Mock).mockResolvedValue({
+      (prisma.user.findUnique as vi.Mock).mockResolvedValue(null);
+      (prisma.user.create as vi.Mock).mockResolvedValue({
         id: 'new-user-id',
         email: 'newuser@example.com',
         fullName: 'Test User',
@@ -166,8 +180,8 @@ describe('AuthService', () => {
         emailVerified: false,
         createdAt: new Date(),
       });
-      (prisma.profile.create as jest.Mock).mockResolvedValue({});
-      (prisma.usageRecord.create as jest.Mock).mockResolvedValue({});
+      (prisma.profile.create as vi.Mock).mockResolvedValue({});
+      (prisma.usageRecord.create as vi.Mock).mockResolvedValue({});
 
       const result = await AuthService.register({
         email: 'newuser@example.com',
@@ -187,8 +201,8 @@ describe('AuthService', () => {
       const password = 'Password123';
       let storedHash: string | undefined;
 
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.user.create as jest.Mock).mockImplementation((data: { data: { passwordHash: string } }) => {
+      (prisma.user.findUnique as vi.Mock).mockResolvedValue(null);
+      (prisma.user.create as vi.Mock).mockImplementation((data: { data: { passwordHash: string } }) => {
         storedHash = data.data.passwordHash;
         return Promise.resolve({
           id: 'new-user-id',
@@ -200,8 +214,8 @@ describe('AuthService', () => {
           createdAt: new Date(),
         });
       });
-      (prisma.profile.create as jest.Mock).mockResolvedValue({});
-      (prisma.usageRecord.create as jest.Mock).mockResolvedValue({});
+      (prisma.profile.create as vi.Mock).mockResolvedValue({});
+      (prisma.usageRecord.create as vi.Mock).mockResolvedValue({});
 
       await AuthService.register({
         email: 'newuser@example.com',
@@ -221,8 +235,8 @@ describe('AuthService', () => {
     });
 
     it('should create profile with default notification preferences', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.user.create as jest.Mock).mockResolvedValue({
+      (prisma.user.findUnique as vi.Mock).mockResolvedValue(null);
+      (prisma.user.create as vi.Mock).mockResolvedValue({
         id: 'new-user-id',
         email: 'newuser@example.com',
         fullName: null,
@@ -233,11 +247,11 @@ describe('AuthService', () => {
       });
       
       let profileData: Record<string, unknown> | undefined;
-      (prisma.profile.create as jest.Mock).mockImplementation((data: { data: Record<string, unknown> }) => {
+      (prisma.profile.create as vi.Mock).mockImplementation((data: { data: Record<string, unknown> }) => {
         profileData = data.data;
         return Promise.resolve({});
       });
-      (prisma.usageRecord.create as jest.Mock).mockResolvedValue({});
+      (prisma.usageRecord.create as vi.Mock).mockResolvedValue({});
 
       await AuthService.register({
         email: 'newuser@example.com',
@@ -253,8 +267,8 @@ describe('AuthService', () => {
     });
 
     it('should create usage record for current month', async () => {
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(null);
-      (prisma.user.create as jest.Mock).mockResolvedValue({
+      (prisma.user.findUnique as vi.Mock).mockResolvedValue(null);
+      (prisma.user.create as vi.Mock).mockResolvedValue({
         id: 'new-user-id',
         email: 'newuser@example.com',
         fullName: null,
@@ -263,10 +277,10 @@ describe('AuthService', () => {
         emailVerified: false,
         createdAt: new Date(),
       });
-      (prisma.profile.create as jest.Mock).mockResolvedValue({});
+      (prisma.profile.create as vi.Mock).mockResolvedValue({});
       
       let usageData: Record<string, unknown> | undefined;
-      (prisma.usageRecord.create as jest.Mock).mockImplementation((data: { data: Record<string, unknown> }) => {
+      (prisma.usageRecord.create as vi.Mock).mockImplementation((data: { data: Record<string, unknown> }) => {
         usageData = data.data;
         return Promise.resolve({});
       });
