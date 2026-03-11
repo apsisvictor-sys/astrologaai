@@ -314,7 +314,7 @@ router.post('/checkout', authMiddleware, async (req: Request, res: Response) => 
     const userId = (req as any).user.id;
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true, fullName: true },
+      select: { email: true, fullName: true, referredBySlug: true },
     });
     
     // Get or create Stripe customer
@@ -366,6 +366,28 @@ router.post('/checkout', authMiddleware, async (req: Request, res: Response) => 
       });
     }
     
+    // Resolve optional discount from referral link
+    let discounts: { promotion_code: string }[] | undefined;
+    if (user?.referredBySlug) {
+      try {
+        const referralLink = await prisma.referralLink.findUnique({
+          where: { slug: user.referredBySlug, isActive: true },
+          select: { discountCode: true },
+        });
+        if (referralLink?.discountCode) {
+          const dc = await prisma.discountCode.findUnique({
+            where: { code: referralLink.discountCode, isActive: true },
+            select: { stripePromotionCodeId: true },
+          });
+          if (dc?.stripePromotionCodeId) {
+            discounts = [{ promotion_code: dc.stripePromotionCodeId }];
+          }
+        }
+      } catch (err) {
+        console.warn('[Checkout] Failed to resolve referral discount:', err);
+      }
+    }
+
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -377,6 +399,7 @@ router.post('/checkout', authMiddleware, async (req: Request, res: Response) => 
         },
       ],
       mode: 'subscription',
+      ...(discounts ? { discounts } : {}),
       success_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/pricing?checkout=cancel`,
       metadata: {

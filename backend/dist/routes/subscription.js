@@ -313,7 +313,7 @@ router.post('/checkout', auth_1.authMiddleware, async (req, res) => {
         const userId = req.user.id;
         const user = await prisma_1.prisma.user.findUnique({
             where: { id: userId },
-            select: { email: true, fullName: true },
+            select: { email: true, fullName: true, referredBySlug: true },
         });
         // Get or create Stripe customer
         let subscription = await prisma_1.prisma.subscription.findUnique({
@@ -358,6 +358,28 @@ router.post('/checkout', auth_1.authMiddleware, async (req, res) => {
                 },
             });
         }
+        // Resolve optional discount from referral link
+        let discounts;
+        if (user?.referredBySlug) {
+            try {
+                const referralLink = await prisma_1.prisma.referralLink.findUnique({
+                    where: { slug: user.referredBySlug, isActive: true },
+                    select: { discountCode: true },
+                });
+                if (referralLink?.discountCode) {
+                    const dc = await prisma_1.prisma.discountCode.findUnique({
+                        where: { code: referralLink.discountCode, isActive: true },
+                        select: { stripePromotionCodeId: true },
+                    });
+                    if (dc?.stripePromotionCodeId) {
+                        discounts = [{ promotion_code: dc.stripePromotionCodeId }];
+                    }
+                }
+            }
+            catch (err) {
+                console.warn('[Checkout] Failed to resolve referral discount:', err);
+            }
+        }
         // Create checkout session
         const session = await stripe.checkout.sessions.create({
             customer: customerId,
@@ -369,6 +391,7 @@ router.post('/checkout', auth_1.authMiddleware, async (req, res) => {
                 },
             ],
             mode: 'subscription',
+            ...(discounts ? { discounts: discounts } : {}),
             success_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/pricing?checkout=cancel`,
             metadata: {
