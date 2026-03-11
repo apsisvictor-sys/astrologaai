@@ -884,7 +884,38 @@ router.post('/webhook', async (req: Request, res: Response) => {
             where: { id: userId },
             data: { tier: tier as any },
           });
-          
+
+          // Record referral conversion if this user was referred
+          try {
+            const referredUser = await prisma.user.findUnique({
+              where: { id: userId },
+              select: { referredBySlug: true },
+            });
+            if (referredUser?.referredBySlug) {
+              const referralLink = await prisma.referralLink.findUnique({
+                where: { slug: referredUser.referredBySlug },
+                select: { id: true, commissionRate: true },
+              });
+              if (referralLink) {
+                const amountTotal = (session as any).amount_total ?? 0;
+                const commissionCents = Math.round(amountTotal * referralLink.commissionRate);
+                await prisma.referralConversion.create({
+                  data: {
+                    linkId: referralLink.id,
+                    userId,
+                    tier: tier as any,
+                    revenueEurCents: amountTotal,
+                    commissionCents,
+                  },
+                });
+                console.log(`[Webhook] ReferralConversion created for user ${userId} via slug ${referredUser.referredBySlug}`);
+              }
+            }
+          } catch (err) {
+            console.error('[Webhook] Failed to record referral conversion:', err);
+            // Non-fatal — don't fail the webhook
+          }
+
           // Send confirmation email (US-22)
           if (user?.email) {
             const plan = SUBSCRIPTION_PLANS[tier as keyof typeof SUBSCRIPTION_PLANS];

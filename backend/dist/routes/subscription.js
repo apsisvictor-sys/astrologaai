@@ -832,6 +832,36 @@ router.post('/webhook', async (req, res) => {
                         where: { id: userId },
                         data: { tier: tier },
                     });
+                    // Record referral conversion if this user was referred
+                    try {
+                        const referredUser = await prisma_1.prisma.user.findUnique({
+                            where: { id: userId },
+                            select: { referredBySlug: true },
+                        });
+                        if (referredUser && referredUser.referredBySlug) {
+                            const referralLink = await prisma_1.prisma.referralLink.findUnique({
+                                where: { slug: referredUser.referredBySlug },
+                                select: { id: true, commissionRate: true },
+                            });
+                            if (referralLink) {
+                                const amountTotal = session.amount_total ?? 0;
+                                const commissionCents = Math.round(amountTotal * referralLink.commissionRate);
+                                await prisma_1.prisma.referralConversion.create({
+                                    data: {
+                                        linkId: referralLink.id,
+                                        userId,
+                                        tier: tier,
+                                        revenueEurCents: amountTotal,
+                                        commissionCents,
+                                    },
+                                });
+                                console.log(`[Webhook] ReferralConversion created for user ${userId} via slug ${referredUser.referredBySlug}`);
+                            }
+                        }
+                    }
+                    catch (err) {
+                        console.error('[Webhook] Failed to record referral conversion:', err);
+                    }
                     // Send confirmation email (US-22)
                     if (user?.email) {
                         const plan = SUBSCRIPTION_PLANS[tier];
