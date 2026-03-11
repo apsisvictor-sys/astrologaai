@@ -209,7 +209,7 @@ router.get('/users', async (req, res) => {
                 return true;
             const subStatus = u.subscription?.status ?? 'ACTIVE';
             if (statusFilter === 'SUSPENDED')
-                return false; // placeholder
+                return u.isSuspended;
             return subStatus === statusFilter;
         })
             .map(u => ({
@@ -225,6 +225,7 @@ router.get('/users', async (req, res) => {
             monthlyQueries: u.monthlyQueryCount,
             currentMonthUsage: u.usageRecords[0]?.queryCount ?? 0,
             bonusQueries: u.bonusQueries,
+            isSuspended: u.isSuspended,
         }));
         res.json({
             success: true,
@@ -286,13 +287,11 @@ router.patch('/users/:id/tier', async (req, res) => {
 router.patch('/users/:id/suspend', async (req, res) => {
     try {
         const { suspended } = req.body;
-        // We use bonusQueries = -999 as a suspended marker (simple flag without schema change)
-        // A proper implementation would add an `isSuspended` boolean column.
         await prisma_1.prisma.user.update({
             where: { id: req.params.id },
-            data: { bonusQueries: suspended ? -999 : 0 },
+            data: { isSuspended: !!suspended },
         });
-        res.json({ success: true, data: { suspended } });
+        res.json({ success: true, data: { suspended: !!suspended } });
     }
     catch (err) {
         res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR' } });
@@ -761,23 +760,31 @@ router.get('/referrals', async (_req, res) => {
             },
             orderBy: { createdAt: 'desc' },
         });
-        const formatted = links.map(l => ({
-            id: l.id,
-            slug: l.slug,
-            label: l.label,
-            commissionRate: l.commissionRate,
-            clicks: l.clicks,
-            isActive: l.isActive,
-            createdAt: l.createdAt,
-            conversions: l.conversions.length,
-            revenueEur: (l.conversions.reduce((s, c) => s + c.revenueEurCents, 0) / 100).toFixed(2),
-            commissionEur: (l.conversions.reduce((s, c) => s + c.commissionCents, 0) / 100).toFixed(2),
-        }));
+        const formatted = links.map(l => {
+            const byTier = { FREE: 0, PRO: 0, PREMIUM: 0 };
+            l.conversions.forEach(c => {
+                if (c.tier in byTier) byTier[c.tier]++;
+            });
+            return {
+                id: l.id,
+                slug: l.slug,
+                label: l.label,
+                commissionRate: l.commissionRate,
+                discountCode: l.discountCode ?? null,
+                clicks: l.clicks,
+                isActive: l.isActive,
+                createdAt: l.createdAt,
+                totalConversions: l.conversions.length,
+                conversionsByTier: byTier,
+                revenueEurCents: l.conversions.reduce((s, c) => s + c.revenueEurCents, 0),
+                totalCommissionCents: l.conversions.reduce((s, c) => s + c.commissionCents, 0),
+            };
+        });
         const totals = {
             activeLinks: formatted.filter(l => l.isActive).length,
             totalClicks: formatted.reduce((s, l) => s + l.clicks, 0),
-            totalConversions: formatted.reduce((s, l) => s + l.conversions, 0),
-            totalCommissionEur: (formatted.reduce((s, l) => s + parseFloat(l.commissionEur), 0)).toFixed(2),
+            totalConversions: formatted.reduce((s, l) => s + l.totalConversions, 0),
+            totalCommissionEur: (formatted.reduce((s, l) => s + l.totalCommissionCents, 0) / 100).toFixed(2),
         };
         res.json({ success: true, data: { links: formatted, totals } });
     }
@@ -788,12 +795,17 @@ router.get('/referrals', async (_req, res) => {
 // ── POST /admin/referrals ─────────────────────────────────────────────────────
 router.post('/referrals', async (req, res) => {
     try {
-        const { slug, label, commissionRate = 0.2 } = req.body;
+        const { slug, label, commissionRate = 0.2, discountCode } = req.body;
         if (!slug || !label) {
             return res.status(400).json({ success: false, error: { code: 'MISSING_FIELDS' } });
         }
         const link = await prisma_1.prisma.referralLink.create({
-            data: { slug: slug.toLowerCase().replace(/\s+/g, '-'), label, commissionRate: parseFloat(commissionRate) },
+            data: {
+                slug: slug.toLowerCase().replace(/\s+/g, '-'),
+                label,
+                commissionRate: parseFloat(commissionRate),
+                discountCode: discountCode?.trim() || null,
+            },
         });
         res.json({ success: true, data: { link } });
     }

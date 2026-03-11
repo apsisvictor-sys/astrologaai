@@ -5,21 +5,15 @@ import { adminGet, adminPost, adminPatch } from '@/lib/admin-api';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface Conversion {
-  tier: string;
-  revenueUsdCents: number;
-  commissionCents: number;
-  convertedAt: string;
-}
-
 interface ReferralLink {
   id: string;
   slug: string;
   label: string;
   commissionRate: number;
+  discountCode: string | null;
   clicks: number;
   isActive: boolean;
-  conversions: Conversion[];
+  conversionsByTier: { FREE: number; PRO: number; PREMIUM: number };
   totalConversions: number;
   totalCommissionCents: number;
   createdAt: string;
@@ -102,6 +96,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
   const [label, setLabel] = useState('');
   const [slug, setSlug] = useState('');
   const [commissionPct, setCommissionPct] = useState('20');
+  const [discountCode, setDiscountCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -120,6 +115,7 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
         label: label.trim(),
         slug: slug.trim().toLowerCase().replace(/\s+/g, '-'),
         commissionRate: pct / 100,
+        discountCode: discountCode.trim() || undefined,
       });
       onCreated();
       onClose();
@@ -198,6 +194,23 @@ function CreateModal({ onClose, onCreated }: CreateModalProps) {
               onChange={(e) => setCommissionPct(e.target.value)}
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-text-muted focus:outline-none focus:border-primary/50 transition-colors"
             />
+          </div>
+
+          {/* Discount Code (optional) */}
+          <div>
+            <label className="block text-xs text-text-muted mb-1">
+              Discount Code <span className="text-text-muted">(optional)</span>
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. LAUNCH50"
+              value={discountCode}
+              onChange={(e) => setDiscountCode(e.target.value.toUpperCase())}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-text-muted focus:outline-none focus:border-primary/50 transition-colors font-mono"
+            />
+            <p className="mt-1 text-[11px] text-text-muted">
+              If set, referred users will have this code auto-applied at checkout.
+            </p>
           </div>
 
           {/* Error */}
@@ -306,6 +319,8 @@ export default function ReferralsPage() {
                   <th className="px-4 py-3 font-medium">Commission</th>
                   <th className="px-4 py-3 font-medium">Clicks</th>
                   <th className="px-4 py-3 font-medium">Conversions</th>
+                  <th className="px-4 py-3 font-medium">By Tier</th>
+                  <th className="px-4 py-3 font-medium">Discount Code</th>
                   <th className="px-4 py-3 font-medium">Commission Earned</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Actions</th>
@@ -314,7 +329,7 @@ export default function ReferralsPage() {
               <tbody>
                 {links.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-text-muted">
+                    <td colSpan={10} className="px-4 py-10 text-center text-text-muted">
                       No referral links yet. Create your first one above.
                     </td>
                   </tr>
@@ -353,6 +368,22 @@ export default function ReferralsPage() {
                         {/* Conversions */}
                         <td className="px-4 py-3 text-text-secondary">
                           {link.totalConversions}
+                        </td>
+
+                        {/* Per-tier breakdown */}
+                        <td className="px-4 py-3 text-text-secondary text-xs">
+                          <span className="text-text-muted">F:</span>{link.conversionsByTier.FREE}{' '}
+                          <span className="text-text-muted">P:</span>{link.conversionsByTier.PRO}{' '}
+                          <span className="text-text-muted">Pr:</span>{link.conversionsByTier.PREMIUM}
+                        </td>
+
+                        {/* Discount Code */}
+                        <td className="px-4 py-3">
+                          {link.discountCode ? (
+                            <span className="font-mono text-xs text-[#00f0ff]">{link.discountCode}</span>
+                          ) : (
+                            <span className="text-text-muted text-xs">—</span>
+                          )}
                         </td>
 
                         {/* Commission Earned */}
