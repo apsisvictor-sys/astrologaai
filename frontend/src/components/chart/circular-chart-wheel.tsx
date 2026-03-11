@@ -16,13 +16,13 @@ import React, { useState, useRef, useCallback } from 'react';
 
 // Design system colors (US-12 spec)
 const colors = {
-  background: '#0A0A0F',
-  surface: '#0A0A1F',
-  primary: '#7C3AED',
-  secondary: '#EC4899',
+  background: '#0D0010',
+  surface: '#130019',
+  primary: '#e41aff',
+  secondary: '#00f0ff',
   textPrimary: '#FAFAFA',
   textSecondary: '#CBD5E1',
-  border: '#252532',
+  border: 'rgba(228,26,255,0.18)',
   success: '#10B981',
   warning: '#F59E0B',
   error: '#EF4444',
@@ -136,12 +136,12 @@ const PLANET_DESCRIPTIONS: Record<string, { en: string; bg: string }> = {
 
 // Aspect colors
 const ASPECT_COLORS: Record<string, string> = {
-  conjunction: colors.primary,
-  sextile: colors.success,
-  square: colors.error,
-  trine: '#06B6D4',
-  opposition: colors.secondary,
-  quincunx: colors.warning,
+  conjunction: '#e41aff',
+  sextile: '#10B981',
+  square: '#ff0080',
+  trine: '#00f0ff',
+  opposition: '#ff6b6b',
+  quincunx: '#F59E0B',
 };
 
 interface PlanetPosition {
@@ -341,10 +341,10 @@ export default function CircularChartWheel({
       // Determine element color
       const sign = ZODIAC_SIGNS[i];
       let fillColor = 'transparent';
-      if (['Aries', 'Leo', 'Sagittarius'].includes(sign)) fillColor = 'rgba(239, 68, 68, 0.1)';
-      else if (['Taurus', 'Virgo', 'Capricorn'].includes(sign)) fillColor = 'rgba(16, 185, 129, 0.1)';
-      else if (['Gemini', 'Libra', 'Aquarius'].includes(sign)) fillColor = 'rgba(59, 130, 246, 0.1)';
-      else if (['Cancer', 'Scorpio', 'Pisces'].includes(sign)) fillColor = 'rgba(6, 182, 212, 0.1)';
+      if (['Aries', 'Leo', 'Sagittarius'].includes(sign)) fillColor = 'rgba(251,191,36,0.1)';
+      else if (['Taurus', 'Virgo', 'Capricorn'].includes(sign)) fillColor = 'rgba(16,185,129,0.1)';
+      else if (['Gemini', 'Libra', 'Aquarius'].includes(sign)) fillColor = 'rgba(167,139,250,0.1)';
+      else if (['Cancer', 'Scorpio', 'Pisces'].includes(sign)) fillColor = 'rgba(0,240,255,0.1)';
       
       const path = `M ${x1} ${y1} A ${outerRadius} ${outerRadius} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${zodiacRadius} ${zodiacRadius} 0 0 0 ${x4} ${y4} Z`;
       
@@ -581,13 +581,13 @@ export default function CircularChartWheel({
   };
 
   return (
-    <div className="relative inline-block">
+    <div className="relative w-full" style={{ aspectRatio: '1 / 1' }}>
       <svg
         ref={svgRef}
-        width={size}
-        height={size}
+        width="100%"
+        height="100%"
         viewBox={`0 0 ${size} ${size}`}
-        style={{ background: colors.background, borderRadius: '50%' }}
+        style={{ background: colors.background, borderRadius: '50%', display: 'block' }}
       >
         {/* Background circle */}
         <circle
@@ -612,10 +612,10 @@ export default function CircularChartWheel({
           style={{
             left: tooltip.x + 15,
             top: tooltip.y + 15,
-            background: colors.surface,
-            border: `1px solid ${colors.border}`,
+            background: '#0D0010',
+            border: '1px solid rgba(228,26,255,0.3)',
             borderRadius: '12px',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+            boxShadow: '0 4px 30px rgba(228,26,255,0.15)',
           }}
         >
           {tooltip.content}
