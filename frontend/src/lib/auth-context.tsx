@@ -150,6 +150,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ? (navigator.language || 'bg')
       : 'bg';
 
+    // Read referral slug captured from ?ref= URL param (Task 3)
+    const referralSlug = typeof window !== 'undefined'
+      ? localStorage.getItem('referral_slug') || undefined
+      : undefined;
+
     let response: Response | null = null;
 
     try {
@@ -159,7 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json',
           'Accept-Language': acceptLanguage,
         },
-        body: JSON.stringify({ email, password, fullName }),
+        body: JSON.stringify({ email, password, fullName, referralSlug }),
       });
 
       const data = await parseApiResponse(response);
@@ -174,6 +179,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
       localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
       localStorage.setItem(USER_KEY, JSON.stringify(userData));
+
+      // Clear referral slug after successful registration
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('referral_slug');
+      }
 
       setUser(userData);
 
@@ -230,7 +240,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
             if (newSessionId) {
               // Import all guest messages
-              await fetch(`${getApiBaseUrl()}/api/v1/chat/sessions/${newSessionId}/import`, {
+              const importRes = await fetch(`${getApiBaseUrl()}/api/v1/chat/sessions/${newSessionId}/import`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -239,7 +249,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 body: JSON.stringify({ messages: guestMsgs }),
               });
 
-              migratedSessionId = newSessionId;
+              if (importRes.ok) {
+                migratedSessionId = newSessionId;
+              } else {
+                // Import failed — delete the orphaned empty session to avoid clutter
+                fetch(`${getApiBaseUrl()}/api/v1/chat/sessions/${newSessionId}`, {
+                  method: 'DELETE',
+                  headers: { Authorization: `Bearer ${tokens.accessToken}` },
+                }).catch(() => {});
+              }
             }
           }
         } catch (err) {

@@ -114,7 +114,7 @@ async function register(req, res, next) {
             });
             return;
         }
-        const { email, password, fullName, language: bodyLanguage } = validationResult.data;
+        const { email, password, fullName, language: bodyLanguage, referralSlug } = validationResult.data;
         // Check for duplicate email
         const existingUser = await prisma_1.default.user.findUnique({
             where: { email },
@@ -145,6 +145,7 @@ async function register(req, res, next) {
                 tier: client_1.Tier.FREE,
                 language: detectedLanguage, // US-26: Use detected language
                 emailVerified: false,
+                referredBySlug: referralSlug || null,
                 // Create profile with default preferences
                 profile: {
                     create: {
@@ -322,6 +323,7 @@ async function login(req, res, next) {
                 },
                 tokens: {
                     accessToken,
+                    refreshToken,
                     expiresIn: jwt_1.JWT_CONFIG.expiresIn,
                 },
             },
