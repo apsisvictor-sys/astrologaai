@@ -7,9 +7,11 @@
  * The [locale]/layout.tsx provides the same for locale-aware pages
  */
 
+import { Suspense } from 'react';
 import { Space_Grotesk } from 'next/font/google';
 import { AuthProvider } from '@/lib/auth-context';
 import { ClientProviders } from '@/components/client-providers';
+import { ReferralCapture } from '@/components/referral-capture';
 import './globals.css';
 
 const spaceGrotesk = Space_Grotesk({
@@ -34,6 +36,9 @@ export default function RootLayout({
       <body
         className={`${spaceGrotesk.className} antialiased min-h-screen`}
       >
+        <Suspense fallback={null}>
+          <ReferralCapture />
+        </Suspense>
         <AuthProvider>
           <ClientProviders>
             {children}
