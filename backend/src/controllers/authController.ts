@@ -90,7 +90,7 @@ export async function register(req: Request, res: Response, next: NextFunction):
       return;
     }
 
-    const { email, password, fullName, language: bodyLanguage, referralSlug } = validationResult.data as RegisterInput & { language?: string; referralSlug?: string };
+    const { email, password, fullName, language: bodyLanguage, referralSlug } = validationResult.data as RegisterInput & { language?: string };
 
     // Check for duplicate email
     const existingUser = await prisma.user.findUnique({

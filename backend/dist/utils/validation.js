@@ -29,6 +29,7 @@ exports.registerSchema = zod_1.z.object({
     language: zod_1.z
         .enum(SUPPORTED_LANGUAGES)
         .optional(),
+    referralSlug: zod_1.z.string().max(64).regex(/^[a-z0-9_-]+$/i).optional(),
 });
 exports.loginSchema = zod_1.z.object({
     email: zod_1.z

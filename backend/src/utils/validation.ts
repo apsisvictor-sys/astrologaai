@@ -31,6 +31,7 @@ export const registerSchema = z.object({
   language: z
     .enum(SUPPORTED_LANGUAGES)
     .optional(),
+  referralSlug: z.string().max(64).regex(/^[a-z0-9_-]+$/i).optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;
