@@ -844,18 +844,25 @@ router.post('/webhook', async (req, res) => {
                                 select: { id: true, commissionRate: true },
                             });
                             if (referralLink) {
-                                const amountTotal = session.amount_total ?? 0;
-                                const commissionCents = Math.round(amountTotal * referralLink.commissionRate);
-                                await prisma_1.prisma.referralConversion.create({
-                                    data: {
-                                        linkId: referralLink.id,
-                                        userId,
-                                        tier: tier,
-                                        revenueEurCents: amountTotal,
-                                        commissionCents,
-                                    },
+                                // Idempotency guard — prevent double-creation if webhook fires twice
+                                const existing = await prisma_1.prisma.referralConversion.findFirst({
+                                    where: { userId },
+                                    select: { id: true },
                                 });
-                                console.log(`[Webhook] ReferralConversion created for user ${userId} via slug ${referredUser.referredBySlug}`);
+                                if (!existing) {
+                                    const amountTotal = session.amount_total ?? 0;
+                                    const commissionCents = Math.round(amountTotal * referralLink.commissionRate);
+                                    await prisma_1.prisma.referralConversion.create({
+                                        data: {
+                                            linkId: referralLink.id,
+                                            userId,
+                                            tier: tier,
+                                            revenueEurCents: amountTotal,
+                                            commissionCents,
+                                        },
+                                    });
+                                    console.log(`[Webhook] ReferralConversion created for user ${userId} via slug ${referredUser.referredBySlug}`);
+                                }
                             }
                         }
                     }
