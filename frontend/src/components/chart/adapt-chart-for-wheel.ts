@@ -71,8 +71,8 @@ export function adaptChartForWheel(raw: BackendNatalChart): NatalChart {
   }
 
   const aspects: Aspect[] = (raw.aspects ?? []).map(a => ({
-    planet1: a.planet1,
-    planet2: a.planet2,
+    planet1: a.planet1.toLowerCase(),
+    planet2: a.planet2.toLowerCase(),
     aspect: a.aspect,
     aspectBg: a.aspect,
     orb: a.orb,
