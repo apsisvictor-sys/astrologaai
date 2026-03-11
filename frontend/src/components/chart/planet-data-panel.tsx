@@ -94,8 +94,9 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
             const name = isBg ? PLANET_NAMES_BG[key] : PLANET_NAMES_EN[key];
             const signGlyph = SIGN_GLYPHS[planet.sign] ?? '';
             const signName = isBg ? (SIGN_BG[planet.sign] ?? planet.sign) : planet.sign;
-            const deg = Math.floor(planet.degree);
-            const arcMin = Math.round((planet.degree - deg) * 60);
+            let deg = Math.floor(planet.degree);
+            let arcMin = Math.round((planet.degree - deg) * 60);
+            if (arcMin >= 60) { deg++; arcMin = 0; }
             const elemColor = ELEMENT_COLOR[SIGN_ELEMENT[planet.sign]] ?? '#fff';
 
             return (
@@ -177,8 +178,9 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
               if (!house) return null;
               const signGlyph = SIGN_GLYPHS[house.sign] ?? '';
               const signName = isBg ? (SIGN_BG[house.sign] ?? house.sign) : house.sign;
-              const deg = Math.floor(house.degree);
-              const arcMin = Math.round((house.degree - deg) * 60);
+              let deg = Math.floor(house.degree);
+              let arcMin = Math.round((house.degree - deg) * 60);
+              if (arcMin >= 60) { deg++; arcMin = 0; }
               const isMain = label === 'ASC' || label === 'MC';
 
               return (
