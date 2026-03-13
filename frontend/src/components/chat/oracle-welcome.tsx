@@ -70,7 +70,7 @@ export function OracleWelcome({ onBirthDataSaved }: OracleWelcomeProps) {
         />
         {/* pulsing ring */}
         <div
-          className="absolute inset-0 rounded-full animate-ping pointer-events-none"
+          className="absolute inset-0 rounded-full motion-safe:animate-ping pointer-events-none"
           style={{ border: '1px solid rgba(228,26,255,0.28)' }}
         />
         {/* inner circle */}
@@ -126,7 +126,7 @@ export function OracleWelcome({ onBirthDataSaved }: OracleWelcomeProps) {
       <div className="w-full max-w-sm">
         <BirthDataWidget onComplete={handleComplete} />
         {saving && (
-          <p className="text-xs text-center mt-3" style={{ color: 'rgba(255,255,255,0.38)' }}>
+          <p className="text-xs text-text-muted text-center mt-3">
             Calculating your chart…
           </p>
         )}
