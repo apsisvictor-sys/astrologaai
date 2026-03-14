@@ -768,9 +768,7 @@ let orchestratorInstance: AstrologyOrchestrator | null = null;
 export function getAstrologyOrchestrator(): AstrologyOrchestrator {
   if (!orchestratorInstance) {
     orchestratorInstance = new AstrologyOrchestrator();
-
-    // Start health check polling
-    orchestratorInstance.startHealthCheckPolling();
+    // Health check polling disabled — it was making live API calls every 60s
   }
 
   return orchestratorInstance;

@@ -17,38 +17,58 @@ exports.storeResetToken = storeResetToken;
 exports.getResetToken = getResetToken;
 exports.invalidateResetToken = invalidateResetToken;
 exports.invalidateUserSessions = invalidateUserSessions;
-// Redis disabled — using in-memory fallback only.
+const redis_1 = require("redis");
 const memoryCache = new Map();
-function createMemoryFallbackClient() {
-    return {
-        get: async (key) => {
-            const item = memoryCache.get(key);
-            if (item && item.expiresAt > Date.now()) {
-                return item.value;
-            }
-            memoryCache.delete(key);
-            return null;
-        },
-        setEx: async (key, ttl, value) => {
-            memoryCache.set(key, { value, expiresAt: Date.now() + ttl * 1000 });
-        },
-        del: async (...keys) => {
-            keys.forEach(k => memoryCache.delete(k));
-        },
-        lPush: async (_key, _value) => { },
-        rPush: async (_key, _value) => { },
-        lPop: async (_key) => null,
-        lTrim: async (_key, _start, _stop) => { },
-        keys: async (_pattern) => [],
-        ping: async () => 'PONG',
-        on: () => { },
-        connect: async () => { },
-    };
+const memoryClient = {
+    get: async (key) => {
+        const item = memoryCache.get(key);
+        if (item && item.expiresAt > Date.now()) return item.value;
+        memoryCache.delete(key);
+        return null;
+    },
+    setEx: async (key, ttl, value) => {
+        memoryCache.set(key, { value, expiresAt: Date.now() + ttl * 1000 });
+    },
+    del: async (...keys) => { keys.forEach(k => memoryCache.delete(k)); },
+    lPush: async (_key, _value) => {},
+    rPush: async (_key, _value) => {},
+    lPop: async (_key) => null,
+    lTrim: async (_key, _start, _stop) => {},
+    keys: async (_pattern) => [],
+    ping: async () => 'PONG',
+    on: () => {},
+    connect: async () => {},
+};
+let _connected = false;
+let activeClient = memoryClient;
+const redisUrl = process.env.REDIS_URL;
+if (redisUrl) {
+    const realClient = redis_1.createClient({ url: redisUrl });
+    realClient.on('connect', () => {
+        _connected = true;
+        activeClient = realClient;
+        console.log('[Redis] Connected to Upstash Redis');
+    });
+    realClient.on('error', (err) => {
+        if (_connected) {
+            _connected = false;
+            activeClient = memoryClient;
+            console.error('[Redis] Lost connection, falling back to in-memory:', err.message);
+        }
+    });
+    realClient.connect().catch((err) => {
+        console.error('[Redis] Initial connect failed, using in-memory fallback:', err.message);
+    });
+} else {
+    console.log('[Redis] No REDIS_URL — using in-memory fallback');
 }
-console.log('[Redis] Using in-memory fallback (Redis disabled)');
-exports.redisClient = createMemoryFallbackClient();
+exports.redisClient = new Proxy(memoryClient, {
+    get(_target, prop) {
+        return activeClient[prop];
+    },
+});
 function isRedisConnected() {
-    return false;
+    return _connected;
 }
 // ============================================
 // Session Context Management (US-09)

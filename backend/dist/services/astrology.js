@@ -12,7 +12,6 @@ exports.calculateNatalChart = calculateNatalChart;
 exports.getCachedChart = getCachedChart;
 exports.invalidateChartCache = invalidateChartCache;
 exports.checkAstrologyApiHealth = checkAstrologyApiHealth;
-const redis_1 = require("../utils/redis");
 // ============================================
 // Constants
 // ============================================
@@ -104,7 +103,10 @@ function parseLocationForV3(locationName) {
     const parts = locationName.split(',').map(p => p.trim());
     const city = parts[0] || locationName;
     const country = parts[parts.length - 1] || '';
-    const countryCode = COUNTRY_TO_CODE[country] || country.substring(0, 2).toUpperCase();
+    const countryCode = COUNTRY_TO_CODE[country];
+    if (!countryCode) {
+        throw new Error(`[Astrology] Unknown country "${country}" in locationName "${locationName}". Add it to COUNTRY_TO_CODE.`);
+    }
     return { city, countryCode };
 }
 // Aspect translations (English to Bulgarian)
@@ -396,36 +398,47 @@ function calculateModalityDistribution(planets) {
  * - Layer 3: Legacy exact birth data (24h TTL) - backward compatibility
  */
 async function calculateNatalChart(birthData) {
-    // Check if API key is configured (read lazily to avoid module-init capture issue)
+    // Validate API key
     if (!process.env.ASTROLOGY_API_KEY) {
-        console.warn('[Astrology] No API key configured, using fallback calculation');
-        return generateFallbackChart(birthData);
+        throw new Error('[Astrology] ASTROLOGY_API_KEY is not configured — cannot calculate chart');
     }
-    const legacyCacheKey = generateCacheKey(birthData);
-    // Try Layer 3: Legacy cache first (backward compatibility, fastest lookup)
-    try {
-        const cached = await Promise.race([
-            redis_1.redisClient.get(legacyCacheKey),
-            new Promise(resolve => setTimeout(() => resolve(null), 500)),
-        ]);
-        if (cached) {
-            console.log(`[Astrology] Cache hit (Layer 3 - legacy) for ${legacyCacheKey}`);
-            return JSON.parse(cached);
-        }
+    // Validate location: must have lat/lon + timezone (preferred) or locationName
+    const hasCoords = birthData.latitude != null && birthData.longitude != null && !!birthData.timezone;
+    const hasLocationName = !!birthData.locationName;
+    if (!hasCoords && !hasLocationName) {
+        throw new Error('[Astrology] Birth location required — provide latitude, longitude, and timezone (or locationName)');
     }
-    catch (error) {
-        console.warn('[Astrology] Cache read error:', error);
+    // Build birth_data payload: prefer coordinates (always accurate), fall back to city name
+    let birthDataPayload;
+    if (hasCoords) {
+        birthDataPayload = {
+            year: birthData.year,
+            month: birthData.month,
+            day: birthData.day,
+            hour: birthData.hour,
+            minute: birthData.minute,
+            second: 0,
+            latitude: birthData.latitude,
+            longitude: birthData.longitude,
+            timezone: birthData.timezone,
+        };
+    }
+    else {
+        // locationName path: parse "City, Country" — throw if country is unrecognised
+        const parsed = parseLocationForV3(birthData.locationName);
+        birthDataPayload = {
+            year: birthData.year,
+            month: birthData.month,
+            day: birthData.day,
+            hour: birthData.hour,
+            minute: birthData.minute,
+            second: 0,
+            city: parsed.city,
+            country_code: parsed.countryCode,
+        };
     }
     // Call astrology-api.io v3
     try {
-        // Parse city and country code from locationName ("City, Country")
-        let city = 'Unknown';
-        let countryCode = 'US';
-        if (birthData.locationName) {
-            const parsed = parseLocationForV3(birthData.locationName);
-            city = parsed.city;
-            countryCode = parsed.countryCode;
-        }
         const apiUrl = process.env.ASTROLOGY_API_URL || 'https://api.astrology-api.io';
         const apiKey = process.env.ASTROLOGY_API_KEY;
         const response = await fetch(`${apiUrl}/api/v3/charts/natal`, {
@@ -438,16 +451,7 @@ async function calculateNatalChart(birthData) {
             body: JSON.stringify({
                 subject: {
                     name: 'subject',
-                    birth_data: {
-                        year: birthData.year,
-                        month: birthData.month,
-                        day: birthData.day,
-                        hour: birthData.hour,
-                        minute: birthData.minute,
-                        second: 0,
-                        city,
-                        country_code: countryCode,
-                    },
+                    birth_data: birthDataPayload,
                 },
                 options: {
                     house_system: 'P',
@@ -579,189 +583,19 @@ async function calculateNatalChart(birthData) {
             calculatedAt: new Date().toISOString(),
             source: 'astrology-api.io-v3',
         };
-        // ========================================
-        // 3-Layer Caching Strategy
-        // ========================================
-        // Layer 1: Aspect-pattern cache (90-day TTL) - highest cache hit rate
-        try {
-            const aspectCacheKey = await generateAspectCacheKey(chart);
-            await redis_1.redisClient.setEx(aspectCacheKey, CHART_CACHE_TTL_ASPECT, JSON.stringify(chart));
-            console.log(`[Astrology] Cached chart (Layer 1 - aspect-pattern) for ${aspectCacheKey}`);
-        }
-        catch (error) {
-            console.warn('[Astrology] Aspect cache write error:', error);
-        }
-        // Layer 2: Position-based cache (30-day TTL) - medium cache hit rate
-        const positionCacheKey = generatePositionBasedCacheKey(chart);
-        try {
-            await redis_1.redisClient.setEx(positionCacheKey, CHART_CACHE_TTL, JSON.stringify(chart));
-            console.log(`[Astrology] Cached chart (Layer 2 - position-based) for ${positionCacheKey}`);
-        }
-        catch (error) {
-            console.warn('[Astrology] Position cache write error:', error);
-        }
-        // Layer 3: Legacy cache (24h TTL) - backward compatibility
-        try {
-            await redis_1.redisClient.setEx(legacyCacheKey, CHART_CACHE_TTL_LEGACY, JSON.stringify(chart));
-            console.log(`[Astrology] Cached chart (Layer 3 - legacy) for ${legacyCacheKey}`);
-        }
-        catch (error) {
-            console.warn('[Astrology] Legacy cache write error:', error);
-        }
         return chart;
     }
     catch (error) {
         console.error('[Astrology] API call failed:', error);
-        // Fallback to calculation
-        return generateFallbackChart(birthData);
+        throw error;
     }
 }
-/**
- * Fallback chart calculation when API is unavailable
- * Uses simple astronomical approximation
- */
-function generateFallbackChart(birthData) {
-    console.log('[Astrology] Generating fallback chart');
-    // Simple sun sign calculation based on date
-    const getSunSign = (month, day) => {
-        if ((month === 3 && day >= 21) || (month === 4 && day <= 19))
-            return 'Aries';
-        if ((month === 4 && day >= 20) || (month === 5 && day <= 20))
-            return 'Taurus';
-        if ((month === 5 && day >= 21) || (month === 6 && day <= 20))
-            return 'Gemini';
-        if ((month === 6 && day >= 21) || (month === 7 && day <= 22))
-            return 'Cancer';
-        if ((month === 7 && day >= 23) || (month === 8 && day <= 22))
-            return 'Leo';
-        if ((month === 8 && day >= 23) || (month === 9 && day <= 22))
-            return 'Virgo';
-        if ((month === 9 && day >= 23) || (month === 10 && day <= 22))
-            return 'Libra';
-        if ((month === 10 && day >= 23) || (month === 11 && day <= 21))
-            return 'Scorpio';
-        if ((month === 11 && day >= 22) || (month === 12 && day <= 21))
-            return 'Sagittarius';
-        if ((month === 12 && day >= 22) || (month === 1 && day <= 19))
-            return 'Capricorn';
-        if ((month === 1 && day >= 20) || (month === 2 && day <= 18))
-            return 'Aquarius';
-        return 'Pisces';
-    };
-    // Simple moon sign approximation (very rough - just rotates through signs)
-    const getMoonSign = (day) => {
-        const signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
-            'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
-        return signs[day % 12];
-    };
-    // Simple rising sign approximation based on hour and longitude
-    const getRisingSign = (hour, longitude) => {
-        const signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
-            'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
-        // Rough approximation: rising changes about every 2 hours
-        const offset = Math.floor((hour + longitude / 30) % 12);
-        return signs[offset >= 0 ? offset : offset + 12];
-    };
-    const sunSign = getSunSign(birthData.month, birthData.day);
-    const moonSign = getMoonSign(birthData.day);
-    const risingSign = getRisingSign(birthData.hour, birthData.longitude);
-    // Create basic planet positions
-    const createBasicPlanet = (name, sign) => ({
-        name,
-        sign,
-        signBg: SIGN_TRANSLATIONS[sign] || sign,
-        degree: Math.random() * 30, // Placeholder
-        house: Math.floor(Math.random() * 12) + 1, // Placeholder
-        retrograde: name === 'saturn' || name === 'uranus' || name === 'neptune' || name === 'pluto',
-        symbol: PLANET_SYMBOLS[name] || '',
-    });
-    const sun = createBasicPlanet('sun', sunSign);
-    const moon = createBasicPlanet('moon', moonSign);
-    const rising = { ...createBasicPlanet('rising', risingSign), house: 1 };
-    const planets = {
-        sun,
-        moon,
-        rising,
-        mercury: createBasicPlanet('mercury', getSunSign(birthData.month, Math.min(birthData.day + 5, 28))),
-        venus: createBasicPlanet('venus', getSunSign(birthData.month, Math.min(birthData.day + 10, 28))),
-        mars: createBasicPlanet('mars', getMoonSign((birthData.day + 15) % 30)),
-        jupiter: createBasicPlanet('jupiter', getMoonSign((birthData.day + 5) % 30)),
-        saturn: createBasicPlanet('saturn', 'Capricorn'),
-        uranus: createBasicPlanet('uranus', 'Aquarius'),
-        neptune: createBasicPlanet('neptune', 'Pisces'),
-        pluto: createBasicPlanet('pluto', 'Scorpio'),
-        northNode: createBasicPlanet('northNode', 'Aquarius'),
-        southNode: createBasicPlanet('southNode', 'Leo'),
-        chiron: createBasicPlanet('chiron', 'Aries'),
-    };
-    // Create basic houses
-    const houses = Array.from({ length: 12 }, (_, i) => {
-        const sign = getRisingSign((birthData.hour + i * 2) % 24, birthData.longitude);
-        return {
-            number: i + 1,
-            sign,
-            signBg: SIGN_TRANSLATIONS[sign] || sign,
-            degree: (i * 30 + birthData.hour * 2.5) % 360,
-        };
-    });
-    // Create basic aspects
-    const aspects = [
-        { planet1: 'sun', planet2: 'moon', aspect: 'trine', aspectBg: 'тригон', orb: 5.2, nature: 'harmonious' },
-        { planet1: 'venus', planet2: 'mars', aspect: 'conjunction', aspectBg: 'съвпад', orb: 2.1, nature: 'neutral' },
-    ];
-    const chart = {
-        sun,
-        moon,
-        rising,
-        mercury: planets.mercury,
-        venus: planets.venus,
-        mars: planets.mars,
-        jupiter: planets.jupiter,
-        saturn: planets.saturn,
-        uranus: planets.uranus,
-        neptune: planets.neptune,
-        pluto: planets.pluto,
-        northNode: planets.northNode,
-        southNode: planets.southNode,
-        chiron: planets.chiron,
-        houses,
-        aspects,
-        elements: calculateElementDistribution(planets),
-        modalities: calculateModalityDistribution(planets),
-        calculatedAt: new Date().toISOString(),
-        source: 'fallback-calculation',
-    };
-    return chart;
-}
-/**
- * Get chart from cache by birth data
- */
-async function getCachedChart(birthData) {
-    const cacheKey = generateCacheKey(birthData);
-    try {
-        const cached = await redis_1.redisClient.get(cacheKey);
-        if (cached) {
-            return JSON.parse(cached);
-        }
-    }
-    catch (error) {
-        console.warn('[Astrology] Cache read error:', error);
-    }
+/** Redis cache removed — charts are stored in BirthChart table */
+async function getCachedChart(_birthData) {
     return null;
 }
-/**
- * Invalidate chart cache for specific birth data
- */
-async function invalidateChartCache(birthData) {
-    const cacheKey = generateCacheKey(birthData);
-    try {
-        await redis_1.redisClient.del(cacheKey);
-        console.log(`[Astrology] Invalidated cache for ${cacheKey}`);
-    }
-    catch (error) {
-        console.warn('[Astrology] Cache invalidation error:', error);
-    }
-}
+/** Redis cache removed — no-op */
+async function invalidateChartCache(_birthData) { }
 /**
  * Check if astrology API is available
  */

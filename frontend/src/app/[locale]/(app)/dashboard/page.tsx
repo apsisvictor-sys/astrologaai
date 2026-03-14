@@ -11,6 +11,8 @@ import type { BackendNatalChart } from '@/components/chart/natal-chart-adapter';
 import type { NatalChart } from '@/components/chart/circular-chart-wheel';
 import { Sparkles, MessageSquare, Compass, Settings, Users, ArrowRight } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
+import { DailyHoroscopeCard } from '@/components/forecast/daily-horoscope-card';
+import { OracleWelcome } from '@/components/chat/oracle-welcome';
 
 interface BirthProfile {
   id: string;
@@ -71,20 +73,62 @@ export default function DashboardPage({
   const [adaptedChart, setAdaptedChart] = useState<NatalChart | null>(null);
   const [profileName, setProfileName] = useState('');
   const [isUnknownTime, setIsUnknownTime] = useState(false);
+  const [pendingNotice, setPendingNotice] = useState<string | null>(null);
 
   const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
   const chartRef = useRef<HTMLDivElement>(null);
+  const isDraggingRef = useRef(false);
+  const lastMouse = useRef({ x: 0, y: 0 });
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    setZoom(z => Math.max(0.6, Math.min(2.5, z - e.deltaY * 0.001)));
+  // Non-passive wheel listener so preventDefault() actually stops page scroll
+  useEffect(() => {
+    const el = chartRef.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      e.preventDefault();
+      setZoom(z => Math.max(0.6, Math.min(2.5, z - e.deltaY * 0.001)));
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [phase]);
+
+  const resetZoom = useCallback(() => { setZoom(1); setPan({ x: 0, y: 0 }); }, []);
+  const zoomIn  = useCallback(() => setZoom(z => Math.min(2.5, z + 0.2)), []);
+  const zoomOut = useCallback(() => setZoom(z => Math.max(0.6, z - 0.2)), []);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    lastMouse.current = { x: e.clientX, y: e.clientY };
   }, []);
 
-  const resetZoom = useCallback(() => setZoom(1), []);
+  const handleMouseMove = useCallback((e: React.MouseEvent) => {
+    if (!isDraggingRef.current) return;
+    const dx = e.clientX - lastMouse.current.x;
+    const dy = e.clientY - lastMouse.current.y;
+    lastMouse.current = { x: e.clientX, y: e.clientY };
+    setPan(p => ({ x: p.x + dx, y: p.y + dy }));
+  }, []);
+
+  const stopDrag = useCallback(() => {
+    isDraggingRef.current = false;
+    setIsDragging(false);
+  }, []);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.push('/login');
   }, [isLoading, isAuthenticated, router]);
+
+  // Check for pending notice from guest migration
+  useEffect(() => {
+    const notice = localStorage.getItem('astrologaai_pending_notice');
+    if (notice) {
+      setPendingNotice(notice);
+      localStorage.removeItem('astrologaai_pending_notice');
+    }
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -132,10 +176,6 @@ export default function DashboardPage({
     );
   }
 
-  const sun    = rawChart?.sun;
-  const moon   = rawChart?.moon;
-  const rising = rawChart?.rising ?? rawChart?.ascendant;
-
   return (
     <main className="relative min-h-screen pt-24 pb-16 overflow-hidden selection:bg-primary/40 text-slate-100">
       {/* Background orbs */}
@@ -144,7 +184,19 @@ export default function DashboardPage({
         <div className="blur-sphere w-[600px] h-[600px] bottom-[-20%] left-[-20%] bg-accent-blue mix-blend-screen opacity-20" />
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 w-full px-4 sm:px-6">
+
+        {/* Birth data migration failure notice */}
+        {pendingNotice === 'birth_data_failed' && (
+          <div className="mb-6 flex items-start justify-between gap-4 px-4 py-3 rounded-xl text-sm"
+            style={{ background: 'rgba(228,26,255,0.08)', border: '1px solid rgba(228,26,255,0.25)' }}>
+            <p className="text-text-secondary">
+              We had a problem importing your birth data from the chat session. Please add it manually in{' '}
+              <a href="/settings/birth-data" className="text-primary hover:underline">Settings → Birth Data</a>.
+            </p>
+            <button onClick={() => setPendingNotice(null)} className="text-white/30 hover:text-white/60 shrink-0 text-lg leading-none">×</button>
+          </div>
+        )}
 
         {/* Page header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6 animate-fade-in-up">
@@ -157,10 +209,10 @@ export default function DashboardPage({
 
         <div className="grid lg:grid-cols-12 gap-6">
 
-          {/* Chart wheel (7 cols) */}
-          <div className="lg:col-span-7 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          {/* Chart wheel (9 cols) */}
+          <div className="lg:col-span-9 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
             <div
-              className="rounded-2xl p-5 relative overflow-hidden h-full"
+              className="rounded-2xl p-5 relative overflow-hidden h-full flex flex-col"
               style={{
                 background: 'rgba(10,0,16,0.7)',
                 border: '1px solid rgba(228,26,255,0.15)',
@@ -176,121 +228,118 @@ export default function DashboardPage({
                 }}
               />
 
-              {/* Big 3 header */}
+              {/* Chart header */}
               <div className="flex items-center justify-between mb-4 relative z-10">
-                {phase === 'ready' && sun && moon && rising ? (
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <span className="text-sm font-medium text-white">☉ {sun.sign}</span>
-                    <span className="text-text-muted text-xs">·</span>
-                    <span className="text-sm font-medium text-white">☽ {moon.sign}</span>
-                    <span className="text-text-muted text-xs">·</span>
-                    <span className="text-sm font-medium text-white">↑ {rising.sign}</span>
-                    {isUnknownTime && (
-                      <span
-                        className="text-[10px] px-2 py-0.5 rounded-full ml-1"
-                        style={{
-                          background: 'rgba(245,158,11,0.1)',
-                          color: '#F59E0B',
-                          border: '1px solid rgba(245,158,11,0.2)',
-                        }}
-                      >
-                        {c.timeUnknown}
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <div className="h-5" />
-                )}
-                {profileName && (
-                  <span className="text-xs text-text-muted shrink-0 ml-2">{profileName}</span>
-                )}
+                <span
+                  className="text-sm font-bold uppercase tracking-widest"
+                  style={{
+                    background: 'linear-gradient(90deg, #e41aff 0%, #a855f7 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    backgroundClip: 'text',
+                  }}
+                >
+                  {locale === 'bg' ? 'Вашата Натална Карта' : 'Your Natal Chart'}
+                </span>
+                <div className="flex items-center gap-2">
+                  {isUnknownTime && phase === 'ready' && (
+                    <span
+                      className="text-[10px] px-2 py-0.5 rounded-full"
+                      style={{
+                        background: 'rgba(245,158,11,0.1)',
+                        color: '#F59E0B',
+                        border: '1px solid rgba(245,158,11,0.2)',
+                      }}
+                    >
+                      {c.timeUnknown}
+                    </span>
+                  )}
+                  {profileName && (
+                    <span className="text-xs text-text-muted shrink-0">{profileName}</span>
+                  )}
+                </div>
               </div>
 
-              {/* Loading */}
-              {phase === 'loading' && (
-                <div className="flex items-center justify-center" style={{ minHeight: 420 }}>
-                  <div className="flex flex-col items-center gap-4">
+              {/* Content area — fills remaining card height */}
+              <div className="flex-1 flex flex-col min-h-0">
+
+                {/* Loading */}
+                {phase === 'loading' && (
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-4">
+                      <div
+                        className="w-12 h-12 rounded-full border-2 animate-spin"
+                        style={{ borderColor: 'rgba(228,26,255,0.4)', borderTopColor: '#e41aff' }}
+                      />
+                      <p className="text-xs text-text-muted">{c.calculating}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* No birth data */}
+                {phase === 'no-birth-data' && (
+                  <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">
                     <div
-                      className="w-12 h-12 rounded-full border-2 animate-spin"
-                      style={{ borderColor: 'rgba(228,26,255,0.4)', borderTopColor: '#e41aff' }}
-                    />
-                    <p className="text-xs text-text-muted">{c.calculating}</p>
-                  </div>
-                </div>
-              )}
-
-              {/* No birth data */}
-              {phase === 'no-birth-data' && (
-                <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
-                  <div
-                    className="w-16 h-16 rounded-full flex items-center justify-center"
-                    style={{
-                      background: 'rgba(228,26,255,0.08)',
-                      border: '1px solid rgba(228,26,255,0.2)',
-                    }}
-                  >
-                    <span
-                      className="text-2xl"
-                      style={{ filter: 'drop-shadow(0 0 10px rgba(228,26,255,0.7))' }}
+                      className="w-16 h-16 rounded-full flex items-center justify-center"
+                      style={{
+                        background: 'rgba(228,26,255,0.08)',
+                        border: '1px solid rgba(228,26,255,0.2)',
+                      }}
                     >
-                      ✦
-                    </span>
+                      <span
+                        className="text-2xl"
+                        style={{ filter: 'drop-shadow(0 0 10px rgba(228,26,255,0.7))' }}
+                      >
+                        ✦
+                      </span>
+                    </div>
+                    <p className="text-sm text-text-muted max-w-xs">{c.noBirthDataMsg}</p>
+                    <Link
+                      href="/birth-data/new"
+                      className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+                      style={{ background: 'linear-gradient(135deg, #ff0080, #e41aff)' }}
+                    >
+                      ✦ {c.addBirthData}
+                    </Link>
                   </div>
-                  <p className="text-sm text-text-muted max-w-xs">{c.noBirthDataMsg}</p>
-                  <Link
-                    href="/birth-data/new"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-semibold text-white hover:opacity-90 transition-opacity"
-                    style={{ background: 'linear-gradient(135deg, #ff0080, #e41aff)' }}
-                  >
-                    ✦ {c.addBirthData}
-                  </Link>
-                </div>
-              )}
+                )}
 
-              {/* Error */}
-              {phase === 'error' && (
-                <div className="flex flex-col items-center justify-center py-16 gap-3">
-                  <p className="text-sm text-red-400">{c.errorMsg}</p>
-                  <button
-                    onClick={loadChart}
-                    className="text-xs text-primary hover:opacity-80 transition-opacity"
-                  >
-                    {c.retry}
-                  </button>
-                </div>
-              )}
-
-              {/* Chart */}
-              {phase === 'ready' && adaptedChart && (
-                <>
-                  {zoom === 1 ? (
-                    <p className="text-[10px] text-center mb-2" style={{ color: 'rgba(255,255,255,0.18)' }}>
-                      {c.zoomHint}
-                    </p>
-                  ) : (
+                {/* Error */}
+                {phase === 'error' && (
+                  <div className="flex-1 flex flex-col items-center justify-center gap-3">
+                    <p className="text-sm text-red-400">{c.errorMsg}</p>
                     <button
-                      onClick={resetZoom}
-                      className="text-[10px] text-center mb-2 w-full hover:opacity-80 transition-opacity"
-                      style={{ color: 'rgba(228,26,255,0.5)' }}
+                      onClick={loadChart}
+                      className="text-xs text-primary hover:opacity-80 transition-opacity"
                     >
-                      {c.resetZoom}
+                      {c.retry}
                     </button>
-                  )}
+                  </div>
+                )}
 
+                {/* Chart */}
+                {phase === 'ready' && adaptedChart && (
                   <div
                     ref={chartRef}
-                    className="overflow-hidden rounded-2xl"
-                    onWheel={handleWheel}
+                    className="flex-1 min-h-0 overflow-hidden rounded-2xl flex items-center justify-center relative"
+                    onMouseDown={handleMouseDown}
+                    onMouseMove={handleMouseMove}
+                    onMouseUp={stopDrag}
+                    onMouseLeave={stopDrag}
                     style={{
-                      cursor: zoom > 1 ? 'grab' : 'default',
+                      cursor: isDragging ? 'grabbing' : 'default',
                       boxShadow: '0 0 30px rgba(228,26,255,0.1)',
+                      userSelect: 'none',
                     }}
                   >
                     <div
                       style={{
-                        transform: `scale(${zoom})`,
+                        width: '100%',
+                        maxHeight: '100%',
+                        aspectRatio: '1 / 1',
+                        transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                         transformOrigin: 'center center',
-                        transition: 'transform 0.15s ease',
+                        transition: isDragging ? 'none' : 'transform 0.15s ease',
                       }}
                     >
                       <CircularChartWheel
@@ -300,14 +349,57 @@ export default function DashboardPage({
                         showAspects
                       />
                     </div>
+
+                    {/* Zoom controls — bottom-right */}
+                    <div
+                      className="absolute bottom-3 right-3 flex items-center gap-1.5"
+                      onMouseDown={e => e.stopPropagation()}
+                    >
+                      {zoom !== 1 && (
+                        <button
+                          onClick={resetZoom}
+                          className="text-[10px] px-2 py-0.5 rounded-full hover:opacity-80 transition-opacity"
+                          style={{
+                            background: 'rgba(228,26,255,0.12)',
+                            color: 'rgba(228,26,255,0.7)',
+                            border: '1px solid rgba(228,26,255,0.2)',
+                          }}
+                        >
+                          {c.resetZoom}
+                        </button>
+                      )}
+                      <button
+                        onClick={zoomOut}
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-base font-bold hover:opacity-80 transition-opacity"
+                        style={{
+                          background: 'rgba(228,26,255,0.12)',
+                          color: 'rgba(228,26,255,0.8)',
+                          border: '1px solid rgba(228,26,255,0.2)',
+                        }}
+                      >
+                        −
+                      </button>
+                      <button
+                        onClick={zoomIn}
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-base font-bold hover:opacity-80 transition-opacity"
+                        style={{
+                          background: 'rgba(228,26,255,0.12)',
+                          color: 'rgba(228,26,255,0.8)',
+                          border: '1px solid rgba(228,26,255,0.2)',
+                        }}
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
-                </>
-              )}
+                )}
+
+              </div>
             </div>
           </div>
 
-          {/* Planet data panel (5 cols) */}
-          <div className="lg:col-span-5 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
+          {/* Planet data panel (3 cols) */}
+          <div className="lg:col-span-3 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
             {phase === 'ready' && rawChart ? (
               <PlanetDataPanel rawChart={rawChart} language={locale} />
             ) : (
@@ -321,6 +413,16 @@ export default function DashboardPage({
               />
             )}
           </div>
+
+          {/* Daily Horoscope card (full width) — visible to all users with birth data */}
+          {phase === 'ready' && (
+            <div className="lg:col-span-12 animate-fade-in-up" style={{ animationDelay: '0.18s' }}>
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-[11px] font-bold text-text-muted uppercase tracking-[0.2em]">Today's Reading</span>
+              </div>
+              <DailyHoroscopeCard tier={(user?.tier as 'FREE' | 'PRO' | 'PREMIUM') || 'FREE'} />
+            </div>
+          )}
 
           {/* Subscription card (6 cols) */}
           <div className="lg:col-span-6 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>

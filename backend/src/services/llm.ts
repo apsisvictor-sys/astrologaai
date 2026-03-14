@@ -7,7 +7,7 @@
 import { streamText, generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
-import { astrologyTools } from './agent-tools';
+import { createAstrologyTools } from './agent-tools';
 
 // Re-export helpers from legacy (prompt building, chart summary, session summary)
 export {
@@ -15,7 +15,10 @@ export {
   buildSystemPrompt,
   generateSessionSummary,
   buildEnhancedContext,
+  ASTROLOGER_SYSTEM_PROMPT,
 } from './llm-helpers';
+
+import { ASTROLOGER_SYSTEM_PROMPT } from './llm-helpers';
 
 // Re-export ChatMessage type
 export { type ChatMessage } from './llm-helpers';
@@ -98,7 +101,7 @@ function getProviderModel(tier: string = 'FREE') {
  */
 export async function* streamChatCompletion(
   messages: LegacyChatMessage[],
-  config: Partial<LegacyLLMConfig & { tier?: string }> = {},
+  config: Partial<LegacyLLMConfig & { tier?: string; userId?: string; userIp?: string; partners?: Array<{ id: string; name: string }> }> = {},
   callbacks?: {
     onToolCall?: (name: string, args: any) => void;
   }
@@ -108,6 +111,9 @@ export async function* streamChatCompletion(
     const tier = config.tier || 'FREE';
     const model = getProviderModel(tier);
 
+    // Create tools with user context (userId + IP for solar/lunar return location)
+    const tools = createAstrologyTools({ userId: config.userId || '', userIp: config.userIp });
+
     // Gating Tools based on User Subscription Tier
     const activeTools: Record<string, any> = {};
 
@@ -116,18 +122,17 @@ export async function* streamChatCompletion(
 
     // PRO: solar return (year ahead) and lunar return (current month)
     if (tier === 'PRO' || tier === 'PREMIUM') {
-      activeTools['get_solar_return'] = astrologyTools.get_solar_return;
-      activeTools['get_lunar_return'] = astrologyTools.get_lunar_return;
+      activeTools['get_solar_return'] = tools.get_solar_return;
+      activeTools['get_lunar_return'] = tools.get_lunar_return;
     }
 
     // PREMIUM: full toolkit — relationships, psychological depth, timing, astrocartography
     if (tier === 'PREMIUM') {
-      activeTools['get_synastry'] = astrologyTools.get_synastry;
-      activeTools['get_progressions'] = astrologyTools.get_progressions;
-      activeTools['get_relocation'] = astrologyTools.get_relocation;
-      activeTools['get_composite'] = astrologyTools.get_composite;
-      activeTools['get_venus_return'] = astrologyTools.get_venus_return;
-      activeTools['get_solar_arc'] = astrologyTools.get_solar_arc;
+      activeTools['get_synastry'] = tools.get_synastry;
+      activeTools['get_progressions'] = tools.get_progressions;
+      activeTools['get_relocation'] = tools.get_relocation;
+      activeTools['get_composite'] = tools.get_composite;
+      activeTools['get_solar_arc'] = tools.get_solar_arc;
     }
 
     // Tier-accurate system prompt context — must exactly match the tools above
@@ -148,19 +153,44 @@ If the user asks about those — guide them: 'За задълбочен анал
 
       : `The user is on the PREMIUM plan — 'The Oracle' (Оракулът).
 Your natal chart data and today's active transits are already loaded in your context above — use them directly without tool calls.
-You have access to eight additional tools for on-demand specific queries:
+You have access to seven additional tools for on-demand specific queries:
 - get_solar_return: annual solar return chart for year-ahead themes
 - get_lunar_return: monthly lunar return chart — current emotional cycle
-- get_synastry: inter-chart aspects between the user and a partner — relationship compatibility
+- get_synastry: inter-chart aspects between the user and a stored partner — relationship compatibility
 - get_progressions: secondary progressions — slow inner psychological evolution
 - get_solar_arc: solar arc directions — long-term life chapter shifts (~1° per year)
-- get_relocation: astrocartography — how different locations affect the chart
+- get_relocation: relocated natal chart — how different locations affect the chart
 - get_composite: the composite chart — the relationship as its own entity
-- get_venus_return: Venus return chart — precise timing for love and financial luck
+For synastry/composite tools, use the partner ID from the stored partners list below.
+${config.partners && config.partners.length > 0
+  ? `Stored partners: ${config.partners.map(p => `${p.name} (id: ${p.id})`).join(', ')}. If the user refers to someone not in this list, ask them to add that person's birth data via Settings → Partners first.`
+  : `No partners stored yet. If the user asks about relationship compatibility, invite them to add a partner's birth data via Settings → Partners.`}
 Answer every question with depth, nuance, and comprehensive multi-tool synthesis when relevant.`;
 
     if (coreMessages.length > 0 && coreMessages[0].role === 'system') {
       coreMessages[0].content += `\n\n[TIER SYSTEM INSTRUCTION]\n${systemPromptContext}`;
+    }
+
+    // Anthropic 2-layer prompt caching: split system message into static (Layer 1)
+    // and per-user/day (Layer 2) blocks, each marked with cache_control: ephemeral.
+    // Layer 1 (persona) is shared across ALL users → very high cache hit rate.
+    // Layer 2 (chart + transits + tier) is stable within a session → per-user hits.
+    const modelIdForCache = getModelIdForTier(tier);
+    if (modelIdForCache.startsWith('claude-') && coreMessages.length > 0 && coreMessages[0].role === 'system') {
+      const fullContent = coreMessages[0].content as string;
+      const dynamicPart = fullContent.substring(ASTROLOGER_SYSTEM_PROMPT.length);
+      coreMessages[0] = {
+        role: 'system',
+        content: ASTROLOGER_SYSTEM_PROMPT,
+        providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
+      } as any;
+      if (dynamicPart.trim()) {
+        coreMessages.splice(1, 0, {
+          role: 'system',
+          content: dynamicPart,
+          providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
+        } as any);
+      }
     }
 
     const result = await streamText({
@@ -221,7 +251,7 @@ export async function chatCompletion(
   const coreMessages = mapToCoreMessages(messages);
   const model = getProviderModel();
 
-  const { get_natal_chart, get_transits, ...remainingTools } = astrologyTools;
+  const { get_natal_chart, get_transits, ...remainingTools } = createAstrologyTools({ userId: '' });
   const result = await generateText({
     model,
     messages: coreMessages,

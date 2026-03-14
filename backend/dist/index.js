@@ -75,6 +75,7 @@ const rateLimitHeaders_1 = require("./middleware/rateLimitHeaders");
 const socket_1 = require("./socket");
 // US-30: Chart regeneration processor
 const chart_regeneration_1 = require("./services/chart-regeneration");
+const admin_defaults_1 = require("./services/admin-defaults");
 (0, dotenv_1.config)({ override: true });
 const app = (0, express_1.default)();
 // Trust Railway's proxy (required for express-rate-limit to work correctly behind Railway)
@@ -296,6 +297,8 @@ httpServer.listen(PORT, () => {
     // US-30: Start background chart regeneration processor
     (0, chart_regeneration_1.startRegenerationProcessor)();
     console.log(`⚡ Chart regeneration processor started`);
+    // Seed AdminConfig defaults (model prices, alert thresholds)
+    (0, admin_defaults_1.seedAdminDefaults)().catch(err => console.error('[Startup] Failed to seed admin defaults:', err));
 });
 exports.default = app;
 //# sourceMappingURL=index.js.map

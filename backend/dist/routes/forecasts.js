@@ -60,8 +60,15 @@ router.get('/daily', queryLimit_1.queryLimitMiddleware, async (req, res) => {
             longitude: user.birthData.longitude,
             timezone: user.birthData.timezone || 'Europe/Sofia',
         };
+        // Read precomputed natal chart from DB (avoids redundant API call)
+        const storedChart = await prisma_1.prisma.birthChart.findFirst({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            select: { chartData: true },
+        });
+        const precomputedChart = storedChart?.chartData;
         // Get the daily forecast
-        const forecast = await (0, forecast_1.getDailyForecast)(userId, birthData, lang);
+        const forecast = await (0, forecast_1.getDailyForecast)(userId, birthData, lang, precomputedChart);
         res.json({
             success: true,
             data: forecast,
@@ -125,7 +132,14 @@ router.get('/weekly', queryLimit_1.queryLimitMiddleware, async (req, res) => {
             longitude: user.birthData.longitude,
             timezone: user.birthData.timezone || 'Europe/Sofia',
         };
-        const forecast = await (0, forecast_1.getWeeklyForecast)(userId, birthData, lang);
+        // Read precomputed natal chart from DB (avoids redundant API call)
+        const storedChart = await prisma_1.prisma.birthChart.findFirst({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            select: { chartData: true },
+        });
+        const precomputedChart = storedChart?.chartData;
+        const forecast = await (0, forecast_1.getWeeklyForecast)(userId, birthData, lang, precomputedChart);
         res.json({
             success: true,
             data: forecast,
@@ -193,6 +207,34 @@ router.get('/transits', async (req, res) => {
                 message: 'Failed to get transits',
             },
         });
+    }
+});
+// GET /api/v1/forecasts/horoscope — personal daily horoscope, no query quota
+router.get('/horoscope', async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        if (!userId)
+            return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } });
+        const profile = await prisma_1.prisma.birthData.findUnique({
+            where: { userId },
+            select: { date: true, time: true, latitude: true, longitude: true, timezone: true },
+        });
+        if (!profile)
+            return res.status(400).json({ success: false, error: { code: 'BIRTH_DATA_MISSING', message: 'Add your birth data first to get your daily horoscope' } });
+        const birthDate = new Date(profile.date);
+        const [hour, minute] = (profile.time || '12:00').split(':').map(Number);
+        const birthData = {
+            year: birthDate.getFullYear(), month: birthDate.getMonth() + 1, day: birthDate.getDate(),
+            hour: hour || 12, minute: minute || 0,
+            latitude: profile.latitude, longitude: profile.longitude,
+            timezone: profile.timezone || 'UTC',
+        };
+        const horoscope = await forecast_1.getPersonalDailyHoroscope(userId, birthData);
+        res.json({ success: true, data: horoscope });
+    }
+    catch (error) {
+        console.error('[Forecast] Horoscope error:', error);
+        res.status(500).json({ success: false, error: { code: 'HOROSCOPE_ERROR', message: 'Failed to generate your daily horoscope' } });
     }
 });
 exports.default = router;

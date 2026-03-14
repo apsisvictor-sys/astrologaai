@@ -8,19 +8,21 @@
 
 import { AuthenticatedSocket, getSocketServer, emitToSocket } from './index';
 import { PrismaClient, Tier } from '@prisma/client';
-import { redisClient, storeSessionContext, getSessionContext } from '../utils/redis';
 import {
   streamChatCompletion,
   buildSystemPrompt,
   generateChartSummary,
   getModelIdForTier,
 } from '../services/llm';
+import { getActiveTransitsForUser, computeTransitHouses } from '../services/transits';
+import { getPersonalDailyHoroscope } from '../services/forecast';
 import type { ChatMessage } from '../services/llm';
 import {
   checkQueryLimit,
   incrementQueryCount,
 } from '../middleware/queryLimit';
 import { getBurstLimit, getEffectiveMonthlyLimit } from '../config/subscription-tiers';
+import { getAdminPrices, calcMessageCostUsdCents } from '../services/cost-calculator';
 
 const prisma = new PrismaClient();
 
@@ -158,6 +160,8 @@ export async function handleChatSendMessage(
   const userId = socket.userId!;
   const userTier = (socket.userTier as Tier) || 'FREE';
   const userLanguage = (socket.userLanguage as 'bg' | 'en') || language;
+  const forwardedFor = socket.handshake.headers['x-forwarded-for'];
+  const userIp = (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor?.split(',')[0]?.trim()) || socket.handshake.address || undefined;
 
   try {
     // Validate content
@@ -265,17 +269,80 @@ export async function handleChatSendMessage(
       content: msg.content,
     }));
 
-    // Get session context from Redis
-    const sessionContext = await getSessionContext(conversationId);
-    const sessionSummary = sessionContext?.summary || session.summary || undefined;
+    // Get session summary from DB
+    const sessionSummary = (session as any).summary || undefined;
+
+    // Build personal transit context (injected into Oracle system prompt)
+    let transitsSummary: string | undefined;
+    if (userChart?.chartData) {
+      try {
+        const chart = userChart.chartData as any;
+        const { skyPositions } = await getActiveTransitsForUser(chart);
+        const transitHouses = computeTransitHouses(skyPositions, chart.houses || []);
+
+        const PLANET_DISPLAY: Record<string, string> = {
+          sun: 'Sun', moon: 'Moon', mercury: 'Mercury', venus: 'Venus', mars: 'Mars',
+          jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus', neptune: 'Neptune',
+          pluto: 'Pluto', northNode: 'North Node',
+        };
+
+        const skyLines = skyPositions.map(p => {
+          const name = PLANET_DISPLAY[p.planet] || p.planet;
+          const house = transitHouses[p.planet];
+          const retro = p.retrograde ? ' ℞' : '';
+          return `- ${name} in ${p.sign} ${p.degree.toFixed(1)}°${retro} | House ${house}`;
+        });
+
+        transitsSummary = `TODAY'S SKY — YOUR PERSONAL TRANSIT CONTEXT:\n${skyLines.join('\n')}`;
+
+        // PRO/PREMIUM: append personal planetary influences from horoscope cache
+        if (userTier === 'PRO' || userTier === 'PREMIUM') {
+          try {
+            const profile = await prisma.birthData.findUnique({ where: { userId } });
+            if (profile) {
+              const birthDate = new Date(profile.date);
+              const [hour, minute] = (profile.time || '12:00').split(':').map(Number);
+              const birthData = {
+                year: birthDate.getFullYear(), month: birthDate.getMonth() + 1, day: birthDate.getDate(),
+                hour: hour || 12, minute: minute || 0,
+                latitude: profile.latitude, longitude: profile.longitude,
+                timezone: profile.timezone || 'UTC',
+              };
+              const horoscope = await getPersonalDailyHoroscope(userId, birthData);
+              if (horoscope.planetaryInfluences?.length > 0) {
+                const influenceLines = horoscope.planetaryInfluences.map(inf => {
+                  const orbStr = inf.orb != null ? ` | orb ${inf.orb.toFixed(1)}°` : '';
+                  return `- ${inf.planet} ${inf.aspectType} natal ${inf.natalPlanet}${orbStr} | strength ${inf.strength}/5`;
+                });
+                transitsSummary += `\n\nYour personal planetary aspects today:\n${influenceLines.join('\n')}`;
+              }
+            }
+          } catch (e) {
+            // horoscope fetch failed — sky positions still injected
+          }
+        }
+      } catch (e) {
+        // transit injection failed — proceed without it, do not break the chat
+      }
+    }
 
     // Build system prompt — chart + persona only. Full conversation history
     // is sent as structured messages below, not embedded in the system prompt.
     const systemPrompt = buildSystemPrompt({
       chartSummary,
+      transitsSummary,
       language: userLanguage,
       sessionSummary,
     });
+
+    // For PREMIUM users, fetch stored partners for synastry/composite tool context
+    let partners: Array<{ id: string; name: string }> = [];
+    if (userTier === 'PREMIUM') {
+      partners = await prisma.partner.findMany({
+        where: { userId },
+        select: { id: true, name: true },
+      });
+    }
 
     const messages: ChatMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -314,7 +381,7 @@ export async function handleChatSendMessage(
     const streamStartTime = Date.now();
 
     try {
-      for await (const chunk of streamChatCompletion(messages, { tier: userTier }, {
+      for await (const chunk of streamChatCompletion(messages, { tier: userTier, userId, userIp, partners }, {
         onToolCall: (name: string, args: any) => {
           // Send a live UI indicator to the Next.js frontend
           socket.emit('chat:tool_call', {
@@ -402,20 +469,44 @@ export async function handleChatSendMessage(
         },
       });
 
+      // Fire-and-forget: upsert daily LlmUsage aggregate (does not block response)
+      const inTokens  = tokenUsage?.inputTokens  ?? 0;
+      const outTokens = tokenUsage?.outputTokens ?? 0;
+      getAdminPrices().then(prices => {
+        const costUsdCents = calcMessageCostUsdCents(modelId, inTokens, outTokens, prices);
+        const today = new Date();
+        today.setUTCHours(0, 0, 0, 0);
+        return prisma.llmUsage.upsert({
+          where: { date_tier_model: { date: today, tier: userTier, model: modelId } },
+          create: {
+            date: today,
+            tier: userTier,
+            model: modelId,
+            requestCount: 1,
+            inputTokens:  inTokens,
+            outputTokens: outTokens,
+            totalTokens:  tokenUsage?.totalTokens ?? (inTokens + outTokens),
+            costUsdCents,
+            p50LatencyMs: latencyMs,
+            p95LatencyMs: latencyMs,
+            p99LatencyMs: latencyMs,
+          },
+          update: {
+            requestCount:  { increment: 1 },
+            inputTokens:   { increment: inTokens },
+            outputTokens:  { increment: outTokens },
+            totalTokens:   { increment: tokenUsage?.totalTokens ?? (inTokens + outTokens) },
+            costUsdCents:  { increment: costUsdCents },
+            p50LatencyMs:  latencyMs, // last-value approximation
+          },
+        });
+      }).catch(err => console.error('[LlmUsage] upsert failed:', err));
+
       // Update session
       await prisma.chatSession.update({
         where: { id: conversationId },
         data: { updatedAt: new Date() },
       });
-
-      // Update Redis context
-      const updatedMessages = [
-        ...session.messages.map(m => ({ role: m.role.toLowerCase(), content: m.content })),
-        { role: 'user', content: content.trim() },
-        { role: 'assistant', content: fullResponse },
-      ];
-
-      await storeSessionContext(conversationId, userId, updatedMessages, sessionSummary || undefined);
 
       // Emit completion
       socket.emit('chat:message_complete', {

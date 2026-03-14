@@ -38,6 +38,7 @@ interface LocationResult {
   displayName: string;
   latitude: number;
   longitude: number;
+  timezone?: string;
 }
 
 export default function BirthDataSettingsPage() {
@@ -142,6 +143,7 @@ export default function BirthDataSettingsPage() {
           : selectedLocation.displayName,
         latitude: selectedLocation.latitude,
         longitude: selectedLocation.longitude,
+        timezone: selectedLocation.timezone || undefined,
       };
 
       const endpoint = profile ? `/api/v1/birth-data/${profile.id}` : '/api/v1/birth-data';
@@ -301,6 +303,9 @@ export default function BirthDataSettingsPage() {
               )}
               {selectedLocation && (
                 <p className="mt-1 text-xs" style={{ color: COLORS.success }}>✓ Location confirmed</p>
+              )}
+              {!selectedLocation && location.length > 1 && !locationSearching && locationResults.length === 0 && (
+                <p className="mt-1 text-xs" style={{ color: COLORS.error }}>Please select a city from the dropdown</p>
               )}
             </div>
 

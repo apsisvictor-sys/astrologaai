@@ -4,6 +4,7 @@
  * With Redis caching for 24 hours
  */
 
+import { find as findTimezone } from 'geo-tz';
 import { redisClient } from '../utils/redis';
 
 interface GeocodingResult {
@@ -116,19 +117,23 @@ export async function searchLocations(query: string, limit: number = 10): Promis
     
     // Transform results
     const transformed: GeocodingResult[] = results.map(result => {
-      const city = result.address?.city || 
-                   result.address?.town || 
-                   result.address?.village || 
-                   result.address?.municipality || 
+      const city = result.address?.city ||
+                   result.address?.town ||
+                   result.address?.village ||
+                   result.address?.municipality ||
                    '';
-      
+      const lat = parseFloat(result.lat);
+      const lon = parseFloat(result.lon);
+      const timezone = findTimezone(lat, lon)[0] || 'UTC';
+
       return {
         name: city || result.display_name.split(',')[0],
         displayName: result.display_name,
-        latitude: parseFloat(result.lat),
-        longitude: parseFloat(result.lon),
+        latitude: lat,
+        longitude: lon,
         country: result.address?.country || '',
         city,
+        timezone,
       };
     });
     
@@ -216,35 +221,10 @@ export async function reverseGeocode(lat: number, lon: number): Promise<Geocodin
 }
 
 /**
- * Get timezone for coordinates
- * Uses a simple approximation based on longitude
- * For production, use a proper timezone API like GeoNames or tzf
+ * Get IANA timezone for coordinates using geo-tz
  */
 export function getTimezoneFromCoordinates(lat: number, lon: number): string {
-  // Simple timezone approximation based on longitude
-  // For Bulgaria (lon ~23-28), this returns Europe/Sofia
-  // For production, use a proper timezone lookup service
-  
-  // Special case for Bulgaria
-  if (lat >= 41 && lat <= 44 && lon >= 22 && lon <= 29) {
-    return 'Europe/Sofia';
-  }
-  
-  // General approximation (each 15° = 1 hour)
-  const offset = Math.round(lon / 15);
-  const sign = offset >= 0 ? '+' : '';
-  
-  // Map to timezone string
-  const timezoneMap: Record<string, string> = {
-    '+0': 'Europe/London',
-    '+1': 'Europe/Paris',
-    '+2': 'Europe/Sofia',
-    '+3': 'Europe/Moscow',
-    '-5': 'America/New_York',
-    '-8': 'America/Los_Angeles',
-  };
-  
-  return timezoneMap[`${sign}${offset}`] || 'UTC';
+  return findTimezone(lat, lon)[0] || 'UTC';
 }
 
 /**

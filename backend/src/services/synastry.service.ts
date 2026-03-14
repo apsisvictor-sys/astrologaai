@@ -7,7 +7,6 @@
  */
 
 import { calculateNatalChart, BirthDataInput, PlanetPosition, Aspect } from './astrology';
-import { redisClient } from '../utils/redis';
 
 // ============================================
 // Types
@@ -352,18 +351,6 @@ export async function calculateSynastryChart(
   userId: string,
   partnerId: string
 ): Promise<SynastryChart> {
-  // Check cache first
-  const cacheKey = generateCacheKey(userId, partnerId);
-  try {
-    const cached = await redisClient.get(cacheKey);
-    if (cached) {
-      console.log(`[Synastry] Cache hit for ${cacheKey}`);
-      return JSON.parse(cached);
-    }
-  } catch (error) {
-    console.warn('[Synastry] Cache read error:', error);
-  }
-
   // Calculate both natal charts
   const [userChart, partnerChart] = await Promise.all([
     calculateNatalChart(userBirthData),
@@ -506,14 +493,6 @@ export async function calculateSynastryChart(
     summary,
     calculatedAt: new Date().toISOString(),
   };
-
-  // Cache the result
-  try {
-    await redisClient.setEx(cacheKey, SYNASTRY_CACHE_TTL, JSON.stringify(synastryChart));
-    console.log(`[Synastry] Cached chart for ${cacheKey}`);
-  } catch (error) {
-    console.warn('[Synastry] Cache write error:', error);
-  }
 
   return synastryChart;
 }
@@ -768,42 +747,18 @@ function generateSummary(
   return summaries[compatibility];
 }
 
-/**
- * Get cached synastry chart
- */
+/** @deprecated Redis cache removed */
 export async function getCachedSynastry(
-  userId: string,
-  partnerId: string
+  _userId: string,
+  _partnerId: string
 ): Promise<SynastryChart | null> {
-  const cacheKey = generateCacheKey(userId, partnerId);
-  
-  try {
-    const cached = await redisClient.get(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  } catch (error) {
-    console.warn('[Synastry] Cache read error:', error);
-  }
-  
   return null;
 }
 
-/**
- * Invalidate synastry cache
- */
+/** @deprecated Redis cache removed — no-op */
 export async function invalidateSynastryCache(
-  userId: string,
-  partnerId: string
-): Promise<void> {
-  const cacheKey = generateCacheKey(userId, partnerId);
-  
-  try {
-    await redisClient.del(cacheKey);
-    console.log(`[Synastry] Invalidated cache for ${cacheKey}`);
-  } catch (error) {
-    console.warn('[Synastry] Cache invalidation error:', error);
-  }
-}
+  _userId: string,
+  _partnerId: string
+): Promise<void> {}
 
 export type { SynastryChart as SynastryChartType };

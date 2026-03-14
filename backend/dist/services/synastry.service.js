@@ -11,7 +11,6 @@ exports.calculateSynastryChart = calculateSynastryChart;
 exports.getCachedSynastry = getCachedSynastry;
 exports.invalidateSynastryCache = invalidateSynastryCache;
 const astrology_1 = require("./astrology");
-const redis_1 = require("../utils/redis");
 // ============================================
 // Constants
 // ============================================
@@ -270,18 +269,6 @@ function generateCacheKey(userId, partnerId) {
  * Calculate synastry chart between user and partner
  */
 async function calculateSynastryChart(userBirthData, partnerBirthData, userId, partnerId) {
-    // Check cache first
-    const cacheKey = generateCacheKey(userId, partnerId);
-    try {
-        const cached = await redis_1.redisClient.get(cacheKey);
-        if (cached) {
-            console.log(`[Synastry] Cache hit for ${cacheKey}`);
-            return JSON.parse(cached);
-        }
-    }
-    catch (error) {
-        console.warn('[Synastry] Cache read error:', error);
-    }
     // Calculate both natal charts
     const [userChart, partnerChart] = await Promise.all([
         (0, astrology_1.calculateNatalChart)(userBirthData),
@@ -401,14 +388,6 @@ async function calculateSynastryChart(userBirthData, partnerBirthData, userId, p
         summary,
         calculatedAt: new Date().toISOString(),
     };
-    // Cache the result
-    try {
-        await redis_1.redisClient.setEx(cacheKey, SYNASTRY_CACHE_TTL, JSON.stringify(synastryChart));
-        console.log(`[Synastry] Cached chart for ${cacheKey}`);
-    }
-    catch (error) {
-        console.warn('[Synastry] Cache write error:', error);
-    }
     return synastryChart;
 }
 /**
@@ -613,30 +592,10 @@ function generateSummary(userSun, userMoon, partnerSun, partnerMoon, score, aspe
 /**
  * Get cached synastry chart
  */
-async function getCachedSynastry(userId, partnerId) {
-    const cacheKey = generateCacheKey(userId, partnerId);
-    try {
-        const cached = await redis_1.redisClient.get(cacheKey);
-        if (cached) {
-            return JSON.parse(cached);
-        }
-    }
-    catch (error) {
-        console.warn('[Synastry] Cache read error:', error);
-    }
+/** Redis cache removed */
+async function getCachedSynastry(_userId, _partnerId) {
     return null;
 }
-/**
- * Invalidate synastry cache
- */
-async function invalidateSynastryCache(userId, partnerId) {
-    const cacheKey = generateCacheKey(userId, partnerId);
-    try {
-        await redis_1.redisClient.del(cacheKey);
-        console.log(`[Synastry] Invalidated cache for ${cacheKey}`);
-    }
-    catch (error) {
-        console.warn('[Synastry] Cache invalidation error:', error);
-    }
-}
+/** Redis cache removed — no-op */
+async function invalidateSynastryCache(_userId, _partnerId) { }
 //# sourceMappingURL=synastry.service.js.map

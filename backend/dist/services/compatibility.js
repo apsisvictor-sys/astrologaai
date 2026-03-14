@@ -13,7 +13,6 @@ exports.calculateCompatibility = calculateCompatibility;
 exports.getCachedCompatibility = getCachedCompatibility;
 exports.invalidateCompatibilityCache = invalidateCompatibilityCache;
 const prisma_1 = require("../utils/prisma");
-const redis_1 = require("../utils/redis");
 const synastry_service_1 = require("./synastry.service");
 const astrology_1 = require("./astrology");
 // ============================================
@@ -323,20 +322,6 @@ function generateCacheKey(userId, partnerId) {
  * Calculate comprehensive compatibility analysis
  */
 async function calculateCompatibility(userId, partnerId) {
-    // Check cache first
-    const cacheKey = generateCacheKey(userId, partnerId);
-    try {
-        const cached = await redis_1.redisClient.get(cacheKey);
-        if (cached) {
-            console.log(`[Compatibility] Cache hit for ${cacheKey}`);
-            const parsed = JSON.parse(cached);
-            parsed.cachedAt = new Date().toISOString();
-            return parsed;
-        }
-    }
-    catch (error) {
-        console.warn('[Compatibility] Cache read error:', error);
-    }
     // Get user's birth data - need to include the birth profile or birth data relation
     const user = await prisma_1.prisma.user.findUnique({
         where: { id: userId },
@@ -398,14 +383,6 @@ async function calculateCompatibility(userId, partnerId) {
     const partnerNatalChart = await (0, astrology_1.calculateNatalChart)(partnerBirthData);
     // Build compatibility analysis
     const analysis = buildCompatibilityAnalysis(partnerId, partner.name, synastryChart, userNatalChart, partnerNatalChart);
-    // Cache the result
-    try {
-        await redis_1.redisClient.setEx(cacheKey, COMPATIBILITY_CACHE_TTL, JSON.stringify(analysis));
-        console.log(`[Compatibility] Cached analysis for ${cacheKey}`);
-    }
-    catch (error) {
-        console.warn('[Compatibility] Cache write error:', error);
-    }
     return analysis;
 }
 /**
@@ -578,30 +555,10 @@ function analyzePlanetPair(planet, userPlanet, partnerPlanet, aspects) {
 /**
  * Get cached compatibility analysis
  */
-async function getCachedCompatibility(userId, partnerId) {
-    const cacheKey = generateCacheKey(userId, partnerId);
-    try {
-        const cached = await redis_1.redisClient.get(cacheKey);
-        if (cached) {
-            return JSON.parse(cached);
-        }
-    }
-    catch (error) {
-        console.warn('[Compatibility] Cache read error:', error);
-    }
+/** Redis cache removed */
+async function getCachedCompatibility(_userId, _partnerId) {
     return null;
 }
-/**
- * Invalidate compatibility cache
- */
-async function invalidateCompatibilityCache(userId, partnerId) {
-    const cacheKey = generateCacheKey(userId, partnerId);
-    try {
-        await redis_1.redisClient.del(cacheKey);
-        console.log(`[Compatibility] Invalidated cache for ${cacheKey}`);
-    }
-    catch (error) {
-        console.warn('[Compatibility] Cache invalidation error:', error);
-    }
-}
+/** Redis cache removed — no-op */
+async function invalidateCompatibilityCache(_userId, _partnerId) { }
 //# sourceMappingURL=compatibility.js.map

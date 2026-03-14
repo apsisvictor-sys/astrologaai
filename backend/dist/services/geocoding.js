@@ -9,6 +9,7 @@ exports.searchLocations = searchLocations;
 exports.reverseGeocode = reverseGeocode;
 exports.getTimezoneFromCoordinates = getTimezoneFromCoordinates;
 exports.validateCoordinates = validateCoordinates;
+const geo_tz_1 = require("geo-tz");
 const redis_1 = require("../utils/redis");
 const CACHE_TTL = 86400; // 24 hours in seconds
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org';
@@ -80,13 +81,17 @@ async function searchLocations(query, limit = 10) {
                 result.address?.village ||
                 result.address?.municipality ||
                 '';
+            const lat = parseFloat(result.lat);
+            const lon = parseFloat(result.lon);
+            const timezone = geo_tz_1.find(lat, lon)[0] || 'UTC';
             return {
                 name: city || result.display_name.split(',')[0],
                 displayName: result.display_name,
-                latitude: parseFloat(result.lat),
-                longitude: parseFloat(result.lon),
+                latitude: lat,
+                longitude: lon,
                 country: result.address?.country || '',
                 city,
+                timezone,
             };
         });
         // Cache results (fire-and-forget with timeout)
@@ -162,31 +167,10 @@ async function reverseGeocode(lat, lon) {
     }
 }
 /**
- * Get timezone for coordinates
- * Uses a simple approximation based on longitude
- * For production, use a proper timezone API like GeoNames or tzf
+ * Get IANA timezone for coordinates using geo-tz
  */
 function getTimezoneFromCoordinates(lat, lon) {
-    // Simple timezone approximation based on longitude
-    // For Bulgaria (lon ~23-28), this returns Europe/Sofia
-    // For production, use a proper timezone lookup service
-    // Special case for Bulgaria
-    if (lat >= 41 && lat <= 44 && lon >= 22 && lon <= 29) {
-        return 'Europe/Sofia';
-    }
-    // General approximation (each 15° = 1 hour)
-    const offset = Math.round(lon / 15);
-    const sign = offset >= 0 ? '+' : '';
-    // Map to timezone string
-    const timezoneMap = {
-        '+0': 'Europe/London',
-        '+1': 'Europe/Paris',
-        '+2': 'Europe/Sofia',
-        '+3': 'Europe/Moscow',
-        '-5': 'America/New_York',
-        '-8': 'America/Los_Angeles',
-    };
-    return timezoneMap[`${sign}${offset}`] || 'UTC';
+    return geo_tz_1.find(lat, lon)[0] || 'UTC';
 }
 /**
  * Validate that coordinates are within valid ranges

@@ -31,6 +31,7 @@ const auth_1 = require("../middleware/auth");
 const adminAuth_1 = require("../middleware/adminAuth");
 const prisma_1 = require("../utils/prisma");
 const stripe_1 = __importDefault(require("stripe"));
+const cost_calculator_1 = require("../services/cost-calculator");
 const router = (0, express_1.Router)();
 router.use(auth_1.authMiddleware);
 router.use(adminAuth_1.adminAuthMiddleware);
@@ -174,6 +175,7 @@ router.get('/users', async (req, res) => {
         const search = req.query.search || '';
         const tier = req.query.tier;
         const status = req.query.status;
+        const flaggedHighCost = req.query.flagged === 'highcost';
         const where = {};
         if (search) {
             where.OR = [
@@ -185,17 +187,21 @@ router.get('/users', async (req, res) => {
             where.tier = tier;
         }
         where.createdAt = { gte: start, lte: end };
-        // Status filter maps to subscription status
         const statusFilter = status && status !== 'ALL' ? status : null;
+        const now = new Date();
+        const billingStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+        const prices = await cost_calculator_1.getAdminPrices();
+        const thresholds = {
+            FREE: prices['alert_threshold_free_eur_cents'] ?? 200,
+            PRO: prices['alert_threshold_pro_eur_cents'] ?? 500,
+            PREMIUM: prices['alert_threshold_premium_eur_cents'] ?? 1000,
+        };
         const [users, total] = await Promise.all([
             prisma_1.prisma.user.findMany({
                 where,
                 include: {
                     subscription: { select: { status: true, tier: true, cancelAtPeriodEnd: true } },
-                    usageRecords: {
-                        orderBy: { month: 'desc' },
-                        take: 1,
-                    },
+                    usageRecords: { orderBy: { month: 'desc' }, take: 1 },
                 },
                 orderBy: { createdAt: 'desc' },
                 skip: (page - 1) * limit,
@@ -203,36 +209,32 @@ router.get('/users', async (req, res) => {
             }),
             prisma_1.prisma.user.count({ where }),
         ]);
-        const formatted = users
-            .filter(u => {
-            if (!statusFilter)
-                return true;
-            const subStatus = u.subscription?.status ?? 'ACTIVE';
-            if (statusFilter === 'SUSPENDED')
-                return u.isSuspended;
-            return subStatus === statusFilter;
-        })
-            .map(u => ({
-            id: u.id,
-            email: u.email,
-            fullName: u.fullName,
-            tier: u.tier,
-            language: u.language,
-            emailVerified: u.emailVerified,
-            createdAt: u.createdAt,
-            subscriptionStatus: u.subscription?.status ?? (u.tier === 'FREE' ? 'FREE' : 'ACTIVE'),
-            cancelAtPeriodEnd: u.subscription?.cancelAtPeriodEnd ?? false,
-            monthlyQueries: u.monthlyQueryCount,
-            currentMonthUsage: u.usageRecords[0]?.queryCount ?? 0,
-            bonusQueries: u.bonusQueries,
-            isSuspended: u.isSuspended,
+        const usersWithCost = await Promise.all(users.map(async (u) => {
+            const costEurCents = await cost_calculator_1.getUserCostEurCents(u.id, billingStart, now);
+            const threshold = thresholds[u.tier] ?? Infinity;
+            return { user: u, costEurCents, aboveThreshold: costEurCents >= threshold };
         }));
+        const formatted = usersWithCost
+            .filter(({ user: u, aboveThreshold }) => {
+                if (flaggedHighCost && !aboveThreshold) return false;
+                if (!statusFilter) return true;
+                if (statusFilter === 'SUSPENDED') return u.isSuspended;
+                const subStatus = u.subscription?.status ?? 'ACTIVE';
+                return subStatus === statusFilter;
+            })
+            .map(({ user: u, costEurCents, aboveThreshold }) => ({
+                id: u.id, email: u.email, fullName: u.fullName, tier: u.tier,
+                language: u.language, emailVerified: u.emailVerified, createdAt: u.createdAt,
+                subscriptionStatus: u.subscription?.status ?? (u.tier === 'FREE' ? 'FREE' : 'ACTIVE'),
+                cancelAtPeriodEnd: u.subscription?.cancelAtPeriodEnd ?? false,
+                monthlyQueries: u.monthlyQueryCount,
+                currentMonthUsage: u.usageRecords[0]?.queryCount ?? 0,
+                bonusQueries: u.bonusQueries, isSuspended: u.isSuspended,
+                costEurCents, aboveThreshold,
+            }));
         res.json({
             success: true,
-            data: {
-                users: formatted,
-                pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
-            },
+            data: { users: formatted, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }, thresholds },
         });
     }
     catch (err) {

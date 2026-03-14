@@ -42,6 +42,7 @@ import type { AuthenticatedSocket } from './socket';
 
 // US-30: Chart regeneration processor
 import { startRegenerationProcessor } from './services/chart-regeneration';
+import { seedAdminDefaults } from './services/admin-defaults';
 
 config({ override: true });
 
@@ -293,6 +294,9 @@ httpServer.listen(PORT, () => {
   // US-30: Start background chart regeneration processor
   startRegenerationProcessor();
   console.log(`⚡ Chart regeneration processor started`);
+
+  // Seed AdminConfig defaults (model prices, alert thresholds) — skips if already set
+  seedAdminDefaults().catch(err => console.error('[Startup] Failed to seed admin defaults:', err));
 });
 
 export default app;

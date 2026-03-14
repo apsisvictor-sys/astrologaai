@@ -283,9 +283,9 @@ const createPartner = async (req, res) => {
             },
         });
         const partnerLimits = {
-            FREE: 1,
-            PRO: 10,
-            PREMIUM: 999,
+            FREE: 0,
+            PRO: 0,
+            PREMIUM: 10,
         };
         const limit = partnerLimits[user?.tier || 'FREE'];
         const currentCount = user?._count.partners || 0;
@@ -295,7 +295,7 @@ const createPartner = async (req, res) => {
                 error: {
                     code: 'LIMIT_EXCEEDED',
                     message: `Partner limit reached for your tier (${limit} partners)`,
-                    upgradeRequired: user?.tier === 'FREE',
+                    upgradeRequired: user?.tier !== 'PREMIUM',
                 },
             });
         }

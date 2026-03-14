@@ -14,9 +14,11 @@ exports.handleChatCancelGeneration = handleChatCancelGeneration;
 exports.handleChatUnsubscribe = handleChatUnsubscribe;
 exports.registerChatHandlers = registerChatHandlers;
 const client_1 = require("@prisma/client");
-const redis_1 = require("../utils/redis");
 const llm_1 = require("../services/llm");
+const transits_1 = require("../services/transits");
+const forecast_1 = require("../services/forecast");
 const queryLimit_1 = require("../middleware/queryLimit");
+const cost_calculator_1 = require("../services/cost-calculator");
 const prisma = new client_1.PrismaClient();
 // ============================================
 // Rate Limiting Configuration (US-36: Now uses centralized config)
@@ -110,6 +112,8 @@ async function handleChatSendMessage(socket, data) {
     const userId = socket.userId;
     const userTier = socket.userTier || 'FREE';
     const userLanguage = socket.userLanguage || language;
+    const forwardedFor = socket.handshake.headers['x-forwarded-for'];
+    const userIp = (Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor?.split(',')[0]?.trim()) || socket.handshake.address || undefined;
     try {
         // Validate content
         if (!content || typeof content !== 'string' || content.trim().length === 0) {
@@ -204,15 +208,69 @@ async function handleChatSendMessage(socket, data) {
             content: msg.content,
         }));
         // Get session context from Redis
-        const sessionContext = await (0, redis_1.getSessionContext)(conversationId);
-        const sessionSummary = sessionContext?.summary || session.summary || undefined;
+        const sessionSummary = session.summary || undefined;
+        // Build personal transit context (injected into Oracle system prompt)
+        let transitsSummary;
+        if (userChart?.chartData) {
+            try {
+                const chart = userChart.chartData;
+                const { skyPositions } = await (0, transits_1.getActiveTransitsForUser)(chart);
+                const transitHouses = (0, transits_1.computeTransitHouses)(skyPositions, chart.houses || []);
+                const PLANET_DISPLAY = {
+                    sun: 'Sun', moon: 'Moon', mercury: 'Mercury', venus: 'Venus', mars: 'Mars',
+                    jupiter: 'Jupiter', saturn: 'Saturn', uranus: 'Uranus', neptune: 'Neptune',
+                    pluto: 'Pluto', northNode: 'North Node',
+                };
+                const skyLines = skyPositions.map(p => {
+                    const name = PLANET_DISPLAY[p.planet] || p.planet;
+                    const house = transitHouses[p.planet];
+                    const retro = p.retrograde ? ' ℞' : '';
+                    return `- ${name} in ${p.sign} ${p.degree.toFixed(1)}°${retro} | House ${house}`;
+                });
+                transitsSummary = `TODAY'S SKY — YOUR PERSONAL TRANSIT CONTEXT:\n${skyLines.join('\n')}`;
+                if (userTier === 'PRO' || userTier === 'PREMIUM') {
+                    try {
+                        const profile = await prisma.birthData.findUnique({ where: { userId } });
+                        if (profile) {
+                            const birthDate = new Date(profile.date);
+                            const [hour, minute] = (profile.time || '12:00').split(':').map(Number);
+                            const birthData = {
+                                year: birthDate.getFullYear(), month: birthDate.getMonth() + 1, day: birthDate.getDate(),
+                                hour: hour || 12, minute: minute || 0,
+                                latitude: profile.latitude, longitude: profile.longitude,
+                                timezone: profile.timezone || 'UTC',
+                            };
+                            const horoscope = await (0, forecast_1.getPersonalDailyHoroscope)(userId, birthData);
+                            if (horoscope.planetaryInfluences?.length > 0) {
+                                const influenceLines = horoscope.planetaryInfluences.map(inf => {
+                                    const orbStr = inf.orb != null ? ` | orb ${inf.orb.toFixed(1)}°` : '';
+                                    return `- ${inf.planet} ${inf.aspectType} natal ${inf.natalPlanet}${orbStr} | strength ${inf.strength}/5`;
+                                });
+                                transitsSummary += `\n\nYour personal planetary aspects today:\n${influenceLines.join('\n')}`;
+                            }
+                        }
+                    }
+                    catch (e) { /* horoscope fetch failed — sky positions still injected */ }
+                }
+            }
+            catch (e) { /* transit injection failed — proceed without it */ }
+        }
         // Build system prompt — chart + persona only. Full conversation history
         // is sent as structured messages below, not embedded in the system prompt.
         const systemPrompt = (0, llm_1.buildSystemPrompt)({
             chartSummary,
+            transitsSummary,
             language: userLanguage,
             sessionSummary,
         });
+        // For PREMIUM users, fetch stored partners for synastry/composite tool context
+        let partners = [];
+        if (userTier === 'PREMIUM') {
+            partners = await prisma.partner.findMany({
+                where: { userId },
+                select: { id: true, name: true },
+            });
+        }
         const messages = [
             { role: 'system', content: systemPrompt },
             ...conversationHistory,
@@ -245,7 +303,7 @@ async function handleChatSendMessage(socket, data) {
         const modelId = (0, llm_1.getModelIdForTier)(userTier);
         const streamStartTime = Date.now();
         try {
-            for await (const chunk of (0, llm_1.streamChatCompletion)(messages, { tier: userTier }, {
+            for await (const chunk of (0, llm_1.streamChatCompletion)(messages, { tier: userTier, userId, userIp, partners }, {
                 onToolCall: (name, args) => {
                     // Send a live UI indicator to the Next.js frontend
                     socket.emit('chat:tool_call', {
@@ -324,18 +382,34 @@ async function handleChatSendMessage(socket, data) {
                     },
                 },
             });
+            // Fire-and-forget: upsert daily LlmUsage aggregate
+            const inTokens = tokenUsage?.inputTokens ?? 0;
+            const outTokens = tokenUsage?.outputTokens ?? 0;
+            cost_calculator_1.getAdminPrices().then(prices => {
+                const costUsdCents = cost_calculator_1.calcMessageCostUsdCents(modelId, inTokens, outTokens, prices);
+                const today = new Date();
+                today.setUTCHours(0, 0, 0, 0);
+                return prisma.llmUsage.upsert({
+                    where: { date_tier_model: { date: today, tier: userTier, model: modelId } },
+                    create: {
+                        date: today, tier: userTier, model: modelId,
+                        requestCount: 1, inputTokens: inTokens, outputTokens: outTokens,
+                        totalTokens: tokenUsage?.totalTokens ?? (inTokens + outTokens),
+                        costUsdCents, p50LatencyMs: latencyMs, p95LatencyMs: latencyMs, p99LatencyMs: latencyMs,
+                    },
+                    update: {
+                        requestCount: { increment: 1 }, inputTokens: { increment: inTokens },
+                        outputTokens: { increment: outTokens },
+                        totalTokens: { increment: tokenUsage?.totalTokens ?? (inTokens + outTokens) },
+                        costUsdCents: { increment: costUsdCents }, p50LatencyMs: latencyMs,
+                    },
+                });
+            }).catch(err => console.error('[LlmUsage] upsert failed:', err));
             // Update session
             await prisma.chatSession.update({
                 where: { id: conversationId },
                 data: { updatedAt: new Date() },
             });
-            // Update Redis context
-            const updatedMessages = [
-                ...session.messages.map(m => ({ role: m.role.toLowerCase(), content: m.content })),
-                { role: 'user', content: content.trim() },
-                { role: 'assistant', content: fullResponse },
-            ];
-            await (0, redis_1.storeSessionContext)(conversationId, userId, updatedMessages, sessionSummary || undefined);
             // Emit completion
             socket.emit('chat:message_complete', {
                 messageId: assistantMessage.id,

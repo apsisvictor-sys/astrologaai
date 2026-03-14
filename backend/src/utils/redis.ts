@@ -1,49 +1,74 @@
 /**
  * Redis Client Singleton
  * Used for password reset tokens, session caching, and chat context
- * 
- * US-34: Graceful fallback when Redis is unavailable
+ *
+ * US-34: Graceful fallback to in-memory when Redis is unavailable.
+ * Connects via REDIS_URL env var (Upstash rediss:// URL).
  */
 
-// Redis disabled — using in-memory fallback only.
-// Re-enable by restoring the createClient() connection when Redis is needed.
+import { createClient } from 'redis';
 
-// In-memory fallback cache
+// In-memory fallback cache (used when Redis is unavailable)
 const memoryCache = new Map<string, { value: string; expiresAt: number }>();
 
-function createMemoryFallbackClient() {
-  return {
-    get: async (key: string) => {
-      const item = memoryCache.get(key);
-      if (item && item.expiresAt > Date.now()) {
-        return item.value;
-      }
-      memoryCache.delete(key);
-      return null;
-    },
-    setEx: async (key: string, ttl: number, value: string) => {
-      memoryCache.set(key, { value, expiresAt: Date.now() + ttl * 1000 });
-    },
-    del: async (...keys: string[]) => {
-      keys.forEach(k => memoryCache.delete(k));
-    },
-    lPush: async (_key: string, _value: string) => { },
-    rPush: async (_key: string, _value: string) => { },
-    lPop: async (_key: string) => null,
-    lTrim: async (_key: string, _start: number, _stop: number) => { },
-    keys: async (_pattern: string) => [] as string[],
-    ping: async () => 'PONG',
-    on: () => { },
-    connect: async () => { },
-  };
+const memoryClient = {
+  get: async (key: string) => {
+    const item = memoryCache.get(key);
+    if (item && item.expiresAt > Date.now()) return item.value;
+    memoryCache.delete(key);
+    return null;
+  },
+  setEx: async (key: string, ttl: number, value: string) => {
+    memoryCache.set(key, { value, expiresAt: Date.now() + ttl * 1000 });
+  },
+  del: async (...keys: string[]) => { keys.forEach(k => memoryCache.delete(k)); },
+  lPush: async (_key: string, _value: string) => {},
+  rPush: async (_key: string, _value: string) => {},
+  lPop: async (_key: string) => null as null,
+  lTrim: async (_key: string, _start: number, _stop: number) => {},
+  keys: async (_pattern: string) => [] as string[],
+  ping: async () => 'PONG',
+  on: () => {},
+  connect: async () => {},
+};
+
+let _connected = false;
+// activeClient starts as memoryClient, swaps to real Redis once connected
+let activeClient: typeof memoryClient = memoryClient;
+
+const redisUrl = process.env.REDIS_URL;
+if (redisUrl) {
+  const realClient = createClient({ url: redisUrl });
+
+  realClient.on('connect', () => {
+    _connected = true;
+    activeClient = realClient as any;
+    console.log('[Redis] Connected to Upstash Redis');
+  });
+
+  realClient.on('error', (err: Error) => {
+    if (_connected) {
+      _connected = false;
+      activeClient = memoryClient;
+      console.error('[Redis] Lost connection, falling back to in-memory:', err.message);
+    }
+  });
+
+  realClient.connect().catch((err: Error) => {
+    console.error('[Redis] Initial connect failed, using in-memory fallback:', err.message);
+  });
+} else {
+  console.log('[Redis] No REDIS_URL — using in-memory fallback');
 }
 
-console.log('[Redis] Using in-memory fallback (Redis disabled)');
-
-export const redisClient = createMemoryFallbackClient() as any;
+export const redisClient = new Proxy(memoryClient, {
+  get(_target, prop: string) {
+    return (activeClient as any)[prop];
+  },
+});
 
 export function isRedisConnected(): boolean {
-  return false;
+  return _connected;
 }
 
 // ============================================

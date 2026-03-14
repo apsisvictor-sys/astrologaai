@@ -40,19 +40,9 @@ export interface MoonPhase {
   moonSignBg: string;
 }
 
-export interface DailyTransits {
-  date: string;
-  transits: TransitPosition[];
-  aspectsToNatal: TransitAspect[];
-  moonPhase: MoonPhase;
-  generatedAt: string;
-}
-
 // ============================================
 // Constants
 // ============================================
-
-const TRANSIT_CACHE_TTL = 3600; // 1 hour in seconds
 
 // Planet names in Bulgarian
 const PLANET_BG: Record<string, string> = {
@@ -69,6 +59,20 @@ const PLANET_BG: Record<string, string> = {
   northNode: 'Северен възел',
   southNode: 'Южен възел',
   chiron: 'Хирон',
+};
+
+// SDK sign abbreviations → full names
+const SIGN_ABBREV_TO_FULL: Record<string, string> = {
+  Ari: 'Aries', Tau: 'Taurus', Gem: 'Gemini', Can: 'Cancer',
+  Leo: 'Leo',   Vir: 'Virgo',  Lib: 'Libra',  Sco: 'Scorpio',
+  Sag: 'Sagittarius', Cap: 'Capricorn', Aqu: 'Aquarius', Pis: 'Pisces',
+};
+
+// SDK planet names → internal names
+const PLANET_SDK_TO_INTERNAL: Record<string, string> = {
+  Sun: 'sun', Moon: 'moon', Mercury: 'mercury', Venus: 'venus',
+  Mars: 'mars', Jupiter: 'jupiter', Saturn: 'saturn', Uranus: 'uranus',
+  Neptune: 'neptune', Pluto: 'pluto', True_Node: 'northNode',
 };
 
 // Sign translations
@@ -194,163 +198,6 @@ const ASPECT_DESCRIPTIONS: Record<string, string> = {
 // ============================================
 
 /**
- * Calculate Julian Day from date
- */
-function calculateJulianDay(year: number, month: number, day: number, hour: number = 12): number {
-  if (month <= 2) {
-    year -= 1;
-    month += 12;
-  }
-  
-  const A = Math.floor(year / 100);
-  const B = 2 - A + Math.floor(A / 4);
-  
-  return Math.floor(365.25 * (year + 4716)) + 
-         Math.floor(30.6001 * (month + 1)) + 
-         day + B - 1524.5 + 
-         hour / 24;
-}
-
-/**
- * Calculate sun position (approximate)
- */
-function calculateSunPosition(jd: number): { sign: string; degree: number } {
-  // Days since J2000.0
-  const d = jd - 2451545.0;
-  
-  // Mean longitude of the Sun
-  const L = (280.460 + 0.9856474 * d) % 360;
-  
-  // Mean anomaly of the Sun
-  const g = ((357.528 + 0.9856003 * d) % 360) * Math.PI / 180;
-  
-  // Ecliptic longitude
-  const lambda = (L + 1.915 * Math.sin(g) + 0.02 * Math.sin(2 * g)) % 360;
-  
-  const degree = lambda < 0 ? lambda + 360 : lambda;
-  
-  // Determine sign
-  const signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
-                 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
-  const signIndex = Math.floor(degree / 30);
-  
-  return {
-    sign: signs[signIndex],
-    degree: degree % 30,
-  };
-}
-
-/**
- * Calculate moon position (approximate)
- */
-function calculateMoonPosition(jd: number): { sign: string; degree: number; phase: number } {
-  const d = jd - 2451545.0;
-  
-  // Moon's mean longitude
-  const Lm = ((218.316 + 13.176396 * d) % 360) * Math.PI / 180;
-  
-  // Moon's mean anomaly
-  const Mm = ((134.963 + 13.064993 * d) % 360) * Math.PI / 180;
-  
-  // Sun's mean anomaly
-  const Ms = ((357.529 + 0.9856003 * d) % 360) * Math.PI / 180;
-  
-  // Moon's elongation
-  const D = ((297.850 + 12.190749 * d) % 360) * Math.PI / 180;
-  
-  // Ecliptic longitude (simplified)
-  const lambda = (Lm * 180 / Math.PI + 6.289 * Math.sin(Mm) - 1.274 * Math.sin(2 * D - Mm) + 0.658 * Math.sin(2 * D)) % 360;
-  
-  const degree = lambda < 0 ? lambda + 360 : lambda;
-  
-  // Moon phase (0-1, where 0 = new moon, 0.5 = full moon)
-  const phase = ((D * 180 / Math.PI) % 360) / 360;
-  
-  const signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
-                 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
-  const signIndex = Math.floor(degree / 30);
-  
-  return {
-    sign: signs[signIndex],
-    degree: degree % 30,
-    phase,
-  };
-}
-
-/**
- * Calculate planetary position (simplified approximation)
- * For production, use Swiss Ephemeris or astrology API
- */
-function calculatePlanetPosition(planet: string, jd: number): { sign: string; degree: number; retrograde: boolean } {
-  const d = jd - 2451545.0;
-  
-  // Simplified orbital elements (for demonstration)
-  const orbitalData: Record<string, { period: number; offset: number }> = {
-    mercury: { period: 87.97, offset: 0 },
-    venus: { period: 224.7, offset: 50 },
-    mars: { period: 686.98, offset: 120 },
-    jupiter: { period: 4332.59, offset: 200 },
-    saturn: { period: 10759.22, offset: 280 },
-    uranus: { period: 30688.5, offset: 320 },
-    neptune: { period: 60182, offset: 340 },
-    pluto: { period: 90560, offset: 350 },
-  };
-  
-  const signs = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
-                 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
-  
-  if (planet === 'sun') {
-    const pos = calculateSunPosition(jd);
-    return { ...pos, retrograde: false };
-  }
-  
-  if (planet === 'moon') {
-    const pos = calculateMoonPosition(jd);
-    return { sign: pos.sign, degree: pos.degree, retrograde: false };
-  }
-  
-  const data = orbitalData[planet];
-  if (!data) {
-    // Default for unknown planets - use a fixed position
-    const degree = (d * 0.9856) % 360;
-    const signIndex = Math.floor(Math.abs(degree) / 30);
-    return {
-      sign: signs[signIndex % 12],
-      degree: Math.abs(degree) % 30,
-      retrograde: false,
-    };
-  }
-  
-  // Calculate approximate position based on orbital period
-  const meanMotion = 360 / data.period;
-  const degree = (d * meanMotion + data.offset) % 360;
-  const signIndex = Math.floor(Math.abs(degree) / 30);
-  
-  // Simplified retrograde detection (outer planets appear retrograde more often)
-  const retrograde = Math.sin(d / data.period * Math.PI * 2) < -0.7;
-  
-  return {
-    sign: signs[signIndex % 12],
-    degree: Math.abs(degree) % 30,
-    retrograde,
-  };
-}
-
-/**
- * Calculate moon phase name
- */
-function getMoonPhaseName(phase: number): string {
-  if (phase < 0.0625) return 'New Moon';
-  if (phase < 0.1875) return 'Waxing Crescent';
-  if (phase < 0.3125) return 'First Quarter';
-  if (phase < 0.4375) return 'Waxing Gibbous';
-  if (phase < 0.5625) return 'Full Moon';
-  if (phase < 0.6875) return 'Waning Gibbous';
-  if (phase < 0.8125) return 'Last Quarter';
-  return 'Waning Crescent';
-}
-
-/**
  * Calculate aspect between two planetary positions
  */
 function calculateAspect(degree1: number, degree2: number): { aspect: string; orb: number } | null {
@@ -367,85 +214,39 @@ function calculateAspect(degree1: number, degree2: number): { aspect: string; or
   return null;
 }
 
-/**
- * Normalize degree to 0-360 range
- */
-function normalizeDegree(degree: number): number {
-  return ((degree % 360) + 360) % 360;
-}
-
 // ============================================
 // Main Service Functions
 // ============================================
 
 /**
- * Get daily transit positions
+ * Derive moon phase from sky positions already fetched from the SDK.
+ * Uses the Sun-Moon angle — no extra API call needed.
  */
-export async function getDailyTransits(date: Date): Promise<DailyTransits> {
-  const dateStr = date.toISOString().split('T')[0];
-  const cacheKey = `transits:${dateStr}`;
-  
-  // Try cache first
-  try {
-    const cached = await redisClient.get(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  } catch (error) {
-    console.warn('[Transits] Cache read error:', error);
+function deriveMoonPhaseFromPositions(skyPositions: TransitPosition[]): MoonPhase {
+  const SIGNS = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+                 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
+  const PHASE_NAMES = ['New Moon', 'Waxing Crescent', 'First Quarter', 'Waxing Gibbous',
+                       'Full Moon', 'Waning Gibbous', 'Last Quarter', 'Waning Crescent'];
+
+  const sun  = skyPositions.find(p => p.planet === 'sun');
+  const moon = skyPositions.find(p => p.planet === 'moon');
+  if (!sun || !moon) {
+    throw new Error('[Transits] Cannot derive moon phase: Sun or Moon missing from sky positions');
   }
-  
-  // Calculate Julian Day
-  const jd = calculateJulianDay(
-    date.getFullYear(),
-    date.getMonth() + 1,
-    date.getDate(),
-    date.getHours() + date.getMinutes() / 60
-  );
-  
-  // Calculate planetary positions
-  const planets = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
-  
-  const transits: TransitPosition[] = planets.map(planet => {
-    const pos = calculatePlanetPosition(planet, jd);
-    return {
-      planet,
-      planetBg: PLANET_BG[planet] || planet,
-      sign: pos.sign,
-      signBg: SIGN_BG[pos.sign] || pos.sign,
-      degree: Math.round(pos.degree * 10) / 10,
-      retrograde: pos.retrograde,
-    };
-  });
-  
-  // Calculate moon phase
-  const moonData = calculateMoonPosition(jd);
-  const phaseName = getMoonPhaseName(moonData.phase);
-  
-  const moonPhase: MoonPhase = {
-    phase: phaseName,
-    phaseBg: MOON_PHASE_BG[phaseName] || phaseName,
-    illumination: Math.round(Math.abs(Math.sin(moonData.phase * Math.PI)) * 100),
-    moonSign: moonData.sign,
-    moonSignBg: SIGN_BG[moonData.sign] || moonData.sign,
+
+  const sunLon  = SIGNS.indexOf(sun.sign)  * 30 + sun.degree;
+  const moonLon = SIGNS.indexOf(moon.sign) * 30 + moon.degree;
+  const angle   = ((moonLon - sunLon) + 360) % 360;
+  const idx     = Math.min(Math.floor(angle / 45), 7);
+  const phaseName = PHASE_NAMES[idx];
+
+  return {
+    phase:      phaseName,
+    phaseBg:    MOON_PHASE_BG[phaseName] || phaseName,
+    illumination: Math.round((1 - Math.cos(angle * Math.PI / 180)) / 2 * 100),
+    moonSign:   moon.sign,
+    moonSignBg: moon.signBg,
   };
-  
-  const result: DailyTransits = {
-    date: dateStr,
-    transits,
-    aspectsToNatal: [], // Will be populated when comparing to natal chart
-    moonPhase,
-    generatedAt: new Date().toISOString(),
-  };
-  
-  // Cache for 1 hour
-  try {
-    await redisClient.setEx(cacheKey, TRANSIT_CACHE_TTL, JSON.stringify(result));
-  } catch (error) {
-    console.warn('[Transits] Cache write error:', error);
-  }
-  
-  return result;
 }
 
 /**
@@ -512,7 +313,7 @@ export function calculateTransitsToNatal(
 
 /**
  * Get active transit-to-natal aspects for a user's chart.
- * Fetches today's sky from astrology-api.io (cached 1h via getDailyTransits),
+ * Fetches today's sky from astrology-api.io via SDK (cached 24h, one call per day for all users),
  * then computes which transiting planets are aspecting the user's natal planets.
  *
  * @param natalChart - The user's natal chart object (birthChart.chartData from DB)
@@ -527,36 +328,97 @@ export async function getActiveTransitsForUser(natalChart: any): Promise<{
   const today = new Date();
   const dateStr = today.toISOString().split('T')[0];
 
-  // Always get in-house data first (no API key needed, always available)
-  const dailyData = await getDailyTransits(today);
-  let skyPositions = dailyData.transits;
+  // Fetch real sky positions via SDK — one call per calendar day, shared across all users.
+  // Throws on API failure — no silent fallback to approximate data.
+  const cacheKey = `transits:global:${dateStr}`;
+  let skyPositions: TransitPosition[];
 
-  // Try to upgrade to real astrology-api.io data (more accurate positions)
-  try {
-    const { getAstrologyOrchestrator } = await import('./astrology/astrology-orchestrator');
-    const apiData = await getAstrologyOrchestrator().getTransits(dateStr);
-    if (apiData?.planets?.length > 0) {
-      skyPositions = apiData.planets.map((p: any) => ({
-        planet: p.name,
-        planetBg: PLANET_BG[p.name] || p.name,
-        sign: p.sign,
-        signBg: SIGN_BG[p.sign] || p.sign,
-        degree: typeof p.degree === 'number' ? Math.round(p.degree * 10) / 10 : parseFloat(p.degree || '0'),
-        retrograde: p.retrograde ?? false,
-      }));
-    }
-  } catch (err) {
-    console.warn('[Transits] astrology-api.io unavailable, using in-house calculation:', err instanceof Error ? err.message : err);
+  const cached = await redisClient.get(cacheKey);
+  if (cached) {
+    skyPositions = JSON.parse(cached);
+  } else {
+    const { AstrologyClient } = await import('@astro-api/astroapi-typescript');
+    const client = new AstrologyClient({ apiKey: process.env.ASTROLOGY_API_KEY });
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const response = await client.data.getGlobalPositions({
+      year, month, day, hour: 12, minute: 0, second: 0,
+      options: {
+        active_points: ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn',
+                        'Uranus', 'Neptune', 'Pluto', 'True_Node'],
+        zodiac_type: 'Tropic',
+      },
+    });
+    skyPositions = response.positions.map((p: any) => {
+      const internalName = PLANET_SDK_TO_INTERNAL[p.name] || p.name.toLowerCase();
+      const fullSign = SIGN_ABBREV_TO_FULL[p.sign] || p.sign;
+      return {
+        planet: internalName,
+        planetBg: PLANET_BG[internalName] || p.name,
+        sign: fullSign,
+        signBg: SIGN_BG[fullSign] || p.sign,
+        degree: Math.round((p.degree ?? 0) * 10) / 10,
+        retrograde: p.is_retrograde ?? false,
+      };
+    });
+    // Cache for 24 hours — one API call per day for all users
+    await redisClient.setEx(cacheKey, 86400, JSON.stringify(skyPositions));
   }
 
   const aspectsToNatal = calculateTransitsToNatal(skyPositions, natalChart);
+  const moonPhase = deriveMoonPhaseFromPositions(skyPositions);
 
   return {
     skyPositions,
     aspectsToNatal,
-    moonPhase: dailyData.moonPhase,
+    moonPhase,
     generatedAt: new Date().toISOString(),
   };
 }
 
-export type { DailyTransits as DailyTransitsType, TransitAspect as TransitAspectType };
+// ============================================
+// House Activation Math (no API calls)
+// ============================================
+
+const SIGN_TO_LONGITUDE: Record<string, number> = {
+  Aries: 0, Taurus: 30, Gemini: 60, Cancer: 90, Leo: 120, Virgo: 150,
+  Libra: 180, Scorpio: 210, Sagittarius: 240, Capricorn: 270, Aquarius: 300, Pisces: 330,
+};
+
+function signDegreeToLongitude(sign: string, degree: number): number {
+  return (SIGN_TO_LONGITUDE[sign] ?? 0) + degree;
+}
+
+function getHouseForLongitude(longitude: number, cuspLongitudes: number[]): number {
+  for (let i = 0; i < 12; i++) {
+    const start = cuspLongitudes[i];
+    const end = cuspLongitudes[(i + 1) % 12];
+    if (end > start) {
+      if (longitude >= start && longitude < end) return i + 1;
+    } else {
+      // wrap around 0°/360°
+      if (longitude >= start || longitude < end) return i + 1;
+    }
+  }
+  return 1;
+}
+
+/**
+ * Given today's sky positions and the user's natal house cusps,
+ * returns which natal house each transiting planet occupies.
+ */
+export function computeTransitHouses(
+  skyPositions: TransitPosition[],
+  natalHouses: Array<{ number: number; sign: string; degree: number }>,
+): Record<string, number> {
+  // Build sorted cusp longitude array (index 0 = house 1 cusp)
+  const sortedCusps = [...natalHouses].sort((a, b) => a.number - b.number);
+  const cuspLongitudes = sortedCusps.map(h => signDegreeToLongitude(h.sign, h.degree));
+  const result: Record<string, number> = {};
+  for (const pos of skyPositions) {
+    const lon = signDegreeToLongitude(pos.sign, pos.degree);
+    result[pos.planet] = getHouseForLongitude(lon, cuspLongitudes);
+  }
+  return result;
+}
+
+export type { TransitAspect as TransitAspectType };

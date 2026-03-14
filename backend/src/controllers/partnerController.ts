@@ -283,21 +283,21 @@ export const createPartner = async (req: Request, res: Response) => {
     });
     
     const partnerLimits: Record<string, number> = {
-      FREE: 1,
-      PRO: 10,
-      PREMIUM: 999,
+      FREE: 0,
+      PRO: 0,
+      PREMIUM: 10,
     };
-    
+
     const limit = partnerLimits[user?.tier || 'FREE'];
     const currentCount = user?._count.partners || 0;
-    
+
     if (currentCount >= limit) {
       return res.status(403).json({
         success: false,
         error: {
           code: 'LIMIT_EXCEEDED',
           message: `Partner limit reached for your tier (${limit} partners)`,
-          upgradeRequired: user?.tier === 'FREE',
+          upgradeRequired: user?.tier !== 'PREMIUM',
         },
       });
     }

@@ -36,6 +36,7 @@ interface LocationResult {
   longitude: number;
   country: string;
   city: string;
+  timezone?: string;
 }
 
 const initialFormData: FormData = {
@@ -162,19 +163,10 @@ export default function BirthDataForm() {
       locationName: `${location.city}${location.country ? ', ' + location.country : ''}`,
       latitude: location.latitude,
       longitude: location.longitude,
-      timezone: getTimezone(location.longitude),
+      timezone: location.timezone || '',
     });
     setShowLocationDropdown(false);
     setErrors({ ...errors, locationName: '' });
-  };
-
-  const getTimezone = (longitude: number): string => {
-    // Simple timezone approximation
-    if (longitude >= 22 && longitude <= 29) {
-      return 'Europe/Sofia';
-    }
-    const offset = Math.round(longitude / 15);
-    return `UTC${offset >= 0 ? '+' : ''}${offset}`;
   };
 
   const handleSubmit = async () => {

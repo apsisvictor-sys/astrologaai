@@ -186,12 +186,24 @@ async function getTimeSensitivity(req, res) {
                 },
             });
         }
-        // Fetch birth profile
+        // Hard cap: max 20 data points to prevent runaway API usage
+        const totalPoints = Math.ceil((timeRange * 2) / interval) + 1;
+        if (totalPoints > 20) {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    code: 'TOO_MANY_POINTS',
+                    message: `Request would generate ${totalPoints} API calls. Reduce timeRange or increase interval.`,
+                },
+            });
+        }
+        // Fetch birth profile with stored chart
         const profile = await prisma.birthProfile.findFirst({
             where: {
                 id: profileId,
                 userId,
             },
+            include: { birthChart: { select: { chartData: true } } },
         });
         if (!profile) {
             return res.status(404).json({
@@ -217,7 +229,9 @@ async function getTimeSensitivity(req, res) {
             longitude: profile.longitude,
             timezone: profile.timezone,
         };
-        const originalChart = await (0, astrology_1.calculateNatalChart)(originalBirthData);
+        // Use stored chart if available (avoids an API call for the base chart)
+        const originalChart = profile.birthChart?.chartData
+            ?? await (0, astrology_1.calculateNatalChart)(originalBirthData);
         // Generate data points for time range
         const dataPoints = [];
         const offsets = [];

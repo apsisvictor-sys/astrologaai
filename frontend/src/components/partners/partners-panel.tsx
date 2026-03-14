@@ -9,7 +9,7 @@ import { PartnerCard } from './partner-card';
 import { PartnerForm } from './partner-form';
 import { UpgradeModal } from '@/components/shell/upgrade-modal';
 
-const PARTNER_LIMITS: Record<string, number> = { FREE: 0, PRO: 10, PREMIUM: 999 };
+const PARTNER_LIMITS: Record<string, number> = { FREE: 0, PRO: 0, PREMIUM: 10 };
 
 export function PartnersPanel() {
   const { user } = useAuth();
@@ -26,7 +26,7 @@ export function PartnersPanel() {
   const [showUpgrade, setShowUpgrade] = useState(false);
 
   useEffect(() => {
-    if (tier === 'FREE') { setLoading(false); return; }
+    if (tier !== 'PREMIUM') { setLoading(false); return; }
     fetchPartners();
   }, [tier]);
 
@@ -69,9 +69,9 @@ export function PartnersPanel() {
     setEditing(null);
   }
 
-  // ── FREE tier — full locked panel ────────────────────────────────────────
+  // ── FREE + PRO tier — locked, PREMIUM required ───────────────────────────
 
-  if (tier === 'FREE') {
+  if (tier !== 'PREMIUM') {
     return (
       <div className="relative min-h-[500px] rounded-2xl overflow-hidden">
         {/* Blurred preview content */}
@@ -81,7 +81,7 @@ export function PartnersPanel() {
             loading={false}
             error={null}
             language={language}
-            limit={1}
+            limit={2}
             onAdd={() => {}}
             onEdit={() => {}}
             onDelete={() => {}}
@@ -103,32 +103,29 @@ export function PartnersPanel() {
               className="w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4"
               style={{ background: 'rgba(228,26,255,0.12)', border: '1px solid rgba(228,26,255,0.3)' }}
             >
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                <rect x="5" y="11" width="14" height="10" rx="2" stroke="#e41aff" strokeWidth="1.5"/>
-                <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="#e41aff" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
+              <span className="text-2xl">♡</span>
             </div>
             <span
               className="text-xs font-bold px-3 py-1 rounded-full mb-4 inline-block"
-              style={{ background: 'rgba(245,158,11,0.15)', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.3)' }}
+              style={{ background: 'rgba(228,26,255,0.15)', color: '#e41aff', border: '1px solid rgba(228,26,255,0.3)' }}
             >
-              PRO Feature
+              PREMIUM Feature
             </span>
-            <h3 className="text-xl font-bold text-white mb-2">Partners &amp; Synastry</h3>
+            <h3 className="text-xl font-bold text-white mb-2">Relationship Compatibility</h3>
             <p className="text-sm mb-6" style={{ color: 'rgba(255,255,255,0.55)' }}>
-              Add partners, generate synastry charts and compatibility reports. Unlock cosmic relationship insights with PRO.
+              Discover the astrological dynamics behind your most important relationships. Add partners, explore synastry charts, and let the Oracle reveal what the stars say about your connection.
             </p>
             <button
               onClick={() => setShowUpgrade(true)}
               className="w-full py-3 px-6 rounded-xl font-semibold text-white text-sm transition-opacity hover:opacity-90"
               style={{ background: 'linear-gradient(135deg, #ff0080, #e41aff, #00f0ff)' }}
             >
-              Upgrade to PRO
+              Upgrade to PREMIUM
             </button>
           </motion.div>
         </div>
 
-        <UpgradeModal isOpen={showUpgrade} feature="Partners & Synastry" onClose={() => setShowUpgrade(false)} />
+        <UpgradeModal isOpen={showUpgrade} feature="Relationship Compatibility" onClose={() => setShowUpgrade(false)} />
       </div>
     );
   }
@@ -203,7 +200,7 @@ function PartnersPanelShell({ partners, loading, error, language, limit, onAdd, 
         <div>
           <h1 className="text-2xl font-bold text-white">Partners</h1>
           <p className="text-sm mt-0.5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            {partners.length}/{limit === 999 ? '∞' : limit} partners
+            {partners.length}/{limit} partners
           </p>
         </div>
         <button

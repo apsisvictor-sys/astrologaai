@@ -121,13 +121,14 @@ export function VisitorChat({ onRegisterPrompt: _ }: VisitorChatProps) {
     localStorage.setItem(GUEST_MSGS_KEY, JSON.stringify(existing));
   };
 
-  const handleBirthData = (data: { date: string; time: string; location: string; lat: number; lng: number }) => {
+  const handleBirthData = (data: { date: string; time: string; location: string; lat: number; lng: number; timezone: string }) => {
     setBirthDataCollected(true);
 
     localStorage.setItem(GUEST_BIRTH_KEY, JSON.stringify({
       birthDate: data.date,
       birthTime: data.time || null,
       locationName: data.location,
+      timezone: data.timezone || undefined,
       latitude: data.lat,
       longitude: data.lng,
     }));
@@ -210,18 +211,20 @@ export function VisitorChat({ onRegisterPrompt: _ }: VisitorChatProps) {
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
+        let currentEvent = '';
         for (const line of lines) {
+          if (line.startsWith('event: ')) { currentEvent = line.slice(7).trim(); continue; }
           if (!line.startsWith('data: ')) continue;
-          let evt: { type: string; content?: string; message?: string };
+          let evt: { content?: string; done?: boolean; message?: string };
           try {
             evt = JSON.parse(line.slice(6));
           } catch {
             continue; // skip malformed SSE lines
           }
-          if (evt.type === 'chunk' && evt.content) {
+          if (currentEvent === 'chunk' && evt.content) {
             accumulated += evt.content;
             setStreamingContent(accumulated);
-          } else if (evt.type === 'error') {
+          } else if (currentEvent === 'error') {
             throw new Error(evt.message || 'Stream error');
           }
         }

@@ -175,39 +175,35 @@ function getWeekStartDateString(): string {
   return formatter.format(monday);
 }
 
-function calculateMoonPhase(date: Date): { phase: string; phaseBg: string; illumination: number; sign: string; signBg: string } {
-  // Simplified moon phase calculation
-  // Real implementation would use astronomical calculations
-  const synodic = 29.53058867;
-  const knownNewMoon = new Date('2026-01-13T00:00:00Z'); // Known new moon
-  const daysSinceNew = (date.getTime() - knownNewMoon.getTime()) / (1000 * 60 * 60 * 24);
-  const lunarAge = daysSinceNew % synodic;
-  const illumination = Math.round((1 - Math.cos(2 * Math.PI * lunarAge / synodic)) / 2 * 100);
-  
-  let phase: string;
-  let phaseBg: string;
-  
-  if (lunarAge < 1.85) { phase = 'New Moon'; phaseBg = 'Новолуние'; }
-  else if (lunarAge < 7.38) { phase = 'Waxing Crescent'; phaseBg = 'Нарастващ полумесец'; }
-  else if (lunarAge < 9.23) { phase = 'First Quarter'; phaseBg = 'Първа четвърт'; }
-  else if (lunarAge < 14.77) { phase = 'Waxing Gibbous'; phaseBg = 'Нарастващ триъгълник'; }
-  else if (lunarAge < 16.61) { phase = 'Full Moon'; phaseBg = 'Пълнолуние'; }
-  else if (lunarAge < 22.15) { phase = 'Waning Gibbous'; phaseBg = 'Намаляващ триъгълник'; }
-  else if (lunarAge < 24.00) { phase = 'Last Quarter'; phaseBg = 'Последна четвърт'; }
-  else { phase = 'Waning Crescent'; phaseBg = 'Намаляващ полумесец'; }
-  
-  // Simplified moon sign calculation (rotates through signs every ~2.5 days)
-  const moonSigns = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 
-                    'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
-  const signIndex = Math.floor(lunarAge / 2.46) % 12;
-  const sign = moonSigns[signIndex];
-  
+/**
+ * Derive moon phase from the transit positions already fetched from the SDK.
+ * Uses the Sun-Moon elongation angle — no extra API call needed.
+ */
+function deriveMoonPhaseFromTransits(transits: Transit[]): DailyForecast['moonPhase'] {
+  const SIGNS = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+                 'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces'];
+  const PHASE_NAMES = ['New Moon', 'Waxing Crescent', 'First Quarter', 'Waxing Gibbous',
+                       'Full Moon', 'Waning Gibbous', 'Last Quarter', 'Waning Crescent'];
+  const PHASE_BG    = ['Новолуние', 'Нарастващ полумесец', 'Първа четвърт', 'Нарастващ триъгълник',
+                       'Пълнолуние', 'Намаляващ триъгълник', 'Последна четвърт', 'Намаляващ полумесец'];
+
+  const sun  = transits.find(t => t.planet === 'sun');
+  const moon = transits.find(t => t.planet === 'moon');
+  if (!sun || !moon) {
+    throw new Error('[Forecast] Cannot derive moon phase: sun/moon missing from transits');
+  }
+
+  const sunLon  = SIGNS.indexOf(sun.sign)  * 30 + sun.degree;
+  const moonLon = SIGNS.indexOf(moon.sign) * 30 + moon.degree;
+  const angle   = ((moonLon - sunLon) + 360) % 360;
+  const idx     = Math.min(Math.floor(angle / 45), 7);
+
   return {
-    phase,
-    phaseBg,
-    illumination,
-    sign,
-    signBg: SIGN_TRANSLATIONS_FULL[sign] || sign,
+    phase:        PHASE_NAMES[idx],
+    phaseBg:      PHASE_BG[idx],
+    illumination: Math.round((1 - Math.cos(angle * Math.PI / 180)) / 2 * 100),
+    sign:         moon.sign,
+    signBg:       moon.signBg,
   };
 }
 
@@ -225,27 +221,10 @@ function translateToBulgarian(text: string): string {
  * Get current planetary transits
  * Uses astrology-api.io or fallback calculation
  */
-async function getCurrentTransits(natalChart?: any): Promise<Transit[]> {
-  if (natalChart) {
-    try {
-      const { getActiveTransitsForUser } = await import('./transits');
-      const { skyPositions } = await getActiveTransitsForUser(natalChart);
-      return skyPositions.map(p => ({
-        planet: p.planet,
-        planetBg: p.planetBg,
-        sign: p.sign,
-        signBg: p.signBg,
-        degree: p.degree,
-      }));
-    } catch (err) {
-      console.warn('[Forecast] getActiveTransitsForUser failed, using fallback:', err instanceof Error ? err.message : err);
-    }
-  }
-
-  // Fallback: use in-house Swiss Ephemeris calculation (always available)
-  const { getDailyTransits } = await import('./transits');
-  const daily = await getDailyTransits(new Date());
-  return daily.transits.map(p => ({
+async function getCurrentTransits(natalChart: any): Promise<Transit[]> {
+  const { getActiveTransitsForUser } = await import('./transits');
+  const { skyPositions } = await getActiveTransitsForUser(natalChart);
+  return skyPositions.map(p => ({
     planet: p.planet,
     planetBg: p.planetBg,
     sign: p.sign,
@@ -327,7 +306,7 @@ function analyzeTransitImpact(transits: Transit[], natalChart: NatalChart): Tran
 async function generateLLMForecast(
   natalChart: NatalChart,
   transits: Transit[],
-  moonPhase: ReturnType<typeof calculateMoonPhase>,
+  moonPhase: DailyForecast['moonPhase'],
   userLanguage: string = 'bg'
 ): Promise<{
   overallTheme: string;
@@ -463,7 +442,8 @@ Generate the forecast in the following JSON format (JSON only, no additional tex
 export async function generateDailyForecast(
   userId: string,
   birthData: BirthDataInput,
-  userLanguage: string = 'bg'
+  userLanguage: string = 'bg',
+  precomputedChart?: NatalChart
 ): Promise<DailyForecast> {
   const dateString = getTodayDateString();
   const cacheKey = `forecast:daily:${userId}:${dateString}`;
@@ -481,17 +461,17 @@ export async function generateDailyForecast(
     console.warn('[Forecast] Cache read error:', error);
   }
   
-  // Get natal chart
-  const natalChart = await calculateNatalChart(birthData);
-  
+  // Get natal chart (use precomputed from DB if available, otherwise call API)
+  const natalChart = precomputedChart ?? await calculateNatalChart(birthData);
+
   // Get current transits
   const transits = await getCurrentTransits(natalChart);
   
   // Analyze transit impact on natal chart
   const analyzedTransits = analyzeTransitImpact(transits, natalChart);
   
-  // Calculate moon phase
-  const moonPhase = calculateMoonPhase(new Date());
+  // Derive moon phase from already-fetched transit positions (no extra API call)
+  const moonPhase = deriveMoonPhaseFromTransits(transits);
   
   // Generate LLM-based forecast
   const llmForecast = await generateLLMForecast(natalChart, analyzedTransits, moonPhase, userLanguage);
@@ -576,9 +556,10 @@ export async function generateDailyForecast(
 export async function getDailyForecast(
   userId: string,
   birthData: BirthDataInput,
-  userLanguage: string = 'bg'
+  userLanguage: string = 'bg',
+  precomputedChart?: NatalChart
 ): Promise<DailyForecast> {
-  return generateDailyForecast(userId, birthData, userLanguage);
+  return generateDailyForecast(userId, birthData, userLanguage, precomputedChart);
 }
 
 /**
@@ -587,7 +568,8 @@ export async function getDailyForecast(
 export async function generateWeeklyForecast(
   userId: string,
   birthData: BirthDataInput,
-  userLanguage: string = 'bg'
+  userLanguage: string = 'bg',
+  precomputedChart?: NatalChart
 ): Promise<WeeklyForecast> {
   const weekStart = getWeekStartDateString();
   const weekEnd = new Date(new Date(weekStart).getTime() + 6 * 24 * 60 * 60 * 1000)
@@ -606,9 +588,9 @@ export async function generateWeeklyForecast(
     console.warn('[Forecast] Cache read error:', error);
   }
   
-  // Get natal chart
-  const natalChart = await calculateNatalChart(birthData);
-  
+  // Get natal chart (use precomputed from DB if available, otherwise call API)
+  const natalChart = precomputedChart ?? await calculateNatalChart(birthData);
+
   // Generate simplified weekly overview using LLM
   const chartSummary = `
 Потребителска натална карта:
@@ -716,7 +698,158 @@ export async function generateWeeklyForecast(
 export async function getWeeklyForecast(
   userId: string,
   birthData: BirthDataInput,
-  userLanguage: string = 'bg'
+  userLanguage: string = 'bg',
+  precomputedChart?: NatalChart
 ): Promise<WeeklyForecast> {
-  return generateWeeklyForecast(userId, birthData, userLanguage);
+  return generateWeeklyForecast(userId, birthData, userLanguage, precomputedChart);
+}
+
+// ============================================
+// Personal Daily Horoscope (SDK + LLM rewrite)
+// ============================================
+
+export interface PersonalDailyHoroscope {
+  date: string;
+  overallTheme: string;
+  overallRating: number;      // 1–5
+  lifeAreas: {
+    area: string;             // 'love' | 'career' | 'health' | 'finance' | 'identity' | 'communication'
+    title: string;
+    prediction: string;
+    rating: number;           // 1–5
+    keywords: string[];
+  }[];
+  planetaryInfluences: {
+    planet: string;
+    aspectType: string;
+    description: string;
+    strength: number;         // 1–5
+    natalPlanet: string;
+    orb?: number;
+  }[];
+  moon: {
+    phase: string;
+    sign: string;
+    prediction: string;
+    illumination: number;
+  };
+  tips: string[];
+  cached: boolean;
+}
+
+/**
+ * Rewrite API text fields in the Oracle's voice using a short LLM call.
+ * Preserves all astrological data (ratings, planet names, orbs, etc.).
+ * Falls back to raw API text if LLM fails.
+ */
+async function rewriteInOracleVoice(raw: any): Promise<any> {
+  const systemPrompt = `You are The Oracle — a mystical, precise astrologer. Rewrite only the text fields in your voice: poetic, profound, specific. RULES:
+- Preserve ALL astrological specifics (planet names, aspects, house positions, orb values)
+- Keep the EXACT JSON structure
+- Only rewrite: overall_theme, life_areas[].title, life_areas[].prediction, planetary_influences[].description, moon.prediction, tips[]
+- Do NOT change: ratings, keywords, area, planet, aspect_type, natal_planet, strength, orb, phase, sign, illumination
+- Return ONLY valid JSON, no markdown fences`;
+
+  const payload = {
+    overall_theme: raw.overall_theme,
+    life_areas: (raw.life_areas ?? []).map((a: any) => ({
+      area: a.area, title: a.title, prediction: a.prediction,
+      rating: a.rating, keywords: a.keywords,
+    })),
+    planetary_influences: (raw.planetary_influences ?? []).map((p: any) => ({
+      planet: p.planet, aspect_type: p.aspect_type, description: p.description,
+      strength: p.strength, natal_planet: p.natal_planet, orb: p.orb,
+    })),
+    moon: { phase: raw.moon?.phase, sign: raw.moon?.sign, prediction: raw.moon?.prediction, illumination: raw.moon?.illumination },
+    tips: raw.tips ?? [],
+  };
+
+  try {
+    const messages: ChatMessage[] = [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: JSON.stringify(payload) },
+    ];
+    const response = await chatCompletion(messages, { temperature: 0.65, maxTokens: 1800 });
+    const match = response.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('No JSON in LLM response');
+    return JSON.parse(match[0]);
+  } catch (err) {
+    console.warn('[Forecast] Oracle voice rewrite failed — using raw API text:', err);
+    return raw; // fail open: raw text is still correct, just not in Oracle's voice
+  }
+}
+
+/**
+ * Get today's personal daily horoscope via SDK + Oracle voice rewrite.
+ * Cached per user per day (24h TTL).
+ */
+export async function getPersonalDailyHoroscope(
+  userId: string,
+  birthData: BirthDataInput,
+): Promise<PersonalDailyHoroscope> {
+  const dateStr = getTodayDateString();
+  const cacheKey = `horoscope:personal:${userId}:${dateStr}`;
+
+  try {
+    const cached = await redisClient.get(cacheKey);
+    if (cached) {
+      const h = JSON.parse(cached) as PersonalDailyHoroscope;
+      h.cached = true;
+      return h;
+    }
+  } catch { /* cache unavailable — proceed */ }
+
+  const { AstrologyClient } = await import('@astro-api/astroapi-typescript');
+  const client = new AstrologyClient({ apiKey: process.env.ASTROLOGY_API_KEY });
+
+  const raw = await client.horoscope.getPersonalDailyHoroscope({
+    subject: {
+      birth_data: {
+        year: birthData.year, month: birthData.month, day: birthData.day,
+        hour: birthData.hour, minute: birthData.minute, second: 0,
+        latitude: birthData.latitude, longitude: birthData.longitude,
+        timezone: birthData.timezone,
+      },
+    },
+    date: dateStr,
+    language: 'en',
+  });
+
+  const rewritten = await rewriteInOracleVoice(raw);
+
+  const horoscope: PersonalDailyHoroscope = {
+    date: dateStr,
+    overallTheme: rewritten.overall_theme ?? raw.overall_theme,
+    overallRating: Math.min(5, Math.max(1, raw.overall_rating ?? 3)),
+    lifeAreas: (rewritten.life_areas ?? raw.life_areas ?? []).map((a: any) => ({
+      area: a.area,
+      title: a.title,
+      prediction: a.prediction,
+      rating: Math.min(5, Math.max(1, a.rating ?? 3)),
+      keywords: a.keywords ?? [],
+    })),
+    planetaryInfluences: (rewritten.planetary_influences ?? raw.planetary_influences ?? []).map((p: any) => ({
+      planet: p.planet,
+      aspectType: p.aspect_type,
+      description: p.description,
+      strength: Math.min(5, Math.max(1, p.strength ?? 3)),
+      natalPlanet: p.natal_planet,
+      orb: p.orb,
+    })),
+    moon: {
+      phase: raw.moon?.phase ?? 'Unknown',
+      sign: raw.moon?.sign ?? 'Unknown',
+      prediction: rewritten.moon?.prediction ?? raw.moon?.prediction ?? '',
+      illumination: raw.moon?.illumination ?? 0,
+    },
+    tips: rewritten.tips ?? raw.tips ?? [],
+    cached: false,
+  };
+
+  try {
+    await redisClient.setEx(cacheKey, 86400, JSON.stringify(horoscope));
+  } catch { /* cache write failure is non-fatal */ }
+
+  console.log(`[Forecast] Personal daily horoscope generated for user ${userId}`);
+  return horoscope;
 }

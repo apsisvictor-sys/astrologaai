@@ -17,6 +17,8 @@ interface User {
   lastActive: string;
   queryCount: number;
   isSuspended: boolean;
+  costEurCents: number;
+  aboveThreshold: boolean;
 }
 
 interface Session {
@@ -92,6 +94,18 @@ function TierBadge({ tier }: { tier: Tier }) {
       {tier}
     </span>
   );
+}
+
+function HighCostBadge() {
+  return (
+    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-amber-900/60 text-amber-300 border border-amber-500/30">
+      High Cost
+    </span>
+  );
+}
+
+function fmtEur(cents: number): string {
+  return `€${(cents / 100).toFixed(2)}`;
 }
 
 function StatusBadge({ suspended }: { suspended: boolean }) {
@@ -195,12 +209,21 @@ function UserDetailModal({ userId, onClose }: UserDetailModalProps) {
             {/* Usage */}
             <div>
               <h3 className="text-sm font-semibold text-text-secondary mb-2">Usage</h3>
-              <p className="text-sm text-white">
-                Total Queries:{' '}
-                <span className="text-accent-cyan font-semibold">
-                  {detail.usage?.queryCount ?? detail.queryCount}
-                </span>
-              </p>
+              <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                <p className="text-white">
+                  Queries this month:{' '}
+                  <span className="text-accent-cyan font-semibold">
+                    {detail.usage?.queryCount ?? detail.queryCount}
+                  </span>
+                </p>
+                <p className="text-white flex items-center gap-2">
+                  LLM cost this month:{' '}
+                  <span className={detail.aboveThreshold ? 'text-amber-300 font-semibold' : 'text-accent-cyan font-semibold'}>
+                    {fmtEur(detail.costEurCents ?? 0)}
+                  </span>
+                  {detail.aboveThreshold && <HighCostBadge />}
+                </p>
+              </div>
             </div>
 
             {/* Recent Sessions */}
@@ -263,6 +286,7 @@ export default function UsersPage() {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [tierFilter, setTierFilter] = useState<'ALL' | Tier>('ALL');
   const [dateRange, setDateRange] = useState({ startDate: '', endDate: '' });
+  const [flaggedHighCost, setFlaggedHighCost] = useState(false);
 
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -295,6 +319,7 @@ export default function UsersPage() {
         tier: tierFilter === 'ALL' ? '' : tierFilter,
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
+        ...(flaggedHighCost ? { flagged: 'highcost' } : {}),
       });
       const data = await adminGet<UsersResponse>(`/users?${params.toString()}`);
       setUsers(data.users);
@@ -305,7 +330,7 @@ export default function UsersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, tierFilter, dateRange]);
+  }, [page, debouncedSearch, tierFilter, dateRange, flaggedHighCost]);
 
   useEffect(() => {
     fetchUsers();
@@ -432,9 +457,23 @@ export default function UsersPage() {
           </div>
         </div>
 
-        <p className="text-xs text-text-muted">
-          {loading ? 'Loading…' : `${total} user${total !== 1 ? 's' : ''} found`}
-        </p>
+        {/* High Cost filter toggle */}
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            onClick={() => { setFlaggedHighCost(v => !v); setPage(1); }}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              flaggedHighCost
+                ? 'bg-amber-900/40 border-amber-500/60 text-amber-300'
+                : 'border-white/10 text-text-secondary hover:border-amber-500/40 hover:text-amber-400'
+            }`}
+          >
+            <span>⚠</span>
+            High Cost Users
+          </button>
+          <p className="text-xs text-text-muted">
+            {loading ? 'Loading…' : `${total} user${total !== 1 ? 's' : ''} found`}
+          </p>
+        </div>
       </div>
 
       {/* Error */}
@@ -459,6 +498,7 @@ export default function UsersPage() {
                   <th className="px-4 py-3 font-medium">Joined</th>
                   <th className="px-4 py-3 font-medium">Last Active</th>
                   <th className="px-4 py-3 font-medium">Queries</th>
+                  <th className="px-4 py-3 font-medium">Cost (mo)</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
@@ -466,7 +506,7 @@ export default function UsersPage() {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-text-muted">
+                    <td colSpan={9} className="px-4 py-10 text-center text-text-muted">
                       No users found.
                     </td>
                   </tr>
@@ -488,6 +528,14 @@ export default function UsersPage() {
                         <td className="px-4 py-3 text-text-secondary">{fmtDate(user.createdAt)}</td>
                         <td className="px-4 py-3 text-text-secondary">{fmtDate(user.lastActive)}</td>
                         <td className="px-4 py-3 text-accent-cyan font-semibold">{user.queryCount}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className={user.aboveThreshold ? 'text-amber-300 font-semibold' : 'text-text-secondary'}>
+                              {fmtEur(user.costEurCents ?? 0)}
+                            </span>
+                            {user.aboveThreshold && <HighCostBadge />}
+                          </div>
+                        </td>
                         <td className="px-4 py-3">
                           <StatusBadge suspended={user.isSuspended} />
                         </td>

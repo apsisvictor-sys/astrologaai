@@ -11,6 +11,7 @@ interface BirthData {
   location: string;
   lat: number;
   lng: number;
+  timezone: string;
 }
 
 interface BirthDataWidgetProps {
@@ -23,6 +24,7 @@ interface LocationSuggestion {
   displayName: string;
   latitude: number;
   longitude: number;
+  timezone?: string;
 }
 
 // Parse dd/mm/yyyy text input → ISO YYYY-MM-DD
@@ -96,6 +98,7 @@ export function BirthDataWidget({ onComplete }: BirthDataWidgetProps) {
         : selectedLocation.displayName,
       lat: selectedLocation.latitude,
       lng: selectedLocation.longitude,
+      timezone: selectedLocation.timezone || '',
     });
   };
 
@@ -183,6 +186,9 @@ export function BirthDataWidget({ onComplete }: BirthDataWidgetProps) {
         )}
         {selectedLocation && (
           <p className="text-[10px] text-green-400/80 mt-1">✓ Location confirmed</p>
+        )}
+        {!selectedLocation && location.length > 1 && !locationSearching && locationSuggestions.length === 0 && (
+          <p className="text-[10px] text-red-400/70 mt-1">Please select a city from the dropdown</p>
         )}
       </div>
 

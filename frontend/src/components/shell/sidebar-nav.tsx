@@ -8,7 +8,7 @@ const NAV_ITEMS = [
   { href: '/chart',    icon: '✦', label: 'My Chart',       minTier: null    },
   { href: '/forecast', icon: '◎', label: 'Forecasts',      minTier: 'PRO'   },
   { href: '/transits', icon: '☄', label: 'Active Transits', minTier: 'PRO'  },
-  { href: '/partners', icon: '♡', label: 'Partners',        minTier: 'PRO'   },
+  { href: '/partners', icon: '♡', label: 'Partners',        minTier: 'PREMIUM' },
   { href: '/settings', icon: '⚙', label: 'Settings',        minTier: null    },
 ] as const;
 
@@ -37,7 +37,7 @@ export function SidebarNav({ userTier, onLockedClick }: SidebarNavProps) {
             >
               <span className="w-8 text-center opacity-40">{item.icon}</span>
               <span className="text-sm opacity-40">{item.label}</span>
-              <Badge variant="pro" className="ml-auto">PRO</Badge>
+              <Badge variant="pro" className="ml-auto">{item.minTier}</Badge>
             </button>
           );
         }

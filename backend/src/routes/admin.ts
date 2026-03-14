@@ -27,6 +27,7 @@ import { authMiddleware } from '../middleware/auth';
 import { adminAuthMiddleware } from '../middleware/adminAuth';
 import { prisma } from '../utils/prisma';
 import Stripe from 'stripe';
+import { getUserCostEurCents, getAdminPrices } from '../services/cost-calculator';
 
 const router = Router();
 router.use(authMiddleware as any);
@@ -182,6 +183,7 @@ router.get('/users', async (req: Request, res: Response) => {
     const search = (req.query.search as string) || '';
     const tier = req.query.tier as string;
     const status = req.query.status as string;
+    const flaggedHighCost = req.query.flagged === 'highcost';
 
     const where: any = {};
 
@@ -201,15 +203,24 @@ router.get('/users', async (req: Request, res: Response) => {
     // Status filter maps to subscription status
     const statusFilter = status && status !== 'ALL' ? status : null;
 
+    // Billing month start (1st of current month UTC)
+    const now = new Date();
+    const billingStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+
+    // Load price config once for all threshold checks
+    const prices = await getAdminPrices();
+    const thresholds: Record<string, number> = {
+      FREE:    prices['alert_threshold_free_eur_cents']    ?? 200,
+      PRO:     prices['alert_threshold_pro_eur_cents']     ?? 500,
+      PREMIUM: prices['alert_threshold_premium_eur_cents'] ?? 1000,
+    };
+
     const [users, total] = await Promise.all([
       prisma.user.findMany({
         where,
         include: {
           subscription: { select: { status: true, tier: true, cancelAtPeriodEnd: true } },
-          usageRecords: {
-            orderBy: { month: 'desc' },
-            take: 1,
-          },
+          usageRecords: { orderBy: { month: 'desc' }, take: 1 },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
@@ -218,14 +229,25 @@ router.get('/users', async (req: Request, res: Response) => {
       prisma.user.count({ where }),
     ]);
 
-    const formatted = users
-      .filter(u => {
+    // Compute cost for each user in parallel (billing month to now)
+    const usersWithCost = await Promise.all(
+      users.map(async u => {
+        const costEurCents = await getUserCostEurCents(u.id, billingStart, now);
+        const threshold = thresholds[u.tier] ?? Infinity;
+        const aboveThreshold = costEurCents >= threshold;
+        return { user: u, costEurCents, aboveThreshold };
+      })
+    );
+
+    const formatted = usersWithCost
+      .filter(({ user: u, aboveThreshold }) => {
+        if (flaggedHighCost && !aboveThreshold) return false;
         if (!statusFilter) return true;
-        const subStatus = u.subscription?.status ?? 'ACTIVE';
         if (statusFilter === 'SUSPENDED') return u.isSuspended;
+        const subStatus = u.subscription?.status ?? 'ACTIVE';
         return subStatus === statusFilter;
       })
-      .map(u => ({
+      .map(({ user: u, costEurCents, aboveThreshold }) => ({
         id: u.id,
         email: u.email,
         fullName: u.fullName,
@@ -234,6 +256,8 @@ router.get('/users', async (req: Request, res: Response) => {
         lastActive: u.lastQueryDate?.toISOString() ?? null,
         queryCount: u.usageRecords[0]?.queryCount ?? u.monthlyQueryCount,
         isSuspended: u.isSuspended,
+        costEurCents,
+        aboveThreshold,
       }));
 
     res.json({
@@ -241,6 +265,7 @@ router.get('/users', async (req: Request, res: Response) => {
       data: {
         users: formatted,
         pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+        thresholds,
       },
     });
   } catch (err) {

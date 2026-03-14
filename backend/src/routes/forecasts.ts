@@ -9,7 +9,7 @@
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { queryLimitMiddleware } from '../middleware/queryLimit';
-import { getDailyForecast, getWeeklyForecast } from '../services/forecast';
+import { getDailyForecast, getWeeklyForecast, getPersonalDailyHoroscope } from '../services/forecast';
 import { prisma } from '../utils/prisma';
 
 const router = Router();
@@ -68,9 +68,17 @@ router.get('/daily', queryLimitMiddleware, async (req: Request, res: Response) =
       longitude: user.birthData.longitude,
       timezone: user.birthData.timezone || 'Europe/Sofia',
     };
-    
+
+    // Read precomputed natal chart from DB (avoids redundant API call)
+    const storedChart = await prisma.birthChart.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { chartData: true },
+    });
+    const precomputedChart = storedChart?.chartData as any;
+
     // Get the daily forecast
-    const forecast = await getDailyForecast(userId, birthData, lang);
+    const forecast = await getDailyForecast(userId, birthData, lang, precomputedChart);
     
     res.json({
       success: true,
@@ -141,8 +149,16 @@ router.get('/weekly', queryLimitMiddleware, async (req: Request, res: Response) 
       longitude: user.birthData.longitude,
       timezone: user.birthData.timezone || 'Europe/Sofia',
     };
-    
-    const forecast = await getWeeklyForecast(userId, birthData, lang);
+
+    // Read precomputed natal chart from DB (avoids redundant API call)
+    const storedChart = await prisma.birthChart.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: { chartData: true },
+    });
+    const precomputedChart = storedChart?.chartData as any;
+
+    const forecast = await getWeeklyForecast(userId, birthData, lang, precomputedChart);
     
     res.json({
       success: true,
@@ -214,6 +230,51 @@ router.get('/transits', async (req: Request, res: Response) => {
         code: 'TRANSITS_ERROR',
         message: 'Failed to get transits',
       },
+    });
+  }
+});
+
+/**
+ * GET /api/v1/forecasts/horoscope
+ * Personal daily horoscope via SDK + Oracle voice rewrite.
+ * No query quota — this is a data feature, not a chat query.
+ * Cached per user per day (24h).
+ */
+router.get('/horoscope', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } });
+    }
+
+    const profile = await prisma.birthData.findUnique({
+      where: { userId },
+      select: { date: true, time: true, latitude: true, longitude: true, timezone: true },
+    });
+
+    if (!profile) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'BIRTH_DATA_MISSING', message: 'Add your birth data first to get your daily horoscope' },
+      });
+    }
+
+    const birthDate = new Date(profile.date);
+    const [hour, minute] = (profile.time || '12:00').split(':').map(Number);
+    const birthData = {
+      year: birthDate.getFullYear(), month: birthDate.getMonth() + 1, day: birthDate.getDate(),
+      hour: hour || 12, minute: minute || 0,
+      latitude: profile.latitude, longitude: profile.longitude,
+      timezone: profile.timezone || 'UTC',
+    };
+
+    const horoscope = await getPersonalDailyHoroscope(userId, birthData);
+    res.json({ success: true, data: horoscope });
+  } catch (error) {
+    console.error('[Forecast] Horoscope error:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'HOROSCOPE_ERROR', message: 'Failed to generate your daily horoscope' },
     });
   }
 });

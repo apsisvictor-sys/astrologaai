@@ -9,7 +9,6 @@
  */
 
 import { prisma } from '../utils/prisma';
-import { redisClient } from '../utils/redis';
 import { calculateSynastryChart, SynastryChart, InterPlanetaryAspect } from './synastry.service';
 import { calculateNatalChart, BirthDataInput, NatalChart, PlanetPosition } from './astrology';
 
@@ -450,20 +449,6 @@ export async function calculateCompatibility(
   userId: string,
   partnerId: string
 ): Promise<CompatibilityAnalysis> {
-  // Check cache first
-  const cacheKey = generateCacheKey(userId, partnerId);
-  try {
-    const cached = await redisClient.get(cacheKey);
-    if (cached) {
-      console.log(`[Compatibility] Cache hit for ${cacheKey}`);
-      const parsed = JSON.parse(cached);
-      parsed.cachedAt = new Date().toISOString();
-      return parsed;
-    }
-  } catch (error) {
-    console.warn('[Compatibility] Cache read error:', error);
-  }
-
   // Get user's birth data - need to include the birth profile or birth data relation
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -547,14 +532,6 @@ export async function calculateCompatibility(
     userNatalChart,
     partnerNatalChart
   );
-
-  // Cache the result
-  try {
-    await redisClient.setEx(cacheKey, COMPATIBILITY_CACHE_TTL, JSON.stringify(analysis));
-    console.log(`[Compatibility] Cached analysis for ${cacheKey}`);
-  } catch (error) {
-    console.warn('[Compatibility] Cache write error:', error);
-  }
 
   return analysis;
 }
@@ -758,37 +735,16 @@ function analyzePlanetPair(
 /**
  * Get cached compatibility analysis
  */
+/** @deprecated Redis cache removed */
 export async function getCachedCompatibility(
-  userId: string,
-  partnerId: string
+  _userId: string,
+  _partnerId: string
 ): Promise<CompatibilityAnalysis | null> {
-  const cacheKey = generateCacheKey(userId, partnerId);
-
-  try {
-    const cached = await redisClient.get(cacheKey);
-    if (cached) {
-      return JSON.parse(cached);
-    }
-  } catch (error) {
-    console.warn('[Compatibility] Cache read error:', error);
-  }
-
   return null;
 }
 
-/**
- * Invalidate compatibility cache
- */
+/** @deprecated Redis cache removed — no-op */
 export async function invalidateCompatibilityCache(
-  userId: string,
-  partnerId: string
-): Promise<void> {
-  const cacheKey = generateCacheKey(userId, partnerId);
-
-  try {
-    await redisClient.del(cacheKey);
-    console.log(`[Compatibility] Invalidated cache for ${cacheKey}`);
-  } catch (error) {
-    console.warn('[Compatibility] Cache invalidation error:', error);
-  }
-}
+  _userId: string,
+  _partnerId: string
+): Promise<void> {}

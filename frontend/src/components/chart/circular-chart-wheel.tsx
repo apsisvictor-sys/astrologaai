@@ -12,7 +12,7 @@
 
 'use client';
 
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 
 // Design system colors (US-12 spec)
 const colors = {
@@ -134,14 +134,24 @@ const PLANET_DESCRIPTIONS: Record<string, { en: string; bg: string }> = {
   },
 };
 
-// Aspect colors
+// Roman numerals for house labels
+const ROMAN_NUMERALS = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+
+// Premium 3-letter zodiac abbreviations (replace cartoonish Unicode glyphs)
+const ZODIAC_ABBREV: Record<string, string> = {
+  Aries: 'ARI', Taurus: 'TAU', Gemini: 'GEM', Cancer: 'CAN',
+  Leo: 'LEO', Virgo: 'VIR', Libra: 'LIB', Scorpio: 'SCO',
+  Sagittarius: 'SAG', Capricorn: 'CAP', Aquarius: 'AQU', Pisces: 'PIS',
+};
+
+// Aspect colors — trine gets magenta (beautiful, common); conjunction gets gold (visible even when short)
 const ASPECT_COLORS: Record<string, string> = {
-  conjunction: colors.primary,
-  sextile: colors.success,
-  square: '#ff0080',
-  trine: colors.secondary,
-  opposition: '#ff6b6b',
-  quincunx: colors.warning,
+  conjunction: '#FFD580',   // gold — fusion of energies, powerful
+  sextile: '#10B981',       // green — opportunity, ease
+  square: '#ff0080',        // hot pink — tension, growth through friction
+  trine: '#e41aff',         // magenta — flowing harmony, appears often
+  opposition: '#00f0ff',    // cyan — polarity, need for balance
+  quincunx: '#F59E0B',      // amber — awkward adjustment
 };
 
 interface PlanetPosition {
@@ -225,16 +235,28 @@ export default function CircularChartWheel({
   
   const [hoveredPlanet, setHoveredPlanet] = useState<string | null>(null);
   const [selectedAspect, setSelectedAspect] = useState<string | null>(null);
+  const [animPhase, setAnimPhase] = useState(0);
   const svgRef = useRef<SVGSVGElement>(null);
+
+  // Phased entrance animation: chart assembles over ~2.5s
+  useEffect(() => {
+    const t1 = setTimeout(() => setAnimPhase(1), 80);   // SVG appears + zodiac ring
+    const t2 = setTimeout(() => setAnimPhase(2), 550);  // house lines
+    const t3 = setTimeout(() => setAnimPhase(3), 1000); // planets materialize
+    const t4 = setTimeout(() => setAnimPhase(4), 1600); // aspect lines draw in
+    const t5 = setTimeout(() => setAnimPhase(5), 2200); // center eye + breathing starts
+    return () => [t1, t2, t3, t4, t5].forEach(clearTimeout);
+  }, []);
   
   const isBulgarian = language === 'bg';
   const center = size / 2;
   const outerRadius = size / 2 - 20;
   const zodiacRadius = outerRadius - 30;
   const houseRadius = outerRadius - 70;
-  const planetRadius = outerRadius - 100;
-  const innerRadius = outerRadius - 140;
-  
+  const planetOuterRing = outerRadius - 55;
+  const planetInnerRing = outerRadius - 90;
+  const innerRadius = outerRadius - 170;
+
   // Get all planets
   const planets: PlanetPosition[] = [
     chart.sun,
@@ -252,27 +274,60 @@ export default function CircularChartWheel({
     chart.southNode,
     chart.chiron,
   ].filter(Boolean);
-  
-  // Convert degree to SVG coordinates
-  const degreeToCoords = useCallback((degree: number, radius: number) => {
-    // Rotate so Aries (0°) is at the left (9 o'clock position)
-    const angle = ((degree - 90) * Math.PI) / 180;
-    return {
-      x: center + radius * Math.cos(angle),
-      y: center + radius * Math.sin(angle),
-    };
-  }, [center]);
-  
+
   // Get sign index from sign name
   const getSignIndex = (sign: string): number => {
     return ZODIAC_SIGNS.indexOf(sign);
   };
-  
+
   // Calculate absolute degree from sign + degree within sign
   const getAbsoluteDegree = (sign: string, degree: number): number => {
     const signIndex = getSignIndex(sign);
     return signIndex * 30 + degree;
   };
+
+  // ASC ecliptic degree (0–360): determines chart orientation
+  // ASC must sit at 9 o'clock; houses and zodiac run counter-clockwise
+  const ascDegree = chart.rising
+    ? getAbsoluteDegree(chart.rising.sign, chart.rising.degree)
+    : 0;
+
+  // Convert ecliptic degree to SVG coordinates
+  // ASC sits at 9 o'clock (180°); zodiac runs counter-clockwise
+  // (increasing ecliptic degree → decreasing SVG angle)
+  const degreeToCoords = useCallback((degree: number, radius: number) => {
+    const angleDeg = ((ascDegree - degree + 180) % 360 + 360) % 360;
+    const angle = (angleDeg * Math.PI) / 180;
+    return {
+      x: center + radius * Math.cos(angle),
+      y: center + radius * Math.sin(angle),
+    };
+  }, [center, ascDegree]);
+
+  // Dual-ring planet placement: planets within MIN_PLANET_SEP degrees go to inner ring
+  const MIN_PLANET_SEP = 10;
+  const circularDiff = (a: number, b: number): number => {
+    const d = Math.abs(a - b) % 360;
+    return d > 180 ? 360 - d : d;
+  };
+  const planetRingMap: Record<string, number> = (() => {
+    const map: Record<string, number> = {};
+    const outerSlots: number[] = [];
+    const sorted = [...planets].sort((a, b) =>
+      getAbsoluteDegree(a.sign, a.degree) - getAbsoluteDegree(b.sign, b.degree)
+    );
+    for (const p of sorted) {
+      const deg = getAbsoluteDegree(p.sign, p.degree);
+      const tooClose = outerSlots.some(d => circularDiff(d, deg) < MIN_PLANET_SEP);
+      if (!tooClose) {
+        outerSlots.push(deg);
+        map[p.name] = planetOuterRing;
+      } else {
+        map[p.name] = planetInnerRing;
+      }
+    }
+    return map;
+  })();
   
   // Show tooltip
   const showTooltip = (e: React.MouseEvent, planet: PlanetPosition) => {
@@ -319,35 +374,41 @@ export default function CircularChartWheel({
   };
   
   // Render zodiac wheel
+  // Signs run counter-clockwise; each sign's start edge is at its ecliptic degree
+  // converted via the ASC-relative formula
   const renderZodiacWheel = () => {
     const elements = [];
-    
+
     for (let i = 0; i < 12; i++) {
-      const startAngle = i * 30 - 90;
-      const endAngle = startAngle + 30;
-      const startRad = (startAngle * Math.PI) / 180;
-      const endRad = (endAngle * Math.PI) / 180;
-      
-      // Calculate arc path
-      const x1 = center + outerRadius * Math.cos(startRad);
-      const y1 = center + outerRadius * Math.sin(startRad);
-      const x2 = center + outerRadius * Math.cos(endRad);
-      const y2 = center + outerRadius * Math.sin(endRad);
+      const startEcliptic = i * 30;
+      const endEcliptic   = (i + 1) * 30;
+
+      // SVG angle: higher ecliptic → lower SVG angle (counter-clockwise on screen)
+      const startSVGdeg = ((ascDegree - startEcliptic + 180) % 360 + 360) % 360;
+      const endSVGdeg   = ((ascDegree - endEcliptic   + 180) % 360 + 360) % 360;
+      const startRad = (startSVGdeg * Math.PI) / 180;
+      const endRad   = (endSVGdeg   * Math.PI) / 180;
+
+      const x1 = center + outerRadius  * Math.cos(startRad);
+      const y1 = center + outerRadius  * Math.sin(startRad);
+      const x2 = center + outerRadius  * Math.cos(endRad);
+      const y2 = center + outerRadius  * Math.sin(endRad);
       const x3 = center + zodiacRadius * Math.cos(endRad);
       const y3 = center + zodiacRadius * Math.sin(endRad);
       const x4 = center + zodiacRadius * Math.cos(startRad);
       const y4 = center + zodiacRadius * Math.sin(startRad);
-      
+
       // Determine element color
       const sign = ZODIAC_SIGNS[i];
       let fillColor = 'transparent';
-      if (['Aries', 'Leo', 'Sagittarius'].includes(sign)) fillColor = 'rgba(251,191,36,0.1)';
+      if (['Aries', 'Leo', 'Sagittarius'].includes(sign))      fillColor = 'rgba(251,191,36,0.1)';
       else if (['Taurus', 'Virgo', 'Capricorn'].includes(sign)) fillColor = 'rgba(16,185,129,0.1)';
-      else if (['Gemini', 'Libra', 'Aquarius'].includes(sign)) fillColor = 'rgba(167,139,250,0.1)';
-      else if (['Cancer', 'Scorpio', 'Pisces'].includes(sign)) fillColor = 'rgba(0,240,255,0.1)';
-      
-      const path = `M ${x1} ${y1} A ${outerRadius} ${outerRadius} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${zodiacRadius} ${zodiacRadius} 0 0 0 ${x4} ${y4} Z`;
-      
+      else if (['Gemini', 'Libra', 'Aquarius'].includes(sign))  fillColor = 'rgba(167,139,250,0.1)';
+      else if (['Cancer', 'Scorpio', 'Pisces'].includes(sign))  fillColor = 'rgba(0,240,255,0.1)';
+
+      // Outer arc: CCW (sweep=0); inner return arc: CW (sweep=1)
+      const path = `M ${x1} ${y1} A ${outerRadius} ${outerRadius} 0 0 0 ${x2} ${y2} L ${x3} ${y3} A ${zodiacRadius} ${zodiacRadius} 0 0 1 ${x4} ${y4} Z`;
+
       elements.push(
         <path
           key={`zodiac-${i}`}
@@ -357,32 +418,40 @@ export default function CircularChartWheel({
           strokeWidth={1}
         />
       );
-      
-      // Add zodiac symbol
-      const symbolAngle = ((i * 30 + 15 - 90) * Math.PI) / 180;
+
+      // Symbol at mid-point of each sign
+      const midEcliptic = startEcliptic + 15;
+      const midSVGdeg = ((ascDegree - midEcliptic + 180) % 360 + 360) % 360;
+      const symbolRad = (midSVGdeg * Math.PI) / 180;
       const symbolRadius = (outerRadius + zodiacRadius) / 2;
-      const symbolX = center + symbolRadius * Math.cos(symbolAngle);
-      const symbolY = center + symbolRadius * Math.sin(symbolAngle);
-      
+      const symbolX = center + symbolRadius * Math.cos(symbolRad);
+      const symbolY = center + symbolRadius * Math.sin(symbolRad);
+
       elements.push(
         <text
           key={`symbol-${i}`}
           x={symbolX}
           y={symbolY}
-          fill={colors.textPrimary}
-          fontSize="18"
+          fill="rgba(255,255,255,0.7)"
+          fontSize="7.5"
+          fontWeight="600"
+          letterSpacing="0.8"
           textAnchor="middle"
           dominantBaseline="middle"
-          style={{ userSelect: 'none' }}
+          style={{ userSelect: 'none', fontFamily: 'system-ui, sans-serif' }}
         >
-          {ZODIAC_SYMBOLS[ZODIAC_SIGNS[i]]}
+          {ZODIAC_ABBREV[ZODIAC_SIGNS[i]]}
         </text>
       );
     }
-    
-    return elements;
+
+    return (
+      <g style={{ opacity: animPhase >= 1 ? 1 : 0, transition: 'opacity 0.9s ease' }}>
+        {elements}
+      </g>
+    );
   };
-  
+
   // Render house cusps
   const renderHouses = () => {
     const elements = [];
@@ -393,13 +462,14 @@ export default function CircularChartWheel({
       if (!house) continue;
       
       const degree = getAbsoluteDegree(house.sign, house.degree);
-      const angle = ((degree - 90) * Math.PI) / 180;
-      
+      const angleDeg = ((ascDegree - degree + 180) % 360 + 360) % 360;
+      const angle = (angleDeg * Math.PI) / 180;
+
       const x1 = center + houseRadius * Math.cos(angle);
       const y1 = center + houseRadius * Math.sin(angle);
       const x2 = center + innerRadius * Math.cos(angle);
       const y2 = center + innerRadius * Math.sin(angle);
-      
+
       elements.push(
         <line
           key={`house-line-${i}`}
@@ -411,32 +481,38 @@ export default function CircularChartWheel({
           strokeWidth={1}
         />
       );
-      
-      // House number
-      const numAngle = ((degree + 15 - 90) * Math.PI) / 180;
-      const numRadius = (houseRadius + innerRadius) / 2;
+
+      // House number: 15° into the house (counter-clockwise = +15° ecliptic)
+      // Placed close to the center circle
+      const numAngleDeg = ((ascDegree - (degree + 15) + 180) % 360 + 360) % 360;
+      const numAngle = (numAngleDeg * Math.PI) / 180;
+      const numRadius = innerRadius + 22;
       const numX = center + numRadius * Math.cos(numAngle);
       const numY = center + numRadius * Math.sin(numAngle);
-      
+
       elements.push(
         <text
           key={`house-num-${i}`}
           x={numX}
           y={numY}
-          fill={colors.textSecondary}
-          fontSize="12"
+          fill="rgba(255,255,255,0.35)"
+          fontSize="9"
           textAnchor="middle"
           dominantBaseline="middle"
           style={{ userSelect: 'none' }}
         >
-          {i + 1}
+          {ROMAN_NUMERALS[i]}
         </text>
       );
     }
-    
-    return elements;
+
+    return (
+      <g style={{ opacity: animPhase >= 2 ? 1 : 0, transition: 'opacity 0.7s ease 0.1s' }}>
+        {elements}
+      </g>
+    );
   };
-  
+
   // Render aspect lines
   const renderAspects = () => {
     if (!showAspects || !chart.aspects) return null;
@@ -450,13 +526,15 @@ export default function CircularChartWheel({
       const degree1 = getAbsoluteDegree(planet1.sign, planet1.degree);
       const degree2 = getAbsoluteDegree(planet2.sign, planet2.degree);
       
-      const coords1 = degreeToCoords(degree1, planetRadius);
-      const coords2 = degreeToCoords(degree2, planetRadius);
+      const coords1 = degreeToCoords(degree1, planetRingMap[aspect.planet1] ?? planetOuterRing);
+      const coords2 = degreeToCoords(degree2, planetRingMap[aspect.planet2] ?? planetOuterRing);
       
       const aspectKey = `${aspect.planet1}-${aspect.planet2}`;
       const isHighlighted = selectedAspect === aspectKey;
       const isHovered = hoveredPlanet === aspect.planet1 || hoveredPlanet === aspect.planet2;
-      
+      const isChallenging = aspect.nature === 'challenging';
+      const delay = `${index * 0.07}s`;
+
       return (
         <line
           key={`aspect-${index}`}
@@ -467,9 +545,16 @@ export default function CircularChartWheel({
           stroke={ASPECT_COLORS[aspect.aspect] || colors.border}
           strokeWidth={isHighlighted || isHovered ? 2 : 1}
           opacity={isHighlighted || isHovered ? 1 : 0.3}
-          strokeDasharray={aspect.nature === 'challenging' ? '5,5' : 'none'}
+          strokeDasharray={isChallenging ? '5,5' : animPhase >= 4 ? '10000' : '10000'}
+          strokeDashoffset={!isChallenging && animPhase >= 4 ? 0 : (!isChallenging ? 10000 : undefined)}
           onClick={() => setSelectedAspect(selectedAspect === aspectKey ? null : aspectKey)}
-          style={{ cursor: 'pointer' }}
+          style={{
+            cursor: 'pointer',
+            opacity: animPhase >= 4 ? (isHighlighted || isHovered ? 1 : 0.3) : 0,
+            transition: isChallenging
+              ? `opacity 0.5s ease ${delay}`
+              : `opacity 0.5s ease ${delay}, stroke-dashoffset 1.2s ease ${delay}`,
+          }}
         />
       );
     });
@@ -477,11 +562,13 @@ export default function CircularChartWheel({
   
   // Render planets
   const renderPlanets = () => {
-    return planets.map((planet) => {
+    return planets.map((planet, index) => {
       const degree = getAbsoluteDegree(planet.sign, planet.degree);
-      const coords = degreeToCoords(degree, planetRadius);
+      const ring = planetRingMap[planet.name] ?? planetOuterRing;
+      const coords = degreeToCoords(degree, ring);
       const isHovered = hoveredPlanet === planet.name;
-      
+      const delay = `${index * 0.055}s`;
+
       return (
         <g
           key={`planet-${planet.name}`}
@@ -489,7 +576,11 @@ export default function CircularChartWheel({
           onMouseEnter={(e) => showTooltip(e, planet)}
           onMouseLeave={hideTooltip}
           onClick={() => onPlanetClick?.(planet)}
-          style={{ cursor: 'pointer' }}
+          style={{
+            cursor: 'pointer',
+            opacity: animPhase >= 3 ? 1 : 0,
+            transition: `opacity 0.45s ease ${delay}`,
+          }}
         >
           {/* Planet glow on hover */}
           {isHovered && (
@@ -538,56 +629,91 @@ export default function CircularChartWheel({
     });
   };
   
-  // Render center info
+  // Render center — oracle eye
   const renderCenter = () => {
+    const r = innerRadius - 8;
+    // Scale oracle eye smaller — about 40% of circle diameter
+    const eyeScale = r * 0.022;
     return (
-      <g transform={`translate(${center}, ${center})`}>
-        {/* Inner circle */}
+      <g
+        transform={`translate(${center}, ${center})`}
+        style={{ opacity: animPhase >= 2 ? 1 : 0, transition: 'opacity 0.6s ease 0.2s' }}
+      >
+        {/* Inner circle — purple gradient matching features page */}
         <circle
-          r={innerRadius - 10}
-          fill={colors.background}
-          stroke={colors.border}
+          r={r}
+          fill="url(#centerCircleBg)"
+          stroke="rgba(228,26,255,0.3)"
           strokeWidth={1}
         />
-        
-        {/* Sun/Moon/Rising summary */}
-        <text
-          y={-20}
-          fill={colors.textPrimary}
-          fontSize="12"
-          textAnchor="middle"
-          fontWeight="bold"
+        {/* Subtle inner glow ring */}
+        <circle
+          r={r * 0.65}
+          fill="none"
+          stroke="rgba(228,26,255,0.06)"
+          strokeWidth={r * 0.5}
+        />
+        {/* Oracle eye — phase-gated, centered at (0,0), scaled */}
+        <g
+          transform={`scale(${eyeScale}) translate(-22, -14)`}
+          style={{
+            opacity: animPhase >= 5 ? 1 : 0,
+            transition: 'opacity 1s ease',
+          }}
         >
-          {PLANET_SYMBOLS.sun} {isBulgarian ? chart.sun.signBg : chart.sun.sign}
-        </text>
-        <text
-          y={0}
-          fill={colors.textSecondary}
-          fontSize="11"
-          textAnchor="middle"
-        >
-          {PLANET_SYMBOLS.moon} {isBulgarian ? chart.moon.signBg : chart.moon.sign}
-        </text>
-        <text
-          y={20}
-          fill={colors.textSecondary}
-          fontSize="11"
-          textAnchor="middle"
-        >
-          {PLANET_SYMBOLS.rising} {isBulgarian ? chart.rising.signBg : chart.rising.sign}
-        </text>
+          {/* Outer eye shape */}
+          <path
+            d="M2 14 C8 2 36 2 42 14 C36 26 8 26 2 14Z"
+            stroke="rgba(255,255,255,0.85)"
+            strokeWidth="1.5"
+            fill="none"
+          />
+          {/* Iris — breathing animation starts with phase 5 */}
+          <circle
+            cx="22" cy="14" r="7"
+            stroke="rgba(255,255,255,0.7)"
+            strokeWidth="1.2"
+            fill="none"
+            className={animPhase >= 5 ? 'eye-iris' : ''}
+          />
+          {/* Pupil */}
+          <circle
+            cx="22" cy="14" r="3.5"
+            fill="url(#oracleEyePupil)"
+            className={animPhase >= 5 ? 'eye-pupil' : ''}
+          />
+          {/* Orbital arc */}
+          <path
+            d="M15 14 A7 7 0 0 1 22 7"
+            stroke="rgba(228,26,255,0.7)"
+            strokeWidth="0.9"
+            strokeLinecap="round"
+            fill="none"
+          />
+          {/* Star glints */}
+          <circle cx="10" cy="9" r="0.8" fill="white" opacity="0.6" />
+          <circle cx="34" cy="19" r="0.6" fill="white" opacity="0.5" />
+          <circle cx="30" cy="8" r="0.5" fill="rgba(0,240,255,0.9)" />
+        </g>
       </g>
     );
   };
 
   return (
-    <div className="relative w-full" style={{ aspectRatio: '1 / 1', maxWidth: size }}>
+    <div className="relative w-full h-full" style={{ aspectRatio: '1 / 1' }}>
       <svg
         ref={svgRef}
         width="100%"
         height="100%"
         viewBox={`0 0 ${size} ${size}`}
-        style={{ background: colors.background, borderRadius: '50%', display: 'block' }}
+        style={{
+          background: colors.background,
+          borderRadius: '50%',
+          display: 'block',
+          opacity: animPhase >= 1 ? 1 : 0,
+          transform: `scale(${animPhase >= 1 ? 1 : 0.88})`,
+          transition: 'opacity 0.7s ease, transform 1s cubic-bezier(0.34, 1.4, 0.64, 1)',
+        }}
       >
         {/* Background circle */}
         <circle
@@ -597,6 +723,30 @@ export default function CircularChartWheel({
           fill={colors.surface}
         />
         
+        <defs>
+          <style>{`
+            @keyframes eyeIrisBreathe {
+              0%, 100% { stroke-opacity: 0.45; }
+              50% { stroke-opacity: 1; filter: drop-shadow(0 0 4px rgba(228,26,255,0.9)); }
+            }
+            @keyframes eyePupilPulse {
+              0%, 100% { opacity: 0.75; }
+              50% { opacity: 1; }
+            }
+            .eye-iris { animation: eyeIrisBreathe 2.8s ease-in-out infinite; }
+            .eye-pupil { animation: eyePupilPulse 2.8s ease-in-out infinite; }
+          `}</style>
+          <radialGradient id="oracleEyePupil" cx="40%" cy="35%">
+            <stop offset="0%" stopColor="#e41aff" />
+            <stop offset="100%" stopColor="#00f0ff" />
+          </radialGradient>
+          <radialGradient id="centerCircleBg" cx="38%" cy="35%">
+            <stop offset="0%" stopColor="#2d0038" />
+            <stop offset="55%" stopColor="#0D0010" />
+            <stop offset="100%" stopColor="#1a0b1c" />
+          </radialGradient>
+        </defs>
+
         {/* Chart layers */}
         {renderZodiacWheel()}
         {renderHouses()}

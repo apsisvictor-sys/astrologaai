@@ -45,13 +45,21 @@ const ELEMENT_COLOR: Record<string, string> = {
   water: '#00f0ff',
 };
 
+const ASPECT_LEGEND = [
+  { key: 'trine',       label: 'Trine',       labelBg: 'Тригон',     color: '#e41aff', dashed: false, degrees: 120 },
+  { key: 'sextile',     label: 'Sextile',     labelBg: 'Секстил',    color: '#10B981', dashed: false, degrees: 60  },
+  { key: 'conjunction', label: 'Conjunction', labelBg: 'Конюнкция',  color: '#FFD580', dashed: false, degrees: 0   },
+  { key: 'square',      label: 'Square',      labelBg: 'Квадратура', color: '#ff0080', dashed: true,  degrees: 90  },
+  { key: 'opposition',  label: 'Opposition',  labelBg: 'Опозиция',   color: '#00f0ff', dashed: true,  degrees: 180 },
+  { key: 'quincunx',    label: 'Quincunx',    labelBg: 'Квинкункс',  color: '#F59E0B', dashed: true,  degrees: 150 },
+];
+
 const PLANET_ORDER = [
   'sun', 'moon', 'mercury', 'venus', 'mars',
   'jupiter', 'saturn', 'uranus', 'neptune', 'pluto',
   'northNode', 'chiron',
 ] as const;
 
-// house index → angle label
 const ANGLE_LABELS: { index: number; label: string }[] = [
   { index: 0, label: 'ASC' },
   { index: 9, label: 'MC' },
@@ -81,7 +89,7 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
       {/* Section 1: Planets */}
       <div>
         <p
-          className="text-[10px] font-bold uppercase tracking-widest mb-3"
+          className="text-xs font-bold uppercase tracking-widest mb-3"
           style={{ color: 'rgba(228,26,255,0.5)' }}
         >
           {isBg ? 'Планетарни позиции' : 'Planetary Positions'}
@@ -102,55 +110,35 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
             return (
               <div
                 key={key}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-xl cursor-default select-none"
+                className="flex items-center gap-2 px-2 py-1 rounded-xl cursor-default select-none"
                 style={{ transition: 'background 0.15s' }}
                 onMouseEnter={e => (e.currentTarget.style.background = 'rgba(228,26,255,0.05)')}
                 onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
               >
-                {/* Planet glyph */}
+                {/* Glyph */}
                 <span
-                  className="w-5 text-center text-sm shrink-0"
-                  style={{
-                    color: elemColor,
-                    filter: `drop-shadow(0 0 3px ${elemColor}60)`,
-                  }}
+                  className="text-base w-4 text-center shrink-0"
+                  style={{ color: elemColor, filter: `drop-shadow(0 0 3px ${elemColor}60)` }}
                 >
                   {glyph}
                 </span>
-
-                {/* Planet name */}
-                <span
-                  className="text-[11px] w-[58px] shrink-0 truncate"
-                  style={{ color: 'rgba(255,255,255,0.5)' }}
-                >
+                {/* Name */}
+                <span className="text-xs w-[52px] shrink-0" style={{ color: 'rgba(255,255,255,0.5)' }}>
                   {name}
                 </span>
-
-                {/* Sign glyph + name */}
-                <span className="flex items-center gap-1 flex-1 min-w-0">
-                  <span className="text-[11px]" style={{ color: elemColor, opacity: 0.75 }}>
-                    {signGlyph}
-                  </span>
-                  <span className="text-[11px] text-white truncate">{signName}</span>
+                {/* Sign glyph */}
+                <span className="text-base shrink-0" style={{ color: elemColor, opacity: 0.8 }}>
+                  {signGlyph}
                 </span>
-
+                {/* Sign name */}
+                <span className="text-xs shrink-0 text-white">{signName}</span>
                 {/* Degree */}
-                <span
-                  className="text-[11px] font-mono shrink-0 tabular-nums"
-                  style={{ color: 'rgba(255,255,255,0.65)' }}
-                >
+                <span className="text-xs font-mono tabular-nums shrink-0 ml-1" style={{ color: 'rgba(255,255,255,0.65)' }}>
                   {deg}°{String(arcMin).padStart(2, '0')}′
                 </span>
-
                 {/* Retrograde */}
                 {planet.retrograde && (
-                  <span
-                    className="text-[10px] shrink-0 font-bold"
-                    style={{
-                      color: '#e41aff',
-                      filter: 'drop-shadow(0 0 3px rgba(228,26,255,0.7))',
-                    }}
-                  >
+                  <span className="text-[11px] font-bold shrink-0" style={{ color: '#e41aff', filter: 'drop-shadow(0 0 3px rgba(228,26,255,0.7))' }}>
                     ℞
                   </span>
                 )}
@@ -167,7 +155,7 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
       {rawChart.houses && rawChart.houses.length >= 10 && (
         <div>
           <p
-            className="text-[10px] font-bold uppercase tracking-widest mb-3"
+            className="text-xs font-bold uppercase tracking-widest mb-3"
             style={{ color: 'rgba(228,26,255,0.5)' }}
           >
             {isBg ? 'Ъгли' : 'Angles'}
@@ -184,9 +172,9 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
               const isMain = label === 'ASC' || label === 'MC';
 
               return (
-                <div key={label} className="flex items-center gap-2 px-2 py-1.5">
+                <div key={label} className="flex items-center gap-2 px-2 py-1">
                   <span
-                    className="text-[11px] font-bold w-8 shrink-0 font-mono"
+                    className="text-xs font-bold font-mono w-8 shrink-0"
                     style={{
                       color: isMain ? '#00f0ff' : 'rgba(0,240,255,0.45)',
                       filter: isMain ? 'drop-shadow(0 0 3px rgba(0,240,255,0.5))' : 'none',
@@ -194,16 +182,11 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
                   >
                     {label}
                   </span>
-                  <span className="flex items-center gap-1 flex-1 min-w-0">
-                    <span className="text-[11px]" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                      {signGlyph}
-                    </span>
-                    <span className="text-[11px] text-white truncate">{signName}</span>
+                  <span className="text-base shrink-0" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    {signGlyph}
                   </span>
-                  <span
-                    className="text-[11px] font-mono shrink-0 tabular-nums"
-                    style={{ color: 'rgba(255,255,255,0.65)' }}
-                  >
+                  <span className="text-xs shrink-0 text-white">{signName}</span>
+                  <span className="text-xs font-mono tabular-nums shrink-0 ml-1" style={{ color: 'rgba(255,255,255,0.65)' }}>
                     {deg}°{String(arcMin).padStart(2, '0')}′
                   </span>
                 </div>
@@ -219,7 +202,7 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
       {/* Section 3: Elements */}
       <div>
         <p
-          className="text-[10px] font-bold uppercase tracking-widest mb-3"
+          className="text-xs font-bold uppercase tracking-widest mb-3"
           style={{ color: 'rgba(228,26,255,0.5)' }}
         >
           {isBg ? 'Елементи' : 'Elements'}
@@ -239,7 +222,7 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
             return (
               <div key={key} className="flex items-center gap-2">
                 <span
-                  className="text-[11px] w-[52px] shrink-0"
+                  className="text-xs w-14 shrink-0"
                   style={{ color: 'rgba(255,255,255,0.45)' }}
                 >
                   {label}
@@ -248,7 +231,7 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
                   {Array.from({ length: MAX_DOTS }).map((_, i) => (
                     <div
                       key={i}
-                      className="w-2 h-2 rounded-full"
+                      className="w-2.5 h-2.5 rounded-full"
                       style={{
                         background: i < filled ? color : 'rgba(255,255,255,0.07)',
                         boxShadow: i < filled ? `0 0 4px ${color}70` : 'none',
@@ -258,7 +241,7 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
                   ))}
                 </div>
                 <span
-                  className="text-[10px] font-mono ml-1"
+                  className="text-[11px] font-mono ml-1"
                   style={{ color: 'rgba(255,255,255,0.3)' }}
                 >
                   {count}
@@ -267,6 +250,44 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
             );
           })}
         </div>
+      </div>
+
+      {/* Divider */}
+      <div style={{ borderTop: '1px solid rgba(228,26,255,0.1)' }} />
+
+      {/* Section 4: Aspect Legend */}
+      <div>
+        <p
+          className="text-xs font-bold uppercase tracking-widest mb-3"
+          style={{ color: 'rgba(228,26,255,0.5)' }}
+        >
+          {isBg ? 'Аспекти' : 'Aspects'}
+        </p>
+        <div className="flex flex-col gap-1.5">
+          {ASPECT_LEGEND.map(({ key, label, labelBg, color, dashed, degrees }) => (
+            <div key={key} className="flex items-center gap-2">
+              {/* Visual line sample */}
+              <svg width="28" height="10" viewBox="0 0 28 10" className="shrink-0">
+                <line
+                  x1="1" y1="5" x2="27" y2="5"
+                  stroke={color}
+                  strokeWidth="1.5"
+                  strokeDasharray={dashed ? '4,3' : 'none'}
+                  strokeLinecap="round"
+                />
+              </svg>
+              <span className="text-[11px] shrink-0" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                {isBg ? labelBg : label}
+              </span>
+              <span className="text-[10px] font-mono ml-auto shrink-0" style={{ color: 'rgba(255,255,255,0.25)' }}>
+                {degrees}°
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] mt-2" style={{ color: 'rgba(255,255,255,0.2)' }}>
+          {isBg ? 'Пунктираните линии = напрегнати аспекти' : 'Dashed lines = challenging aspects'}
+        </p>
       </div>
     </div>
   );

@@ -297,15 +297,29 @@ export async function getTimeSensitivity(req: Request, res: Response) {
         },
       });
     }
+
+    // Hard cap: max 20 data points to prevent runaway API usage
+    // e.g. timeRange=120, interval=1 would otherwise make 241 API calls
+    const totalPoints = Math.ceil((timeRange * 2) / interval) + 1;
+    if (totalPoints > 20) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'TOO_MANY_POINTS',
+          message: `Request would generate ${totalPoints} API calls. Reduce timeRange or increase interval.`,
+        },
+      });
+    }
     
-    // Fetch birth profile
+    // Fetch birth profile with stored chart
     const profile = await prisma.birthProfile.findFirst({
       where: {
         id: profileId,
         userId,
       },
+      include: { birthChart: { select: { chartData: true } } },
     });
-    
+
     if (!profile) {
       return res.status(404).json({
         success: false,
@@ -315,12 +329,12 @@ export async function getTimeSensitivity(req: Request, res: Response) {
         },
       });
     }
-    
+
     // Parse birth data
     const birthDate = new Date(profile.birthDate);
     const { hour, minute } = parseBirthTime(profile.birthTime);
     const isUnknownTime = profile.isUnknownTime;
-    
+
     // Calculate original chart
     const originalBirthData: BirthDataInput = {
       year: birthDate.getFullYear(),
@@ -332,8 +346,10 @@ export async function getTimeSensitivity(req: Request, res: Response) {
       longitude: profile.longitude,
       timezone: profile.timezone,
     };
-    
-    const originalChart = await calculateNatalChart(originalBirthData);
+
+    // Use stored chart if available (avoids an API call for the base chart)
+    const originalChart: NatalChart = (profile.birthChart?.chartData as NatalChart | null)
+      ?? await calculateNatalChart(originalBirthData);
     
     // Generate data points for time range
     const dataPoints: TimeSensitivityPoint[] = [];
