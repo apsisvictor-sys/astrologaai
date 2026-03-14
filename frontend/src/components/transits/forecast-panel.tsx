@@ -271,12 +271,13 @@ export function ForecastPanel() {
     }
   }, []);
 
-  useEffect(() => {
-    if (isAuthenticated) fetchForecast();
-  }, [isAuthenticated, fetchForecast]);
-
   const tier    = user?.tier ?? 'FREE';
   const isLocked = tier === 'FREE';
+
+  useEffect(() => {
+    // Don't fetch for FREE users — content is locked, no point calling the LLM backend
+    if (isAuthenticated && !isLocked) fetchForecast();
+  }, [isAuthenticated, isLocked, fetchForecast]);
 
   // Enrich transits with computed house numbers when natal cusps are available
   const enrichedTransits = useMemo(() => {
