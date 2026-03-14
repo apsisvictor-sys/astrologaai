@@ -1,7 +1,7 @@
 /**
  * AstroLogAI Backend API Server
- * Main entry point
- * 
+ * Main entry point — v2026-03-14
+ *
  * US-10: WebSocket support via Socket.io
  */
 
