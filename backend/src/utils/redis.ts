@@ -55,10 +55,10 @@ if (redisUrl) {
   });
 
   realClient.connect().catch((err: Error) => {
-    console.error('[Redis] Initial connect failed, using in-memory fallback:', err.message);
+    console.error('[Redis] ⚠️  Initial connect FAILED — cache will NOT persist across requests! All LLM forecast calls will re-run on every request. Error:', err.message);
   });
 } else {
-  console.log('[Redis] No REDIS_URL — using in-memory fallback');
+  console.warn('[Redis] ⚠️  No REDIS_URL set — using in-memory fallback. Cache lost on every restart. All LLM forecast calls will re-run after restarts.');
 }
 
 export const redisClient = new Proxy(memoryClient, {

@@ -251,11 +251,11 @@ export async function chatCompletion(
   const coreMessages = mapToCoreMessages(messages);
   const model = getProviderModel();
 
-  const { get_natal_chart, get_transits, ...remainingTools } = createAstrologyTools({ userId: '' });
+  // No tools — this function is used for forecast/oracle generation, not chat.
+  // Passing tool schemas wastes thousands of input tokens per call.
   const result = await generateText({
     model,
     messages: coreMessages,
-    tools: remainingTools,
     temperature: config.temperature ?? 0.7,
   });
 
