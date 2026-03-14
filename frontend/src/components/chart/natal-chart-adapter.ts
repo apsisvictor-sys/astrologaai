@@ -74,6 +74,7 @@ export function adaptNatalChart(chart: BackendNatalChart): NatalChartData {
       degree: toAbsoluteDegree(planet.degree, planet.sign),
       sign: planet.sign,
       retrograde: planet.retrograde,
+      house: planet.house,
     });
   };
 

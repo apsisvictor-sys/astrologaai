@@ -136,6 +136,13 @@ export function PlanetDataPanel({ rawChart, language = 'en' }: PlanetDataPanelPr
                 <span className="text-xs font-mono tabular-nums shrink-0 ml-1" style={{ color: 'rgba(255,255,255,0.65)' }}>
                   {deg}°{String(arcMin).padStart(2, '0')}′
                 </span>
+                {/* House */}
+                {planet.house && (
+                  <span className="text-[10px] font-mono shrink-0 ml-auto" style={{ color: 'rgba(228,26,255,0.55)' }}>
+                    H{planet.house}
+                  </span>
+                )}
+
                 {/* Retrograde */}
                 {planet.retrograde && (
                   <span className="text-[11px] font-bold shrink-0" style={{ color: '#e41aff', filter: 'drop-shadow(0 0 3px rgba(228,26,255,0.7))' }}>

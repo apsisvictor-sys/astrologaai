@@ -80,6 +80,11 @@ export function PlanetTable({ planets }: PlanetTableProps) {
               {/* Degree */}
               <span className="text-[11px] text-text-muted font-mono shrink-0">{fmt(planet.degree)}</span>
 
+              {/* House */}
+              {planet.house && (
+                <span className="text-[9px] font-mono shrink-0" style={{ color: 'rgba(228,26,255,0.6)' }}>H{planet.house}</span>
+              )}
+
               {/* Retrograde */}
               {planet.retrograde && (
                 <span className="text-[9px] font-bold shrink-0" style={{ color }}>ℛ</span>

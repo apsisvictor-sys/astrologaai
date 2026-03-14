@@ -8,6 +8,7 @@ export interface PlanetaryPosition {
   degree: number; // absolute 0–360
   sign: string;
   retrograde?: boolean;
+  house?: number;
 }
 
 export interface NatalChartData {
