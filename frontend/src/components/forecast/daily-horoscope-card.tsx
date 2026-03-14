@@ -64,7 +64,7 @@ export function DailyHoroscopeCard({ tier }: DailyHoroscopeCardProps) {
     apiGet<PersonalDailyHoroscope>('/api/v1/forecasts/horoscope')
       .then(res => {
         if (res.success) setHoroscope(res.data);
-        else setError(res.error?.message || 'Failed to load');
+        else setError('Failed to load');
       })
       .catch(() => setError('Failed to load horoscope'))
       .finally(() => setLoading(false));
