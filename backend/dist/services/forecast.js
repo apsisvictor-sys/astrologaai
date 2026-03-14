@@ -15,6 +15,7 @@ exports.getPersonalDailyHoroscope = getPersonalDailyHoroscope;
 const redis_1 = require("../utils/redis");
 const astrology_1 = require("./astrology");
 const llm_1 = require("./llm");
+const forecast_cron_1 = require("./forecast-cron");
 // ============================================
 // Constants
 // ============================================
@@ -319,12 +320,18 @@ Generate the forecast in the following JSON format (JSON only, no additional tex
  */
 async function generateDailyForecast(userId, birthData, userLanguage = 'bg', precomputedChart) {
     const dateString = getTodayDateString();
+    // 1. Check DB first (written by nightly cron or previous on-demand call)
+    const stored = await forecast_cron_1.getStoredForecast(userId, dateString);
+    if (stored?.forecast) {
+        console.log(`[Forecast] DB hit for daily forecast, user ${userId}`);
+        return { ...stored.forecast, cached: true };
+    }
+    // 2. Fall back to Redis hot cache
     const cacheKey = `forecast:daily:${userId}:${dateString}`;
-    // Try cache first
     try {
         const cached = await redis_1.redisClient.get(cacheKey);
         if (cached) {
-            console.log(`[Forecast] Daily forecast cache hit for user ${userId}`);
+            console.log(`[Forecast] Redis hit for daily forecast, user ${userId}`);
             const forecast = JSON.parse(cached);
             forecast.cached = true;
             return forecast;
@@ -404,7 +411,9 @@ async function generateDailyForecast(userId, birthData, userLanguage = 'bg', pre
         generatedAt: new Date().toISOString(),
         cached: false,
     };
-    // Cache the forecast
+    // Persist to DB (survives server restarts and Redis flushes)
+    await forecast_cron_1.storeForecast(userId, dateString, null, forecast);
+    // Also warm Redis cache
     try {
         await redis_1.redisClient.setEx(cacheKey, FORECAST_CACHE_TTL, JSON.stringify(forecast));
         console.log(`[Forecast] Cached daily forecast for user ${userId}`);
@@ -566,6 +575,13 @@ async function rewriteInOracleVoice(raw) {
 }
 async function getPersonalDailyHoroscope(userId, birthData) {
     const dateStr = getTodayDateString();
+    // 1. Check DB first (written by nightly cron or previous on-demand call)
+    const stored = await forecast_cron_1.getStoredForecast(userId, dateStr);
+    if (stored?.horoscope) {
+        console.log(`[Forecast] DB hit for horoscope, user ${userId}`);
+        return { ...stored.horoscope, cached: true };
+    }
+    // 2. Fall back to Redis hot cache
     const cacheKey = `horoscope:personal:${userId}:${dateStr}`;
     try {
         const cached = await redis_1.redisClient.get(cacheKey);
@@ -593,6 +609,9 @@ async function getPersonalDailyHoroscope(userId, birthData) {
         tips: rewritten.tips ?? raw.tips ?? [],
         cached: false,
     };
+    // Persist to DB (survives server restarts and Redis flushes)
+    await forecast_cron_1.storeForecast(userId, dateStr, horoscope, null);
+    // Also warm Redis cache
     try { await redis_1.redisClient.setEx(cacheKey, 86400, JSON.stringify(horoscope)); } catch { }
     console.log(`[Forecast] Personal daily horoscope generated for user ${userId}`);
     return horoscope;

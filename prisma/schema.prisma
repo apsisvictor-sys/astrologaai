@@ -59,6 +59,7 @@ model User {
   subscription      Subscription?
   usageRecords      UsageRecord[]
   notificationPreference NotificationPreference? // US-29: Notification Preferences
+  dailyForecasts    DailyForecast[]
 
   @@map("users")
 }
@@ -478,4 +479,25 @@ model ReferralConversion {
 
   @@index([linkId])
   @@map("referral_conversions")
+}
+
+// ============================================
+// PRE-GENERATED DAILY FORECASTS
+// ============================================
+
+// Stores LLM-generated forecasts per user per date.
+// Written by the nightly cron job at 2am.
+// API endpoints read from here — zero LLM calls on page load.
+model DailyForecast {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        String   // "2026-03-14" — one row per user per day
+  horoscope   Json?    // getPersonalDailyHoroscope() result
+  forecast    Json?    // generateDailyForecast() result
+  generatedAt DateTime @default(now()) @map("generated_at")
+
+  @@unique([userId, date])
+  @@index([date])
+  @@map("daily_forecasts")
 }

@@ -9,6 +9,7 @@
 import { redisClient } from '../utils/redis';
 import { calculateNatalChart, NatalChart, BirthDataInput } from './astrology';
 import { chatCompletion, type ChatMessage } from './llm';
+import { getStoredForecast, storeForecast } from './forecast-cron';
 
 // ============================================
 // Types
@@ -446,13 +447,20 @@ export async function generateDailyForecast(
   precomputedChart?: NatalChart
 ): Promise<DailyForecast> {
   const dateString = getTodayDateString();
+
+  // 1. Check DB first (written by nightly cron or previous on-demand call)
+  const stored = await getStoredForecast(userId, dateString);
+  if (stored?.forecast) {
+    console.log(`[Forecast] DB hit for daily forecast, user ${userId}`);
+    return { ...(stored.forecast as DailyForecast), cached: true };
+  }
+
+  // 2. Fall back to Redis hot cache
   const cacheKey = `forecast:daily:${userId}:${dateString}`;
-  
-  // Try cache first
   try {
     const cached = await redisClient.get(cacheKey);
     if (cached) {
-      console.log(`[Forecast] Daily forecast cache hit for user ${userId}`);
+      console.log(`[Forecast] Redis hit for daily forecast, user ${userId}`);
       const forecast = JSON.parse(cached) as DailyForecast;
       forecast.cached = true;
       return forecast;
@@ -539,14 +547,16 @@ export async function generateDailyForecast(
     cached: false,
   };
   
-  // Cache the forecast
+  // Persist to DB (survives server restarts and Redis flushes)
+  await storeForecast(userId, dateString, null, forecast);
+
+  // Also warm Redis cache
   try {
     await redisClient.setEx(cacheKey, FORECAST_CACHE_TTL, JSON.stringify(forecast));
-    console.log(`[Forecast] Cached daily forecast for user ${userId}`);
   } catch (error) {
     console.warn('[Forecast] Cache write error:', error);
   }
-  
+
   return forecast;
 }
 
@@ -788,8 +798,16 @@ export async function getPersonalDailyHoroscope(
   birthData: BirthDataInput,
 ): Promise<PersonalDailyHoroscope> {
   const dateStr = getTodayDateString();
-  const cacheKey = `horoscope:personal:${userId}:${dateStr}`;
 
+  // 1. Check DB first (written by nightly cron or previous on-demand call)
+  const stored = await getStoredForecast(userId, dateStr);
+  if (stored?.horoscope) {
+    console.log(`[Forecast] DB hit for horoscope, user ${userId}`);
+    return { ...(stored.horoscope as PersonalDailyHoroscope), cached: true };
+  }
+
+  // 2. Fall back to Redis hot cache
+  const cacheKey = `horoscope:personal:${userId}:${dateStr}`;
   try {
     const cached = await redisClient.get(cacheKey);
     if (cached) {
@@ -846,6 +864,10 @@ export async function getPersonalDailyHoroscope(
     cached: false,
   };
 
+  // Persist to DB (survives server restarts and Redis flushes)
+  await storeForecast(userId, dateStr, horoscope, null);
+
+  // Also warm Redis cache
   try {
     await redisClient.setEx(cacheKey, 86400, JSON.stringify(horoscope));
   } catch { /* cache write failure is non-fatal */ }

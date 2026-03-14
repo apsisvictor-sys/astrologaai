@@ -76,6 +76,7 @@ const socket_1 = require("./socket");
 // US-30: Chart regeneration processor
 const chart_regeneration_1 = require("./services/chart-regeneration");
 const admin_defaults_1 = require("./services/admin-defaults");
+const forecast_cron_1 = require("./services/forecast-cron");
 (0, dotenv_1.config)({ override: true });
 const app = (0, express_1.default)();
 // Trust Railway's proxy (required for express-rate-limit to work correctly behind Railway)
@@ -297,6 +298,11 @@ httpServer.listen(PORT, () => {
     // US-30: Start background chart regeneration processor
     (0, chart_regeneration_1.startRegenerationProcessor)();
     console.log(`⚡ Chart regeneration processor started`);
+    // Nightly forecast pre-generation: create table then start scheduler
+    (0, forecast_cron_1.ensureDailyForecastTable)().then(() => {
+        (0, forecast_cron_1.startForecastCron)();
+        console.log(`⚡ Nightly forecast cron started (runs daily at 02:00 UTC)`);
+    }).catch(err => console.error('[Startup] Failed to start forecast cron:', err));
     // Seed AdminConfig defaults (model prices, alert thresholds)
     (0, admin_defaults_1.seedAdminDefaults)().catch(err => console.error('[Startup] Failed to seed admin defaults:', err));
 });

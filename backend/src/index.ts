@@ -43,6 +43,7 @@ import type { AuthenticatedSocket } from './socket';
 // US-30: Chart regeneration processor
 import { startRegenerationProcessor } from './services/chart-regeneration';
 import { seedAdminDefaults } from './services/admin-defaults';
+import { ensureDailyForecastTable, startForecastCron } from './services/forecast-cron';
 
 config({ override: true });
 
@@ -294,6 +295,12 @@ httpServer.listen(PORT, () => {
   // US-30: Start background chart regeneration processor
   startRegenerationProcessor();
   console.log(`⚡ Chart regeneration processor started`);
+
+  // Nightly forecast pre-generation: create table then start scheduler
+  ensureDailyForecastTable().then(() => {
+    startForecastCron();
+    console.log(`⚡ Nightly forecast cron started (runs daily at 02:00 UTC)`);
+  }).catch(err => console.error('[Startup] Failed to start forecast cron:', err));
 
   // Seed AdminConfig defaults (model prices, alert thresholds) — skips if already set
   seedAdminDefaults().catch(err => console.error('[Startup] Failed to seed admin defaults:', err));
