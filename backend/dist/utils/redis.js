@@ -64,7 +64,11 @@ if (redisUrl) {
 }
 exports.redisClient = new Proxy(memoryClient, {
     get(_target, prop) {
-        return activeClient[prop];
+        const value = activeClient[prop];
+        if (typeof value === 'function') {
+            return value.bind(activeClient);
+        }
+        return value;
     },
 });
 function isRedisConnected() {
