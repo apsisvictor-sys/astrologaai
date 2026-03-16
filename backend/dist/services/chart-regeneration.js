@@ -11,9 +11,7 @@ exports.regenerateChartNow = regenerateChartNow;
 const prisma_1 = require("../utils/prisma");
 const redis_1 = require("../utils/redis");
 const astrology_1 = require("./astrology");
-const QUEUE_KEY = 'chart_regeneration_queue';
-const POLL_INTERVAL_MS = 5000; // 5 seconds
-const isDevelopment = process.env.NODE_ENV !== 'production';
+const QUEUE_KEY = 'chart_regeneration_queue'; // kept for any existing queued jobs on startup
 /**
  * Process a single regeneration job
  */
@@ -67,8 +65,6 @@ async function processJob(job) {
         // Update job status to complete
         job.status = 'complete';
         await redis_1.redisClient.setEx(`job:${job.jobId}`, 3600, JSON.stringify(job));
-        // TODO: Send notification to user (could use WebSocket or push notification)
-        // For now, user polls the regeneration status endpoint
         return true;
     }
     catch (error) {
@@ -80,31 +76,15 @@ async function processJob(job) {
     }
 }
 /**
- * Start the regeneration queue processor
- * In development, this runs in a setInterval
- * In production, this could be a separate worker process
+ * No-op — polling loop removed. Jobs are processed inline in regenerateChartNow.
+ * The 5-second Redis poll was generating ~17k empty lPop calls/day with zero users.
  */
 function startRegenerationProcessor() {
-    console.log('[ChartRegen] Starting regeneration processor');
-    // Use setInterval for simple polling
-    // In production, consider using BullMQ or similar
-    setInterval(async () => {
-        try {
-            // Pop a job from the queue (non-blocking)
-            const jobStr = await redis_1.redisClient.lPop(QUEUE_KEY);
-            if (jobStr) {
-                const job = JSON.parse(jobStr);
-                await processJob(job);
-            }
-        }
-        catch (error) {
-            console.error('[ChartRegen] Queue processor error:', error);
-        }
-    }, POLL_INTERVAL_MS);
+    // intentionally empty
 }
 /**
  * Manually trigger regeneration for a profile
- * Used when the queue processor is not running
+ * Used when birth data changes
  */
 async function regenerateChartNow(profileId, userId) {
     const job = {
@@ -116,14 +96,8 @@ async function regenerateChartNow(profileId, userId) {
     };
     // Store job in Redis
     await redis_1.redisClient.setEx(`job:${job.jobId}`, 3600, JSON.stringify(job));
-    // Process immediately (for development or manual trigger)
-    if (isDevelopment) {
-        await processJob(job);
-    }
-    else {
-        // Add to queue for worker to process
-        await redis_1.redisClient.rPush(QUEUE_KEY, JSON.stringify(job));
-    }
+    // Always process inline — no separate worker process exists
+    await processJob(job);
     return job.jobId;
 }
 exports.default = {
