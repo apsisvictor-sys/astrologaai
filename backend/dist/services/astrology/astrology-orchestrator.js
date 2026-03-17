@@ -13,7 +13,6 @@ exports.getAstrologyOrchestrator = getAstrologyOrchestrator;
 exports.resetAstrologyOrchestrator = resetAstrologyOrchestrator;
 const astrology_provider_interface_1 = require("./astrology-provider.interface");
 const astrology_api_provider_1 = require("./astrology-api-provider");
-const swiss_ephemeris_provider_1 = require("./swiss-ephemeris-provider");
 const redis_1 = require("../../utils/redis");
 // ============================================
 // Configuration
@@ -71,19 +70,13 @@ class AstrologyOrchestrator {
      * Initialize providers based on availability
      */
     initializeProviders() {
-        // Priority order: Astrology-API.io (primary) → Swiss Ephemeris (fallback)
-        // Primary: Astrology-API.io
         const primaryProvider = (0, astrology_api_provider_1.createAstrologyAPIProvider)();
         if (primaryProvider.isAvailable()) {
             this.providers.push(primaryProvider);
-            console.log('[Astrology Orchestrator] Added Astrology-API.io as primary provider');
+            console.log('[Astrology Orchestrator] Added Astrology-API.io as provider');
         }
-        // Secondary: Swiss Ephemeris fallback (always available)
-        const fallbackProvider = (0, swiss_ephemeris_provider_1.createSwissEphemerisProvider)();
-        this.providers.push(fallbackProvider);
-        console.log('[Astrology Orchestrator] Added Swiss Ephemeris as fallback provider');
-        if (this.providers.length === 0) {
-            console.error('[Astrology Orchestrator] No astrology providers available!');
+        else {
+            console.error('[Astrology Orchestrator] Astrology-API.io provider not available!');
         }
     }
     /**

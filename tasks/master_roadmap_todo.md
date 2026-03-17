@@ -21,14 +21,17 @@
 
 | # | What | Files |
 |---|------|-------|
-| BUG-01 | Guest session localStorage cleared on login/register | `frontend/src/lib/auth-context.tsx` |
-| BUG-02 | Swiss Ephemeris second provider removed | `astrology-orchestrator.ts`, `services/astrology/index.ts`, `routes/astrology.ts`, `src/index.ts` |
-| BUG-03 | Login error shows correctly (submitError state + min-h reserved space) | `frontend/src/components/login-form.tsx`, `frontend/src/lib/auth-context.tsx` |
-| BUG-15 | Oracle language default fixed (bg → en) | `middleware/languageDetection.ts`, `controllers/chatController.ts` (4 places) |
-| BUG-16 | New Oracle system prompt written by Opus | `services/llm-helpers.ts` — full `ASTROLOGER_SYSTEM_PROMPT` rewrite |
-| UI | CosmicSpinner — unified orbital loading animation across all spinners | `frontend/src/components/ui/spinner.tsx` + login-form, registration-form, forecast-panel, chart-loading |
+| BUG-01 | ✅ Guest session localStorage cleared on login/register | `frontend/src/lib/auth-context.tsx` |
+| BUG-02 | ✅ Swiss Ephemeris second provider removed | `astrology-orchestrator.ts`, `services/astrology/index.ts`, `routes/astrology.ts` |
+| BUG-03 | ✅ Login error shows correctly (submitError state + min-h reserved space) | `frontend/src/components/login-form.tsx`, `frontend/src/lib/auth-context.tsx` |
+| BUG-09 | ✅ Dashboard quick action labels fixed (Chat/Forecast/Partners) | `frontend/src/app/[locale]/(app)/dashboard/page.tsx` |
+| BUG-10 | ✅ FREE tier DailyHoroscopeCard shows 2 free sections | `frontend/src/components/forecast/daily-horoscope-card.tsx` |
+| BUG-11 | ✅ Chat in sidebar nav, dashboard CTA → /chat | `frontend/src/components/shell/sidebar-nav.tsx`, `dashboard/page.tsx` |
+| BUG-15 | ✅ Oracle language default fixed (bg → en) | `middleware/languageDetection.ts` |
+| BUG-16 | ✅ New Oracle system prompt written by Opus | `services/llm-helpers.ts` |
+| UI | ✅ CosmicSpinner — unified orbital loading animation | `spinner.tsx` + login-form, registration-form, forecast-panel, chart-loading |
 
-**Deploy command:** commit all changes, push to Railway (backend) + Vercel (frontend).
+**Deploying now — 2026-03-17.**
 
 ---
 

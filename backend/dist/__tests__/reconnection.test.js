@@ -44,12 +44,12 @@ const vitest_1 = require("vitest");
 const { mockRedis } = vitest_1.vi.hoisted(() => {
     return {
         mockRedis: {
-            setex: vitest_1.vi.fn().mockResolvedValue('OK'),
+            setEx: vitest_1.vi.fn().mockResolvedValue('OK'),
             set: vitest_1.vi.fn().mockResolvedValue('OK'),
             get: vitest_1.vi.fn().mockResolvedValue(null),
             del: vitest_1.vi.fn().mockResolvedValue(1),
-            lrange: vitest_1.vi.fn().mockResolvedValue([]),
-            rpush: vitest_1.vi.fn().mockResolvedValue(1),
+            lRange: vitest_1.vi.fn().mockResolvedValue([]),
+            rPush: vitest_1.vi.fn().mockResolvedValue(1),
         },
     };
 });
@@ -74,11 +74,11 @@ vitest_1.vi.mock('@prisma/client', () => ({
                 messageId: 'msg-789',
             };
             await storeStreamState(testUserId, testConversationId, state);
-            (0, vitest_1.expect)(mockRedis.setex).toHaveBeenCalledWith(`stream:state:${testUserId}:${testConversationId}`, 3600, JSON.stringify(state));
+            (0, vitest_1.expect)(mockRedis.setEx).toHaveBeenCalledWith(`stream:state:${testUserId}:${testConversationId}`, 3600, JSON.stringify(state));
         });
         (0, vitest_1.it)('should handle errors gracefully without throwing', async () => {
             const { storeStreamState } = await Promise.resolve().then(() => __importStar(require('../services/reconnection')));
-            mockRedis.setex.mockRejectedValueOnce(new Error('Redis error'));
+            mockRedis.setEx.mockRejectedValueOnce(new Error('Redis error'));
             // Should not throw
             await (0, vitest_1.expect)(storeStreamState(testUserId, testConversationId, {})).resolves.toBeUndefined();
         });
@@ -118,31 +118,31 @@ vitest_1.vi.mock('@prisma/client', () => ({
     (0, vitest_1.describe)('queueMessage', () => {
         (0, vitest_1.it)('should add message to queue', async () => {
             const { queueMessage } = await Promise.resolve().then(() => __importStar(require('../services/reconnection')));
-            mockRedis.lrange.mockResolvedValueOnce([]);
+            mockRedis.lRange.mockResolvedValueOnce([]);
             await queueMessage(testUserId, {
                 conversationId: testConversationId,
                 content: 'Test message',
                 language: 'bg',
             });
-            (0, vitest_1.expect)(mockRedis.rpush).toHaveBeenCalled();
+            (0, vitest_1.expect)(mockRedis.rPush).toHaveBeenCalled();
         });
         (0, vitest_1.it)('should limit queue size to 50 messages', async () => {
             const { queueMessage } = await Promise.resolve().then(() => __importStar(require('../services/reconnection')));
             // Create 50 mock messages
             const existingMessages = Array(50).fill(null).map((_, i) => JSON.stringify({ content: `Message ${i}` }));
-            mockRedis.lrange.mockResolvedValueOnce(existingMessages);
+            mockRedis.lRange.mockResolvedValueOnce(existingMessages);
             await queueMessage(testUserId, {
                 conversationId: testConversationId,
                 content: 'New message',
             });
             // Should not add more messages
-            (0, vitest_1.expect)(mockRedis.rpush).not.toHaveBeenCalled();
+            (0, vitest_1.expect)(mockRedis.rPush).not.toHaveBeenCalled();
         });
     });
     (0, vitest_1.describe)('getQueuedMessages', () => {
         (0, vitest_1.it)('should return empty array when no messages', async () => {
             const { getQueuedMessages } = await Promise.resolve().then(() => __importStar(require('../services/reconnection')));
-            mockRedis.lrange.mockResolvedValueOnce([]);
+            mockRedis.lRange.mockResolvedValueOnce([]);
             const result = await getQueuedMessages(testUserId);
             (0, vitest_1.expect)(result).toEqual([]);
         });
@@ -152,7 +152,7 @@ vitest_1.vi.mock('@prisma/client', () => ({
                 { conversationId: 'conv-1', content: 'Hello', queuedAt: '2024-01-01T00:00:00Z' },
                 { conversationId: 'conv-2', content: 'World', queuedAt: '2024-01-01T00:00:01Z' },
             ];
-            mockRedis.lrange.mockResolvedValueOnce(messages.map(m => JSON.stringify(m)));
+            mockRedis.lRange.mockResolvedValueOnce(messages.map(m => JSON.stringify(m)));
             const result = await getQueuedMessages(testUserId);
             (0, vitest_1.expect)(result).toEqual(messages);
         });

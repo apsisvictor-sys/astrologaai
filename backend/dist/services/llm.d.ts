@@ -3,7 +3,7 @@
  * Uses Vercel AI SDK with dynamic tool calling.
  * Providers: Anthropic Claude (primary) → OpenAI GPT-4o (fallback)
  */
-export { generateChartSummary, buildSystemPrompt, generateSessionSummary, buildEnhancedContext, } from './llm-helpers';
+export { generateChartSummary, buildSystemPrompt, generateSessionSummary, buildEnhancedContext, ASTROLOGER_SYSTEM_PROMPT, } from './llm-helpers';
 export { type ChatMessage } from './llm-helpers';
 import type { ChatMessage as LegacyChatMessage } from './llm-helpers';
 import type { LLMConfig as LegacyLLMConfig } from './llm-helpers';
@@ -34,6 +34,12 @@ export declare function getModelIdForTier(tier?: string): string;
  */
 export declare function streamChatCompletion(messages: LegacyChatMessage[], config?: Partial<LegacyLLMConfig & {
     tier?: string;
+    userId?: string;
+    userIp?: string;
+    partners?: Array<{
+        id: string;
+        name: string;
+    }>;
 }>, callbacks?: {
     onToolCall?: (name: string, args: any) => void;
 }): AsyncGenerator<StreamChunk>;

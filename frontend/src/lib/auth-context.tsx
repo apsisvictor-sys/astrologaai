@@ -64,6 +64,11 @@ function friendlyAuthError(error: unknown, response?: Response | null): string {
     return 'Cannot reach AstroLogAI servers right now. Please check your connection and try again.';
   }
 
+  // Handle 401 invalid credentials
+  if (response?.status === 401) {
+    return 'Invalid credentials. Please check your email and password.';
+  }
+
   // Handle 500 errors specifically
   if (response?.status === 500) {
     return 'AstroLogAI servers are experiencing issues. Please try again in a few moments.';
@@ -216,13 +221,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (err) {
         console.error('[Auth] Guest chat migration failed (non-blocking):', err);
-      } finally {
-        localStorage.removeItem('astrologaai_guest_messages');
-        localStorage.removeItem('astrologaai_guest_session');
-        localStorage.removeItem('astrologaai_guest_oracle_count');
-        localStorage.removeItem('astrologaai_guest_user_count');
       }
     }
+
+    // Always clear guest session keys regardless of whether migration ran
+    localStorage.removeItem('astrologaai_guest_messages');
+    localStorage.removeItem('astrologaai_guest_session');
+    localStorage.removeItem('astrologaai_guest_oracle_count');
+    localStorage.removeItem('astrologaai_guest_user_count');
 
     return migratedSessionId;
   };
@@ -338,6 +344,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(USER_KEY, JSON.stringify(userData));
 
       setUser(userData);
+
+      // Clear any lingering guest session keys
+      localStorage.removeItem('astrologaai_guest_session');
+      localStorage.removeItem('astrologaai_guest_messages');
+      localStorage.removeItem('astrologaai_guest_oracle_count');
+      localStorage.removeItem('astrologaai_guest_user_count');
 
       // Redirect to chat
       router.push(localePath('/chat'));

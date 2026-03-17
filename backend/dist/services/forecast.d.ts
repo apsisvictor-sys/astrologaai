@@ -5,7 +5,7 @@
  * Generates personalized daily forecasts based on user's natal chart
  * and current planetary transits
  */
-import { BirthDataInput } from './astrology';
+import { NatalChart, BirthDataInput } from './astrology';
 export interface Transit {
     planet: string;
     planetBg: string;
@@ -86,17 +86,50 @@ export interface WeeklyForecast {
 /**
  * Generate daily forecast for a user
  */
-export declare function generateDailyForecast(userId: string, birthData: BirthDataInput, userLanguage?: string): Promise<DailyForecast>;
+export declare function generateDailyForecast(userId: string, birthData: BirthDataInput, userLanguage?: string, precomputedChart?: NatalChart): Promise<DailyForecast>;
 /**
  * Get daily forecast (from cache or generate)
  */
-export declare function getDailyForecast(userId: string, birthData: BirthDataInput, userLanguage?: string): Promise<DailyForecast>;
+export declare function getDailyForecast(userId: string, birthData: BirthDataInput, userLanguage?: string, precomputedChart?: NatalChart): Promise<DailyForecast>;
 /**
  * Generate weekly forecast
  */
-export declare function generateWeeklyForecast(userId: string, birthData: BirthDataInput, userLanguage?: string): Promise<WeeklyForecast>;
+export declare function generateWeeklyForecast(userId: string, birthData: BirthDataInput, userLanguage?: string, precomputedChart?: NatalChart): Promise<WeeklyForecast>;
 /**
  * Get weekly forecast
  */
-export declare function getWeeklyForecast(userId: string, birthData: BirthDataInput, userLanguage?: string): Promise<WeeklyForecast>;
+export declare function getWeeklyForecast(userId: string, birthData: BirthDataInput, userLanguage?: string, precomputedChart?: NatalChart): Promise<WeeklyForecast>;
+export interface PersonalDailyHoroscope {
+    date: string;
+    overallTheme: string;
+    overallRating: number;
+    lifeAreas: {
+        area: string;
+        title: string;
+        prediction: string;
+        rating: number;
+        keywords: string[];
+    }[];
+    planetaryInfluences: {
+        planet: string;
+        aspectType: string;
+        description: string;
+        strength: number;
+        natalPlanet: string;
+        orb?: number;
+    }[];
+    moon: {
+        phase: string;
+        sign: string;
+        prediction: string;
+        illumination: number;
+    };
+    tips: string[];
+    cached: boolean;
+}
+/**
+ * Get today's personal daily horoscope via SDK + Oracle voice rewrite.
+ * Cached per user per day (24h TTL).
+ */
+export declare function getPersonalDailyHoroscope(userId: string, birthData: BirthDataInput): Promise<PersonalDailyHoroscope>;
 //# sourceMappingURL=forecast.d.ts.map

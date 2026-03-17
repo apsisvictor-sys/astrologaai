@@ -99,6 +99,9 @@ const COUNTRY_TO_CODE = {
     'Egypt': 'EG', 'Israel': 'IL', 'UAE': 'AE',
     'United Arab Emirates': 'AE', 'Saudi Arabia': 'SA',
 };
+/**
+ * Parse locationName ("City, Country") into city and country_code for v3 API
+ */
 function parseLocationForV3(locationName) {
     const parts = locationName.split(',').map(p => p.trim());
     const city = parts[0] || locationName;
@@ -437,164 +440,157 @@ async function calculateNatalChart(birthData) {
             country_code: parsed.countryCode,
         };
     }
-    // Call astrology-api.io v3
-    try {
-        const apiUrl = process.env.ASTROLOGY_API_URL || 'https://api.astrology-api.io';
-        const apiKey = process.env.ASTROLOGY_API_KEY;
-        const response = await fetch(`${apiUrl}/api/v3/charts/natal`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json',
-                'User-Agent': 'AstrologaAI/1.0',
+    const apiUrl = process.env.ASTROLOGY_API_URL || 'https://api.astrology-api.io';
+    const apiKey = process.env.ASTROLOGY_API_KEY;
+    const response = await fetch(`${apiUrl}/api/v3/charts/natal`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'User-Agent': 'AstrologaAI/1.0',
+        },
+        body: JSON.stringify({
+            subject: {
+                name: 'subject',
+                birth_data: birthDataPayload,
             },
-            body: JSON.stringify({
-                subject: {
-                    name: 'subject',
-                    birth_data: birthDataPayload,
-                },
-                options: {
-                    house_system: 'P',
-                    zodiac_type: 'Tropic',
-                    active_points: ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto', 'True_Node', 'Chiron'],
-                    precision: 4,
-                },
-            }),
-        });
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error(`[Astrology] API error: ${response.status} - ${errorText}`);
-            throw new Error(`Astrology API error: ${response.status}`);
-        }
-        const apiData = await response.json();
-        // Build planet lookup from v3 planetary_positions array
-        const planetLookup = {};
-        for (const p of (apiData.chart_data?.planetary_positions || [])) {
-            planetLookup[p.name] = p;
-        }
-        // Map v3 API planet name → internal key
-        const API_NAME_TO_KEY = {
-            Sun: 'sun', Moon: 'moon', Mercury: 'mercury', Venus: 'venus',
-            Mars: 'mars', Jupiter: 'jupiter', Saturn: 'saturn', Uranus: 'uranus',
-            Neptune: 'neptune', Pluto: 'pluto', True_Node: 'northNode', Chiron: 'chiron',
-        };
-        // Transform a single planet from v3 format
-        const transformV3Planet = (p, key) => {
-            const sign = SIGN_ABBR_TO_FULL[p.sign] || p.sign;
-            return {
-                name: key,
-                sign,
-                signBg: SIGN_TRANSLATIONS[sign] || sign,
-                degree: parseFloat(p.degree ?? 0),
-                house: parseInt(p.house ?? 1, 10),
-                retrograde: p.is_retrograde === true,
-                symbol: PLANET_SYMBOLS[key] || '',
-            };
-        };
-        // Extract ascendant (rising) from subject_data
-        const ascData = apiData.subject_data?.ascendant;
-        const ascSign = SIGN_ABBR_TO_FULL[ascData?.sign] || ascData?.sign || 'Aries';
-        const rising = {
-            name: 'rising',
-            sign: ascSign,
-            signBg: SIGN_TRANSLATIONS[ascSign] || ascSign,
-            degree: parseFloat(ascData?.position ?? 0),
-            house: 1,
-            retrograde: false,
-            symbol: 'ASC',
-        };
-        // Build planets map
-        const planets = { rising };
-        for (const [apiName, key] of Object.entries(API_NAME_TO_KEY)) {
-            const p = planetLookup[apiName];
-            if (p) {
-                planets[key] = transformV3Planet(p, key);
-            }
-        }
-        // Compute south node as opposite of north node (180° away)
-        const nnData = planetLookup['True_Node'];
-        if (nnData) {
-            const nnAbs = parseFloat(nnData.absolute_longitude ?? 0);
-            const snAbs = (nnAbs + 180) % 360;
-            const snSignIdx = Math.floor(snAbs / 30);
-            const snSign = ZODIAC_ORDER[snSignIdx] || 'Libra';
-            const snDegree = snAbs % 30;
-            const nnHouse = parseInt(nnData.house ?? 1, 10);
-            const snHouse = ((nnHouse - 1 + 6) % 12) + 1;
-            planets.southNode = {
-                name: 'southNode',
-                sign: snSign,
-                signBg: SIGN_TRANSLATIONS[snSign] || snSign,
-                degree: snDegree,
-                house: snHouse,
-                retrograde: true,
-                symbol: '☋',
-            };
-        }
-        else {
-            planets.southNode = {
-                name: 'southNode', sign: 'Libra', signBg: 'Везни',
-                degree: 0, house: 7, retrograde: true, symbol: '☋',
-            };
-        }
-        // Transform houses from v3 house_cusps array
-        const houses = (apiData.chart_data?.house_cusps || []).map((h) => {
-            const sign = SIGN_ABBR_TO_FULL[h.sign] || h.sign;
-            return {
-                number: parseInt(h.house, 10),
-                sign,
-                signBg: SIGN_TRANSLATIONS[sign] || sign,
-                degree: parseFloat(h.degree ?? 0),
-            };
-        });
-        // Transform aspects from v3 aspects array
-        const aspects = (apiData.chart_data?.aspects || []).map((a) => {
-            const aspectType = (a.aspect_type || 'conjunction').toLowerCase();
-            const p1 = (a.point1 || '').toLowerCase().replace('true_node', 'northNode');
-            const p2 = (a.point2 || '').toLowerCase().replace('true_node', 'northNode');
-            return {
-                planet1: p1,
-                planet2: p2,
-                aspect: aspectType,
-                aspectBg: ASPECT_TRANSLATIONS[aspectType] || aspectType,
-                orb: parseFloat(a.orb ?? 0),
-                nature: ASPECT_NATURE[aspectType] || 'neutral',
-            };
-        }).filter((a) => a.planet1 && a.planet2);
-        const chart = {
-            sun: planets.sun,
-            moon: planets.moon,
-            rising: planets.rising,
-            mercury: planets.mercury,
-            venus: planets.venus,
-            mars: planets.mars,
-            jupiter: planets.jupiter,
-            saturn: planets.saturn,
-            uranus: planets.uranus,
-            neptune: planets.neptune,
-            pluto: planets.pluto,
-            northNode: planets.northNode,
-            southNode: planets.southNode,
-            chiron: planets.chiron,
-            houses,
-            aspects,
-            elements: calculateElementDistribution(planets),
-            modalities: calculateModalityDistribution(planets),
-            calculatedAt: new Date().toISOString(),
-            source: 'astrology-api.io-v3',
-        };
-        return chart;
+            options: {
+                house_system: 'P',
+                zodiac_type: 'Tropic',
+                active_points: ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune', 'Pluto', 'True_Node', 'Chiron'],
+                precision: 4,
+            },
+        }),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[Astrology] API error: ${response.status} - ${errorText}`);
+        throw new Error(`Astrology API error: ${response.status}`);
     }
-    catch (error) {
-        console.error('[Astrology] API call failed:', error);
-        throw error;
+    const apiData = await response.json();
+    // Build planet lookup from v3 planetary_positions array
+    const planetLookup = {};
+    for (const p of (apiData.chart_data?.planetary_positions || [])) {
+        planetLookup[p.name] = p;
     }
+    // Map v3 API planet name → internal key
+    const API_NAME_TO_KEY = {
+        Sun: 'sun', Moon: 'moon', Mercury: 'mercury', Venus: 'venus',
+        Mars: 'mars', Jupiter: 'jupiter', Saturn: 'saturn', Uranus: 'uranus',
+        Neptune: 'neptune', Pluto: 'pluto', True_Node: 'northNode', Chiron: 'chiron',
+    };
+    // Transform a single planet from v3 format
+    const transformV3Planet = (p, key) => {
+        const sign = SIGN_ABBR_TO_FULL[p.sign] || p.sign;
+        return {
+            name: key,
+            sign,
+            signBg: SIGN_TRANSLATIONS[sign] || sign,
+            degree: parseFloat(p.degree ?? 0),
+            house: parseInt(p.house ?? 1, 10),
+            retrograde: p.is_retrograde === true,
+            symbol: PLANET_SYMBOLS[key] || '',
+        };
+    };
+    // Extract ascendant (rising) from subject_data
+    const ascData = apiData.subject_data?.ascendant;
+    const ascSign = SIGN_ABBR_TO_FULL[ascData?.sign] || ascData?.sign || 'Aries';
+    const rising = {
+        name: 'rising',
+        sign: ascSign,
+        signBg: SIGN_TRANSLATIONS[ascSign] || ascSign,
+        degree: parseFloat(ascData?.position ?? 0),
+        house: 1,
+        retrograde: false,
+        symbol: 'ASC',
+    };
+    // Build planets map
+    const planets = { rising };
+    for (const [apiName, key] of Object.entries(API_NAME_TO_KEY)) {
+        const p = planetLookup[apiName];
+        if (p) {
+            planets[key] = transformV3Planet(p, key);
+        }
+    }
+    // Compute south node as opposite of north node (180° away)
+    const nnData = planetLookup['True_Node'];
+    if (nnData) {
+        const nnAbs = parseFloat(nnData.absolute_longitude ?? 0);
+        const snAbs = (nnAbs + 180) % 360;
+        const snSignIdx = Math.floor(snAbs / 30);
+        const snSign = ZODIAC_ORDER[snSignIdx] || 'Libra';
+        const snDegree = snAbs % 30;
+        const nnHouse = parseInt(nnData.house ?? 1, 10);
+        const snHouse = ((nnHouse - 1 + 6) % 12) + 1;
+        planets.southNode = {
+            name: 'southNode',
+            sign: snSign,
+            signBg: SIGN_TRANSLATIONS[snSign] || snSign,
+            degree: snDegree,
+            house: snHouse,
+            retrograde: true,
+            symbol: '☋',
+        };
+    }
+    else {
+        planets.southNode = {
+            name: 'southNode', sign: 'Libra', signBg: 'Везни',
+            degree: 0, house: 7, retrograde: true, symbol: '☋',
+        };
+    }
+    // Transform houses from v3 house_cusps array
+    const houses = (apiData.chart_data?.house_cusps || []).map((h) => {
+        const sign = SIGN_ABBR_TO_FULL[h.sign] || h.sign;
+        return {
+            number: parseInt(h.house, 10),
+            sign,
+            signBg: SIGN_TRANSLATIONS[sign] || sign,
+            degree: parseFloat(h.degree ?? 0),
+        };
+    });
+    // Transform aspects from v3 aspects array
+    const aspects = (apiData.chart_data?.aspects || []).map((a) => {
+        const aspectType = (a.aspect_type || 'conjunction').toLowerCase();
+        const p1 = (a.point1 || '').toLowerCase().replace('true_node', 'northNode');
+        const p2 = (a.point2 || '').toLowerCase().replace('true_node', 'northNode');
+        return {
+            planet1: p1,
+            planet2: p2,
+            aspect: aspectType,
+            aspectBg: ASPECT_TRANSLATIONS[aspectType] || aspectType,
+            orb: parseFloat(a.orb ?? 0),
+            nature: ASPECT_NATURE[aspectType] || 'neutral',
+        };
+    }).filter((a) => a.planet1 && a.planet2);
+    const chart = {
+        sun: planets.sun,
+        moon: planets.moon,
+        rising: planets.rising,
+        mercury: planets.mercury,
+        venus: planets.venus,
+        mars: planets.mars,
+        jupiter: planets.jupiter,
+        saturn: planets.saturn,
+        uranus: planets.uranus,
+        neptune: planets.neptune,
+        pluto: planets.pluto,
+        northNode: planets.northNode,
+        southNode: planets.southNode,
+        chiron: planets.chiron,
+        houses,
+        aspects,
+        elements: calculateElementDistribution(planets),
+        modalities: calculateModalityDistribution(planets),
+        calculatedAt: new Date().toISOString(),
+        source: 'astrology-api.io-v3',
+    };
+    return chart;
 }
-/** Redis cache removed — charts are stored in BirthChart table */
+/** @deprecated Redis cache removed — charts are stored in BirthChart table */
 async function getCachedChart(_birthData) {
     return null;
 }
-/** Redis cache removed — no-op */
+/** @deprecated Redis cache removed — no-op */
 async function invalidateChartCache(_birthData) { }
 /**
  * Check if astrology API is available

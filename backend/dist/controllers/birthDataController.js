@@ -228,7 +228,7 @@ async function createBirthProfile(req, res) {
                 timezone,
                 locationName: input.locationName,
             };
-            const chart = await astrology_1.calculateNatalChart(birthDataInput);
+            const chart = await (0, astrology_1.calculateNatalChart)(birthDataInput);
             await prisma_1.prisma.birthChart.create({
                 data: {
                     userId,
@@ -239,6 +239,7 @@ async function createBirthProfile(req, res) {
             console.log(`[BirthData] Chart computed for profile ${profile.id}`);
         }
         catch (chartError) {
+            // Non-blocking: profile is saved, chart will be missing but won't block the user
             console.error('[BirthData] Chart computation failed (non-blocking):', chartError);
         }
         res.status(201).json({
@@ -377,6 +378,7 @@ async function updateBirthProfile(req, res) {
                     where: { id: existing.birthChart.id },
                 });
             }
+            // Regenerate chart inline (same as create flow)
             try {
                 const effectiveBirthDate = birthDate ?? existing.birthDate;
                 const effectiveBirthTime = input.isUnknownTime ? null
@@ -395,7 +397,7 @@ async function updateBirthProfile(req, res) {
                     timezone: timezone ?? existing.timezone,
                     locationName: input.locationName ?? existing.locationName,
                 };
-                const chart = await astrology_1.calculateNatalChart(birthDataInput);
+                const chart = await (0, astrology_1.calculateNatalChart)(birthDataInput);
                 await prisma_1.prisma.birthChart.create({
                     data: { userId, birthProfileId: id, chartData: chart },
                 });

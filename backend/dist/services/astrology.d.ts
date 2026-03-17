@@ -14,6 +14,7 @@ export interface BirthDataInput {
     latitude: number;
     longitude: number;
     timezone?: string;
+    locationName?: string;
 }
 export interface PlanetPosition {
     name: string;
@@ -84,14 +85,10 @@ export declare function generatePositionBasedCacheKey(chart: NatalChart): string
  * - Layer 3: Legacy exact birth data (24h TTL) - backward compatibility
  */
 export declare function calculateNatalChart(birthData: BirthDataInput): Promise<NatalChart>;
-/**
- * Get chart from cache by birth data
- */
-export declare function getCachedChart(birthData: BirthDataInput): Promise<NatalChart | null>;
-/**
- * Invalidate chart cache for specific birth data
- */
-export declare function invalidateChartCache(birthData: BirthDataInput): Promise<void>;
+/** @deprecated Redis cache removed — charts are stored in BirthChart table */
+export declare function getCachedChart(_birthData: BirthDataInput): Promise<NatalChart | null>;
+/** @deprecated Redis cache removed — no-op */
+export declare function invalidateChartCache(_birthData: BirthDataInput): Promise<void>;
 /**
  * Check if astrology API is available
  */

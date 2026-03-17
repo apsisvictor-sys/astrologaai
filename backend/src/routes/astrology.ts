@@ -28,8 +28,6 @@ router.get('/health', async (req: Request, res: Response) => {
       data: {
         status: isHealthy ? 'healthy' : 'degraded',
         activeProvider: status.activeProvider,
-        totalProviders: status.totalProviders,
-        healthyProviders: status.healthyProviders,
         providers: health.map(h => ({
           name: h.status,
           status: h.status,
@@ -68,8 +66,6 @@ router.get('/status', authenticateToken, async (req: Request, res: Response) => 
       success: true,
       data: {
         activeProvider: status.activeProvider,
-        totalProviders: status.totalProviders,
-        healthyProviders: status.healthyProviders,
         manualOverride: status.manualOverride,
         overrideReason: status.overrideReason,
         lastSwitch: status.lastSwitch,
@@ -81,9 +77,7 @@ router.get('/status', authenticateToken, async (req: Request, res: Response) => 
           successfulRequests: m.successfulRequests,
           failedRequests: m.failedRequests,
           averageLatencyMs: m.averageLatencyMs,
-          circuitBreaker: m.providerName === 'swiss-ephemeris-fallback' 
-            ? 'closed' 
-            : orchestrator.getAllProviders().find(p => p.name === m.providerName)?.getCircuitBreakerState(),
+          circuitBreaker: orchestrator.getAllProviders().find(p => p.name === m.providerName)?.getCircuitBreakerState(),
         })),
         switchHistory,
       },

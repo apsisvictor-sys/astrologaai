@@ -5,11 +5,11 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
 const NAV_ITEMS = [
-  { href: '/chart',    icon: '✦', label: 'My Chart',       minTier: null    },
-  { href: '/forecast', icon: '◎', label: 'Forecasts',      minTier: 'PRO'   },
-  { href: '/transits', icon: '☄', label: 'Active Transits', minTier: 'PRO'  },
-  { href: '/partners', icon: '♡', label: 'Partners',        minTier: 'PREMIUM' },
-  { href: '/settings', icon: '⚙', label: 'Settings',        minTier: null    },
+  { href: '/chat',     icon: '✦', label: 'Chat',      minTier: null      },
+  { href: '/chart',    icon: '◉', label: 'My Chart',  minTier: null      },
+  { href: '/forecast', icon: '◎', label: 'Forecast',  minTier: 'PRO'     },
+  { href: '/partners', icon: '♡', label: 'Partners',  minTier: 'PREMIUM' },
+  { href: '/settings', icon: '⚙', label: 'Settings',  minTier: null      },
 ] as const;
 
 const TIER_ORDER = { FREE: 0, PRO: 1, PREMIUM: 2 };

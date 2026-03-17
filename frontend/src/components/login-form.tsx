@@ -8,6 +8,7 @@
 import React, { useState, useCallback } from 'react';
 import { Link } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { CosmicSpinner } from '@/components/ui/spinner';
 
 interface FormData {
   email: string;
@@ -33,6 +34,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [oauthLoading, setOauthLoading] = useState<string | null>(null);
@@ -59,10 +61,9 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
     if (errors[name as keyof FormErrors]) {
       setErrors(prev => ({ ...prev, [name]: undefined }));
     }
-    if (authError) {
-      clearError();
-    }
-  }, [errors, authError, clearError]);
+    if (authError) clearError();
+    if (submitError) setSubmitError(null);
+  }, [errors, authError, clearError, submitError]);
 
   const handleBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -99,7 +100,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
       await signIn(formData.email, formData.password);
       onSuccess?.();
     } catch {
-      // Error is handled by auth context
+      setSubmitError('Invalid credentials. Please check your email and password.');
     }
   };
 
@@ -199,12 +200,14 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
           </Link>
         </div>
 
-        {/* Auth Error */}
-        {authError && (
-          <div className="p-4 rounded-xl text-sm bg-red-500/10 text-red-500 border border-red-500/20">
-            {authError}
-          </div>
-        )}
+        {/* Auth Error — reserved space prevents layout jump */}
+        <div className="min-h-[44px]">
+          {(submitError || authError) && (
+            <div className="p-3 rounded-xl text-sm bg-red-500/10 text-red-400 border border-red-500/20 animate-fade-in">
+              {submitError || authError}
+            </div>
+          )}
+        </div>
 
         {/* Submit Button */}
         <button
@@ -214,10 +217,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">
-              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+              <CosmicSpinner size="sm" />
               Signing in...
             </span>
           ) : (
@@ -254,10 +254,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
             className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/8 hover:border-white/20 transition-colors duration-200 text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {oauthLoading === 'google' ? (
-              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+              <CosmicSpinner size="sm" />
             ) : (
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -312,10 +309,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
                 className="px-4 py-2.5 rounded-xl gradient-button text-white text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {oauthLoading === 'magic' ? (
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
+                  <CosmicSpinner size="sm" />
                 ) : 'Send'}
               </button>
             </div>

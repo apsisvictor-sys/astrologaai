@@ -19,6 +19,7 @@ exports.startNewConversation = startNewConversation;
 exports.clearAllSessions = clearAllSessions;
 exports.updateSession = updateSession;
 exports.getUsage = getUsage;
+exports.importGuestMessages = importGuestMessages;
 const client_1 = require("@prisma/client");
 const redis_1 = require("../utils/redis");
 const llm_1 = require("../services/llm");
@@ -174,7 +175,7 @@ async function sendMessage(req, res) {
         const userId = req.user?.id;
         const userTier = req.user?.tier || 'FREE';
         // US-25: Get from user preferences, ensure valid type
-        const userLanguage = (req.user?.language === 'en' ? 'en' : 'bg');
+        const userLanguage = (req.user?.language === 'bg' ? 'bg' : 'en');
         if (!userId) {
             res.status(401).json({
                 success: false,
@@ -253,7 +254,7 @@ async function sendMessage(req, res) {
         let transitsSummary;
         if (chartSummary && rawChartData) {
             try {
-                const { skyPositions, aspectsToNatal, moonPhase } = await transits_1.getActiveTransitsForUser(rawChartData);
+                const { skyPositions, aspectsToNatal, moonPhase } = await (0, transits_1.getActiveTransitsForUser)(rawChartData);
                 const aspectLines = aspectsToNatal.slice(0, 12).map(a => `- ${a.transitPlanetBg} ${a.aspectBg} natal ${a.natalPlanetBg} | orb ${a.orb}° | ${a.influence} | ${a.description}`).join('\n');
                 const skyLines = skyPositions.map(p => `${p.planetBg}: ${p.signBg} ${p.degree}°${p.retrograde ? ' ℞' : ''}`).join(', ');
                 transitsSummary = `TODAY'S SKY (${new Date().toISOString().split('T')[0]}):
@@ -305,6 +306,9 @@ ${aspectLines || 'No major aspects within orb today.'}`;
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
         res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
+        // Handle client disconnect — abort the stream
+        let aborted = false;
+        req.on('close', () => { aborted = true; });
         // US-34: Get initial provider info for headers
         const orchestratorStatus = (0, llm_1.getOrchestratorStatus)();
         res.setHeader('X-Provider', orchestratorStatus.activeProvider);
@@ -323,6 +327,8 @@ ${aspectLines || 'No major aspects within orb today.'}`;
         let hasError = false;
         try {
             for await (const chunk of (0, llm_1.streamChatCompletion)(messages)) {
+                if (aborted)
+                    break;
                 if (chunk.error) {
                     hasError = true;
                     res.write(`event: error\ndata: ${JSON.stringify({
@@ -436,7 +442,7 @@ async function listSessions(req, res) {
     try {
         const userId = req.user?.id;
         const { page = 1, limit = 20, search } = req.query;
-        const userLanguage = req.user?.language || 'bg';
+        const userLanguage = req.user?.language || 'en';
         if (!userId) {
             res.status(401).json({
                 success: false,
@@ -690,7 +696,7 @@ async function startNewConversation(req, res) {
     try {
         const userId = req.user?.id;
         const { title, birthProfileId } = req.body;
-        const userLanguage = req.user?.language || 'bg';
+        const userLanguage = req.user?.language || 'en';
         if (!userId) {
             res.status(401).json({
                 success: false,
@@ -744,7 +750,7 @@ async function startNewConversation(req, res) {
 async function clearAllSessions(req, res) {
     try {
         const userId = req.user?.id;
-        const userLanguage = req.user?.language || 'bg';
+        const userLanguage = req.user?.language || 'en';
         if (!userId) {
             res.status(401).json({
                 success: false,
@@ -937,7 +943,6 @@ async function importGuestMessages(req, res) {
         res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to import guest messages' } });
     }
 }
-exports.importGuestMessages = importGuestMessages;
 exports.default = {
     sendMessage,
     listSessions,

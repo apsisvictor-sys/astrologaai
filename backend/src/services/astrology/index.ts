@@ -34,11 +34,6 @@ export {
   createAstrologyAPIProvider,
 } from './astrology-api-provider';
 
-export {
-  SwissEphemerisProvider,
-  createSwissEphemerisProvider,
-} from './swiss-ephemeris-provider';
-
 // Export orchestrator
 export {
   AstrologyOrchestrator,

@@ -65,6 +65,8 @@ async function processJob(job) {
         // Update job status to complete
         job.status = 'complete';
         await redis_1.redisClient.setEx(`job:${job.jobId}`, 3600, JSON.stringify(job));
+        // TODO: Send notification to user (could use WebSocket or push notification)
+        // For now, user polls the regeneration status endpoint
         return true;
     }
     catch (error) {
@@ -84,7 +86,7 @@ function startRegenerationProcessor() {
 }
 /**
  * Manually trigger regeneration for a profile
- * Used when birth data changes
+ * Used when the queue processor is not running
  */
 async function regenerateChartNow(profileId, userId) {
     const job = {

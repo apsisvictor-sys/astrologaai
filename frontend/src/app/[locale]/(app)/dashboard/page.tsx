@@ -30,7 +30,7 @@ const copy = {
     plan: 'Звезден План',
     freePlan: 'Търсач (Безплатен)',
     usage: 'Оставащи въпроси',
-    upgrade: 'Отключи Оракула',
+    upgrade: 'Говори с Оракула',
     addBirthData: 'Добави Натални Данни',
     noBirthDataMsg: 'Добави своята дата, час и място на раждане, за да разкриеш своята натална карта.',
     calculating: 'Изчисляване...',
@@ -47,7 +47,7 @@ const copy = {
     plan: 'Astral Plan',
     freePlan: 'The Seeker (Free)',
     usage: 'Queries remaining',
-    upgrade: 'Unlock The Oracle',
+    upgrade: 'Chat with the Oracle',
     addBirthData: 'Add Birth Data',
     noBirthDataMsg: 'Add your birth date, time, and location to reveal your natal chart.',
     calculating: 'Calculating...',
@@ -162,9 +162,9 @@ export default function DashboardPage({
   }
 
   const quickActions = [
-    { href: '/chat',     label: locale === 'bg' ? 'Оракул'    : 'Oracle',    icon: MessageSquare, color: 'text-primary'      },
-    { href: '/forecast', label: locale === 'bg' ? 'Транзити'  : 'Transits',  icon: Compass,       color: 'text-accent-blue'  },
-    { href: '/partners', label: locale === 'bg' ? 'Синастрия' : 'Synastry',  icon: Users,         color: 'text-[#ff0080]'    },
+    { href: '/chat',     label: locale === 'bg' ? 'Оракул'    : 'Chat',      icon: MessageSquare, color: 'text-primary'      },
+    { href: '/forecast', label: locale === 'bg' ? 'Прогноза'  : 'Forecast',  icon: Compass,       color: 'text-accent-blue'  },
+    { href: '/partners', label: locale === 'bg' ? 'Партньори' : 'Partners',  icon: Users,         color: 'text-[#ff0080]'    },
     { href: '/settings', label: locale === 'bg' ? 'Настройки' : 'Settings',  icon: Settings,      color: 'text-text-muted'   },
   ];
 
@@ -441,7 +441,7 @@ export default function DashboardPage({
                 </p>
               </div>
               <Link
-                href="/pricing"
+                href="/chat"
                 className="relative z-10 w-full flex items-center justify-between bg-gradient-to-r from-primary to-accent-blue text-white font-bold py-3.5 px-5 rounded-xl hover:shadow-[0_0_20px_rgba(228,26,255,0.4)] transition-all duration-300"
               >
                 {c.upgrade}

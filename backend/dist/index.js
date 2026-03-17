@@ -1,7 +1,7 @@
 "use strict";
 /**
  * AstroLogAI Backend API Server
- * Main entry point
+ * Main entry point — v2026-03-14
  *
  * US-10: WebSocket support via Socket.io
  */
@@ -42,16 +42,14 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.io = exports.httpServer = void 0;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const dotenv_1 = require("dotenv");
-const http_1 = require("http");
 const runtime_1 = require("./config/runtime");
 const envValidation_1 = require("./config/envValidation");
-const { prisma } = require("./utils/prisma");
+const prisma_1 = require("./utils/prisma");
 // Import routes
 const auth_1 = __importDefault(require("./routes/auth"));
 const user_1 = __importDefault(require("./routes/user"));
@@ -71,20 +69,15 @@ const admin_1 = __importDefault(require("./routes/admin")); // Step 11: Admin Da
 const guestChat_1 = __importDefault(require("./routes/guestChat"));
 // US-37: Rate limit headers middleware
 const rateLimitHeaders_1 = require("./middleware/rateLimitHeaders");
-// Import Socket.io
-const socket_1 = require("./socket");
 // US-30: Chart regeneration processor
 const chart_regeneration_1 = require("./services/chart-regeneration");
 const admin_defaults_1 = require("./services/admin-defaults");
 const forecast_cron_1 = require("./services/forecast-cron");
 (0, dotenv_1.config)({ override: true });
 const app = (0, express_1.default)();
+const PORT = runtime_1.runtimeConfig.port;
 // Trust Railway's proxy (required for express-rate-limit to work correctly behind Railway)
 app.set('trust proxy', 1);
-const PORT = runtime_1.runtimeConfig.port;
-// Create HTTP server for Socket.io
-const httpServer = (0, http_1.createServer)(app);
-exports.httpServer = httpServer;
 // ============================================
 // MIDDLEWARE
 // ============================================
@@ -126,7 +119,7 @@ app.use(rateLimitHeaders_1.fetchRateLimitStatus);
 app.get('/r/:slug', async (req, res) => {
     const { slug } = req.params;
     try {
-        await prisma.referralLink.update({
+        await prisma_1.prisma.referralLink.update({
             where: { slug, isActive: true },
             data: { clicks: { increment: 1 } },
         });
@@ -143,7 +136,6 @@ app.get('/health', (req, res) => {
         status: 'ok',
         timestamp: new Date().toISOString(),
         version: '1.0.0',
-        websocket: 'enabled',
     });
 });
 app.get('/health/env', (_req, res) => {
@@ -188,8 +180,6 @@ app.get('/health/astrology', async (req, res) => {
             status: isHealthy ? 'ok' : 'degraded',
             astrology: {
                 activeProvider: status.activeProvider,
-                healthyProviders: status.healthyProviders,
-                totalProviders: status.totalProviders,
             },
         });
     }
@@ -273,24 +263,14 @@ app.use((err, req, res, _next) => {
     });
 });
 // ============================================
-// INITIALIZE SOCKET.IO
-// ============================================
-const io = (0, socket_1.initializeSocketServer)(httpServer);
-exports.io = io;
-// Register chat handlers on connection
-io.on('connection', (socket) => {
-    (0, socket_1.registerChatHandlers)(socket);
-});
-// ============================================
 // START SERVER
 // ============================================
-httpServer.listen(PORT, () => {
+app.listen(PORT, () => {
     const envReport = (0, envValidation_1.getEnvValidationReport)();
     console.log(`🚀 AstroLogAI API running on port ${PORT}`);
     console.log(`📚 Health check: http://localhost:${PORT}/health`);
     console.log(`🧪 Env validation: http://localhost:${PORT}/health/env (${envReport.ok ? 'ok' : 'degraded'})`);
     console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/v1/auth`);
-    console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
     console.log(`🌐 Allowed origins: ${runtime_1.runtimeConfig.allowedOrigins.join(', ') || '(none configured)'}`);
     if (!envReport.ok) {
         console.warn(`⚠️ Missing required env vars: ${envReport.missingRequired.join(', ')}`);
@@ -303,7 +283,7 @@ httpServer.listen(PORT, () => {
         (0, forecast_cron_1.startForecastCron)();
         console.log(`⚡ Nightly forecast cron started (runs daily at 02:00 UTC)`);
     }).catch(err => console.error('[Startup] Failed to start forecast cron:', err));
-    // Seed AdminConfig defaults (model prices, alert thresholds)
+    // Seed AdminConfig defaults (model prices, alert thresholds) — skips if already set
     (0, admin_defaults_1.seedAdminDefaults)().catch(err => console.error('[Startup] Failed to seed admin defaults:', err));
 });
 exports.default = app;

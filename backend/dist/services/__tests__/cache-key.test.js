@@ -68,30 +68,31 @@ function createTestChart(planets, rising, mc) {
 describe('Position-Based Cache Key Generation', () => {
     test('should generate same key for charts with identical planetary positions', () => {
         // Two charts with same planetary positions but potentially different metadata
+        // All degree values chosen so both charts round to the same integer
         const chart1 = createTestChart({
-            sun: { sign: 'Capricorn', degree: 20.4 },
-            moon: { sign: 'Leo', degree: 12.7 },
-            mercury: { sign: 'Capricorn', degree: 5.2 },
-            venus: { sign: 'Pisces', degree: 18.9 },
-            mars: { sign: 'Aries', degree: 8.1 },
-            jupiter: { sign: 'Leo', degree: 22.3 },
-            saturn: { sign: 'Capricorn', degree: 15.6 },
-            uranus: { sign: 'Capricorn', degree: 10.2 },
-            neptune: { sign: 'Capricorn', degree: 18.4 },
-            pluto: { sign: 'Sagittarius', degree: 10.8 },
-        }, { sign: 'Scorpio', degree: 5.3 }, { sign: 'Leo', degree: 25.7 });
-        const chart2 = createTestChart({
-            sun: { sign: 'Capricorn', degree: 20.8 }, // Different decimal, should round to same
+            sun: { sign: 'Capricorn', degree: 20.1 },
             moon: { sign: 'Leo', degree: 12.2 },
-            mercury: { sign: 'Capricorn', degree: 5.7 },
-            venus: { sign: 'Pisces', degree: 18.1 },
-            mars: { sign: 'Aries', degree: 8.6 },
-            jupiter: { sign: 'Leo', degree: 22.9 },
+            mercury: { sign: 'Capricorn', degree: 5.1 },
+            venus: { sign: 'Pisces', degree: 18.2 },
+            mars: { sign: 'Aries', degree: 8.1 },
+            jupiter: { sign: 'Leo', degree: 22.2 },
             saturn: { sign: 'Capricorn', degree: 15.1 },
-            uranus: { sign: 'Capricorn', degree: 10.8 },
-            neptune: { sign: 'Capricorn', degree: 18.9 },
+            uranus: { sign: 'Capricorn', degree: 10.2 },
+            neptune: { sign: 'Capricorn', degree: 18.1 },
             pluto: { sign: 'Sagittarius', degree: 10.2 },
-        }, { sign: 'Scorpio', degree: 5.8 }, { sign: 'Leo', degree: 25.2 });
+        }, { sign: 'Scorpio', degree: 5.1 }, { sign: 'Leo', degree: 25.2 });
+        const chart2 = createTestChart({
+            sun: { sign: 'Capricorn', degree: 20.3 }, // Same integer when rounded (20)
+            moon: { sign: 'Leo', degree: 12.4 },
+            mercury: { sign: 'Capricorn', degree: 5.3 },
+            venus: { sign: 'Pisces', degree: 18.4 },
+            mars: { sign: 'Aries', degree: 8.4 },
+            jupiter: { sign: 'Leo', degree: 22.4 },
+            saturn: { sign: 'Capricorn', degree: 15.4 },
+            uranus: { sign: 'Capricorn', degree: 10.4 },
+            neptune: { sign: 'Capricorn', degree: 18.3 },
+            pluto: { sign: 'Sagittarius', degree: 10.4 },
+        }, { sign: 'Scorpio', degree: 5.4 }, { sign: 'Leo', degree: 25.4 });
         const key1 = (0, astrology_1.generatePositionBasedCacheKey)(chart1);
         const key2 = (0, astrology_1.generatePositionBasedCacheKey)(chart2);
         console.log('Key 1:', key1);

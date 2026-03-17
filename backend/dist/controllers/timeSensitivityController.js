@@ -187,6 +187,7 @@ async function getTimeSensitivity(req, res) {
             });
         }
         // Hard cap: max 20 data points to prevent runaway API usage
+        // e.g. timeRange=120, interval=1 would otherwise make 241 API calls
         const totalPoints = Math.ceil((timeRange * 2) / interval) + 1;
         if (totalPoints > 20) {
             return res.status(400).json({

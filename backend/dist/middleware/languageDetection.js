@@ -15,8 +15,8 @@ exports.languageDetectionMiddleware = languageDetectionMiddleware;
 exports.getDetectedLanguage = getDetectedLanguage;
 // Supported languages
 exports.SUPPORTED_LANGUAGES = ['bg', 'en'];
-// Default language for BG market
-exports.DEFAULT_LANGUAGE = 'bg';
+// Default language — English (Bulgarian set explicitly per-user)
+exports.DEFAULT_LANGUAGE = 'en';
 /**
  * Detect language from Accept-Language header
  *

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { CosmicSpinner } from '@/components/ui/spinner';
 import { useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate } from '@/lib/format';
@@ -169,32 +170,7 @@ function HoroscopeSection({ title, icon, text, accentColor }: {
 // ── Loading state ─────────────────────────────────────────────────────────────
 
 function ForecastLoading() {
-  return (
-    <div className="flex flex-col items-center justify-center flex-1 py-20 select-none">
-      <motion.div
-        className="w-12 h-12 rounded-full mb-6"
-        style={{ border: '1px solid rgba(228,26,255,0.3)' }}
-        animate={{ rotate: 360 }}
-        transition={{ duration: 8, repeat: Infinity, ease: 'linear' }}
-      >
-        <div
-          className="w-2 h-2 rounded-full absolute"
-          style={{ top: '-4px', left: '50%', transform: 'translateX(-50%)', background: '#e41aff', boxShadow: '0 0 8px #e41aff' }}
-        />
-      </motion.div>
-      <p className="text-xs uppercase tracking-widest text-text-muted mb-3">Reading the stars</p>
-      <div className="flex gap-1.5">
-        {[0, 1, 2].map((i) => (
-          <motion.div
-            key={i}
-            className="w-1 h-1 rounded-full bg-primary/50"
-            animate={{ opacity: [0.2, 1, 0.2] }}
-            transition={{ duration: 1.4, repeat: Infinity, delay: i * 0.25 }}
-          />
-        ))}
-      </div>
-    </div>
-  );
+  return <CosmicSpinner size="lg" label="Reading the stars" />;
 }
 
 // ── Main Panel ────────────────────────────────────────────────────────────────

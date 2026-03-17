@@ -555,10 +555,10 @@ function analyzePlanetPair(planet, userPlanet, partnerPlanet, aspects) {
 /**
  * Get cached compatibility analysis
  */
-/** Redis cache removed */
+/** @deprecated Redis cache removed */
 async function getCachedCompatibility(_userId, _partnerId) {
     return null;
 }
-/** Redis cache removed — no-op */
+/** @deprecated Redis cache removed — no-op */
 async function invalidateCompatibilityCache(_userId, _partnerId) { }
 //# sourceMappingURL=compatibility.js.map

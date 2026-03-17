@@ -362,6 +362,7 @@ router.post('/checkout', auth_1.authMiddleware, async (req, res) => {
         let discounts;
         try {
             if (promoCode) {
+                // Direct promo code entered by user
                 const dc = await prisma_1.prisma.discountCode.findUnique({
                     where: { code: promoCode.trim().toUpperCase(), isActive: true },
                     select: { stripePromotionCodeId: true },
@@ -371,6 +372,7 @@ router.post('/checkout', auth_1.authMiddleware, async (req, res) => {
                 }
             }
             else if (user?.referredBySlug) {
+                // Fall back to discount from referral link
                 const referralLink = await prisma_1.prisma.referralLink.findUnique({
                     where: { slug: user.referredBySlug, isActive: true },
                     select: { discountCode: true },
@@ -400,7 +402,7 @@ router.post('/checkout', auth_1.authMiddleware, async (req, res) => {
                 },
             ],
             mode: 'subscription',
-            ...(discounts ? { discounts: discounts } : {}),
+            ...(discounts ? { discounts } : {}),
             success_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
             cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/pricing?checkout=cancel`,
             metadata: {
@@ -847,7 +849,7 @@ router.post('/webhook', async (req, res) => {
                             where: { id: userId },
                             select: { referredBySlug: true },
                         });
-                        if (referredUser && referredUser.referredBySlug) {
+                        if (referredUser?.referredBySlug) {
                             const referralLink = await prisma_1.prisma.referralLink.findUnique({
                                 where: { slug: referredUser.referredBySlug },
                                 select: { id: true, commissionRate: true },
@@ -877,6 +879,7 @@ router.post('/webhook', async (req, res) => {
                     }
                     catch (err) {
                         console.error('[Webhook] Failed to record referral conversion:', err);
+                        // Non-fatal — don't fail the webhook
                     }
                     // Send confirmation email (US-22)
                     if (user?.email) {

@@ -24,7 +24,7 @@ interface PersonalDailyHoroscope {
 }
 
 // Which areas FREE users can see
-const FREE_AREAS = ['love', 'career'];
+const FREE_AREAS = ['identity', 'communication'];
 // Display order
 const AREA_ORDER = ['identity', 'communication', 'love', 'career', 'health', 'finance'];
 const AREA_ICONS: Record<string, string> = {
@@ -57,12 +57,10 @@ interface DailyHoroscopeCardProps {
 export function DailyHoroscopeCard({ tier }: DailyHoroscopeCardProps) {
   const isPro = tier === 'PRO' || tier === 'PREMIUM';
   const [horoscope, setHoroscope] = useState<PersonalDailyHoroscope | null>(null);
-  const [loading, setLoading] = useState(isPro);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Only fetch for PRO/PREMIUM — horoscope with Oracle voice rewrite is a paid feature
-    if (!isPro) return;
     apiGet<PersonalDailyHoroscope>('/api/v1/forecasts/horoscope')
       .then(res => {
         if (res.success) setHoroscope(res.data);
@@ -70,27 +68,13 @@ export function DailyHoroscopeCard({ tier }: DailyHoroscopeCardProps) {
       })
       .catch(() => setError('Failed to load horoscope'))
       .finally(() => setLoading(false));
-  }, [isPro]);
+  }, []);
 
   if (loading) {
     return (
       <div className="rounded-2xl p-5 animate-pulse" style={{ background: 'rgba(10,0,16,0.7)', border: '1px solid rgba(228,26,255,0.12)' }}>
         <div className="h-4 bg-white/5 rounded w-1/2 mb-3" />
         <div className="h-3 bg-white/5 rounded w-3/4" />
-      </div>
-    );
-  }
-
-  if (!isPro) {
-    return (
-      <div className="rounded-2xl p-5 flex items-center justify-between gap-4" style={{ background: 'rgba(10,0,16,0.7)', border: '1px solid rgba(228,26,255,0.15)' }}>
-        <div>
-          <p className="text-white text-sm font-semibold mb-1">Personal Daily Reading</p>
-          <p className="text-text-muted text-xs">Your Oracle horoscope — available on PRO</p>
-        </div>
-        <Link href="/pricing" className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-opacity hover:opacity-80" style={{ background: 'linear-gradient(135deg, #ff0080, #e41aff)' }}>
-          Upgrade
-        </Link>
       </div>
     );
   }

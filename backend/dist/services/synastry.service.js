@@ -589,13 +589,10 @@ function generateSummary(userSun, userMoon, partnerSun, partnerMoon, score, aspe
     };
     return summaries[compatibility];
 }
-/**
- * Get cached synastry chart
- */
-/** Redis cache removed */
+/** @deprecated Redis cache removed */
 async function getCachedSynastry(_userId, _partnerId) {
     return null;
 }
-/** Redis cache removed — no-op */
+/** @deprecated Redis cache removed — no-op */
 async function invalidateSynastryCache(_userId, _partnerId) { }
 //# sourceMappingURL=synastry.service.js.map

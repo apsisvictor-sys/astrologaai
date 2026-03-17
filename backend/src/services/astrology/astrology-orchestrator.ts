@@ -29,7 +29,6 @@ import {
   CircuitState,
 } from './astrology-provider.interface';
 import { AstrologyAPIProvider, createAstrologyAPIProvider } from './astrology-api-provider';
-import { SwissEphemerisProvider, createSwissEphemerisProvider } from './swiss-ephemeris-provider';
 import { redisClient } from '../../utils/redis';
 
 // ============================================
@@ -112,22 +111,12 @@ export class AstrologyOrchestrator implements AstrologyOrchestratorInterface {
    * Initialize providers based on availability
    */
   private initializeProviders(): void {
-    // Priority order: Astrology-API.io (primary) → Swiss Ephemeris (fallback)
-
-    // Primary: Astrology-API.io
     const primaryProvider = createAstrologyAPIProvider();
     if (primaryProvider.isAvailable()) {
       this.providers.push(primaryProvider);
-      console.log('[Astrology Orchestrator] Added Astrology-API.io as primary provider');
-    }
-
-    // Secondary: Swiss Ephemeris fallback (always available)
-    const fallbackProvider = createSwissEphemerisProvider();
-    this.providers.push(fallbackProvider);
-    console.log('[Astrology Orchestrator] Added Swiss Ephemeris as fallback provider');
-
-    if (this.providers.length === 0) {
-      console.error('[Astrology Orchestrator] No astrology providers available!');
+      console.log('[Astrology Orchestrator] Added Astrology-API.io as provider');
+    } else {
+      console.error('[Astrology Orchestrator] Astrology-API.io provider not available!');
     }
   }
 

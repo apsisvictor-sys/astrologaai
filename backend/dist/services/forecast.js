@@ -6,6 +6,39 @@
  * Generates personalized daily forecasts based on user's natal chart
  * and current planetary transits
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.generateDailyForecast = generateDailyForecast;
 exports.getDailyForecast = getDailyForecast;
@@ -130,7 +163,7 @@ function translateToBulgarian(text) {
  * Uses astrology-api.io or fallback calculation
  */
 async function getCurrentTransits(natalChart) {
-    const { getActiveTransitsForUser } = await Promise.resolve().then(() => require('./transits'));
+    const { getActiveTransitsForUser } = await Promise.resolve().then(() => __importStar(require('./transits')));
     const { skyPositions } = await getActiveTransitsForUser(natalChart);
     return skyPositions.map(p => ({
         planet: p.planet,
@@ -321,7 +354,7 @@ Generate the forecast in the following JSON format (JSON only, no additional tex
 async function generateDailyForecast(userId, birthData, userLanguage = 'bg', precomputedChart) {
     const dateString = getTodayDateString();
     // 1. Check DB first (written by nightly cron or previous on-demand call)
-    const stored = await forecast_cron_1.getStoredForecast(userId, dateString);
+    const stored = await (0, forecast_cron_1.getStoredForecast)(userId, dateString);
     if (stored?.forecast) {
         console.log(`[Forecast] DB hit for daily forecast, user ${userId}`);
         return { ...stored.forecast, cached: true };
@@ -346,7 +379,6 @@ async function generateDailyForecast(userId, birthData, userLanguage = 'bg', pre
     const transits = await getCurrentTransits(natalChart);
     // Analyze transit impact on natal chart
     const analyzedTransits = analyzeTransitImpact(transits, natalChart);
-    // Calculate moon phase
     // Derive moon phase from already-fetched transit positions (no extra API call)
     const moonPhase = deriveMoonPhaseFromTransits(transits);
     // Generate LLM-based forecast
@@ -412,11 +444,10 @@ async function generateDailyForecast(userId, birthData, userLanguage = 'bg', pre
         cached: false,
     };
     // Persist to DB (survives server restarts and Redis flushes)
-    await forecast_cron_1.storeForecast(userId, dateString, null, forecast);
+    await (0, forecast_cron_1.storeForecast)(userId, dateString, null, forecast);
     // Also warm Redis cache
     try {
         await redis_1.redisClient.setEx(cacheKey, FORECAST_CACHE_TTL, JSON.stringify(forecast));
-        console.log(`[Forecast] Cached daily forecast for user ${userId}`);
     }
     catch (error) {
         console.warn('[Forecast] Cache write error:', error);
@@ -548,35 +579,55 @@ async function generateWeeklyForecast(userId, birthData, userLanguage = 'bg', pr
 async function getWeeklyForecast(userId, birthData, userLanguage = 'bg', precomputedChart) {
     return generateWeeklyForecast(userId, birthData, userLanguage, precomputedChart);
 }
-// ============================================
-// Personal Daily Horoscope (SDK + LLM rewrite)
-// ============================================
+/**
+ * Rewrite API text fields in the Oracle's voice using a short LLM call.
+ * Preserves all astrological data (ratings, planet names, orbs, etc.).
+ * Falls back to raw API text if LLM fails.
+ */
 async function rewriteInOracleVoice(raw) {
-    const { llm_1 } = await Promise.resolve().then(() => require('./llm'));
-    const systemPrompt = `You are The Oracle — a mystical, precise astrologer. Rewrite only the text fields in your voice: poetic, profound, specific. RULES:\n- Preserve ALL astrological specifics (planet names, aspects, house positions, orb values)\n- Keep the EXACT JSON structure\n- Only rewrite: overall_theme, life_areas[].title, life_areas[].prediction, planetary_influences[].description, moon.prediction, tips[]\n- Do NOT change: ratings, keywords, area, planet, aspect_type, natal_planet, strength, orb, phase, sign, illumination\n- Return ONLY valid JSON, no markdown fences`;
+    const systemPrompt = `You are The Oracle — a mystical, precise astrologer. Rewrite only the text fields in your voice: poetic, profound, specific. RULES:
+- Preserve ALL astrological specifics (planet names, aspects, house positions, orb values)
+- Keep the EXACT JSON structure
+- Only rewrite: overall_theme, life_areas[].title, life_areas[].prediction, planetary_influences[].description, moon.prediction, tips[]
+- Do NOT change: ratings, keywords, area, planet, aspect_type, natal_planet, strength, orb, phase, sign, illumination
+- Return ONLY valid JSON, no markdown fences`;
     const payload = {
         overall_theme: raw.overall_theme,
-        life_areas: (raw.life_areas ?? []).map((a) => ({ area: a.area, title: a.title, prediction: a.prediction, rating: a.rating, keywords: a.keywords })),
-        planetary_influences: (raw.planetary_influences ?? []).map((p) => ({ planet: p.planet, aspect_type: p.aspect_type, description: p.description, strength: p.strength, natal_planet: p.natal_planet, orb: p.orb })),
+        life_areas: (raw.life_areas ?? []).map((a) => ({
+            area: a.area, title: a.title, prediction: a.prediction,
+            rating: a.rating, keywords: a.keywords,
+        })),
+        planetary_influences: (raw.planetary_influences ?? []).map((p) => ({
+            planet: p.planet, aspect_type: p.aspect_type, description: p.description,
+            strength: p.strength, natal_planet: p.natal_planet, orb: p.orb,
+        })),
         moon: { phase: raw.moon?.phase, sign: raw.moon?.sign, prediction: raw.moon?.prediction, illumination: raw.moon?.illumination },
         tips: raw.tips ?? [],
     };
     try {
-        const messages = [{ role: 'system', content: systemPrompt }, { role: 'user', content: JSON.stringify(payload) }];
-        const llm = require('./llm');
-        const response = await llm.chatCompletion(messages, { temperature: 0.65, maxTokens: 1800 });
+        const messages = [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: JSON.stringify(payload) },
+        ];
+        const response = await (0, llm_1.chatCompletion)(messages, { temperature: 0.65, maxTokens: 1800 });
         const match = response.match(/\{[\s\S]*\}/);
-        if (!match) throw new Error('No JSON in LLM response');
+        if (!match)
+            throw new Error('No JSON in LLM response');
         return JSON.parse(match[0]);
-    } catch (err) {
+    }
+    catch (err) {
         console.warn('[Forecast] Oracle voice rewrite failed — using raw API text:', err);
-        return raw;
+        return raw; // fail open: raw text is still correct, just not in Oracle's voice
     }
 }
+/**
+ * Get today's personal daily horoscope via SDK + Oracle voice rewrite.
+ * Cached per user per day (24h TTL).
+ */
 async function getPersonalDailyHoroscope(userId, birthData) {
     const dateStr = getTodayDateString();
     // 1. Check DB first (written by nightly cron or previous on-demand call)
-    const stored = await forecast_cron_1.getStoredForecast(userId, dateStr);
+    const stored = await (0, forecast_cron_1.getStoredForecast)(userId, dateStr);
     if (stored?.horoscope) {
         console.log(`[Forecast] DB hit for horoscope, user ${userId}`);
         return { ...stored.horoscope, cached: true };
@@ -590,11 +641,19 @@ async function getPersonalDailyHoroscope(userId, birthData) {
             h.cached = true;
             return h;
         }
-    } catch { /* cache unavailable */ }
-    const { AstrologyClient } = await Promise.resolve().then(() => require('@astro-api/astroapi-typescript'));
+    }
+    catch { /* cache unavailable — proceed */ }
+    const { AstrologyClient } = await Promise.resolve().then(() => __importStar(require('@astro-api/astroapi-typescript')));
     const client = new AstrologyClient({ apiKey: process.env.ASTROLOGY_API_KEY });
     const raw = await client.horoscope.getPersonalDailyHoroscope({
-        subject: { birth_data: { year: birthData.year, month: birthData.month, day: birthData.day, hour: birthData.hour, minute: birthData.minute, second: 0, latitude: birthData.latitude, longitude: birthData.longitude, timezone: birthData.timezone } },
+        subject: {
+            birth_data: {
+                year: birthData.year, month: birthData.month, day: birthData.day,
+                hour: birthData.hour, minute: birthData.minute, second: 0,
+                latitude: birthData.latitude, longitude: birthData.longitude,
+                timezone: birthData.timezone,
+            },
+        },
         date: dateStr,
         language: 'en',
     });
@@ -603,16 +662,37 @@ async function getPersonalDailyHoroscope(userId, birthData) {
         date: dateStr,
         overallTheme: rewritten.overall_theme ?? raw.overall_theme,
         overallRating: Math.min(5, Math.max(1, raw.overall_rating ?? 3)),
-        lifeAreas: (rewritten.life_areas ?? raw.life_areas ?? []).map((a) => ({ area: a.area, title: a.title, prediction: a.prediction, rating: Math.min(5, Math.max(1, a.rating ?? 3)), keywords: a.keywords ?? [] })),
-        planetaryInfluences: (rewritten.planetary_influences ?? raw.planetary_influences ?? []).map((p) => ({ planet: p.planet, aspectType: p.aspect_type, description: p.description, strength: Math.min(5, Math.max(1, p.strength ?? 3)), natalPlanet: p.natal_planet, orb: p.orb })),
-        moon: { phase: raw.moon?.phase ?? 'Unknown', sign: raw.moon?.sign ?? 'Unknown', prediction: rewritten.moon?.prediction ?? raw.moon?.prediction ?? '', illumination: raw.moon?.illumination ?? 0 },
+        lifeAreas: (rewritten.life_areas ?? raw.life_areas ?? []).map((a) => ({
+            area: a.area,
+            title: a.title,
+            prediction: a.prediction,
+            rating: Math.min(5, Math.max(1, a.rating ?? 3)),
+            keywords: a.keywords ?? [],
+        })),
+        planetaryInfluences: (rewritten.planetary_influences ?? raw.planetary_influences ?? []).map((p) => ({
+            planet: p.planet,
+            aspectType: p.aspect_type,
+            description: p.description,
+            strength: Math.min(5, Math.max(1, p.strength ?? 3)),
+            natalPlanet: p.natal_planet,
+            orb: p.orb,
+        })),
+        moon: {
+            phase: raw.moon?.phase ?? 'Unknown',
+            sign: raw.moon?.sign ?? 'Unknown',
+            prediction: rewritten.moon?.prediction ?? raw.moon?.prediction ?? '',
+            illumination: raw.moon?.illumination ?? 0,
+        },
         tips: rewritten.tips ?? raw.tips ?? [],
         cached: false,
     };
     // Persist to DB (survives server restarts and Redis flushes)
-    await forecast_cron_1.storeForecast(userId, dateStr, horoscope, null);
+    await (0, forecast_cron_1.storeForecast)(userId, dateStr, horoscope, null);
     // Also warm Redis cache
-    try { await redis_1.redisClient.setEx(cacheKey, 86400, JSON.stringify(horoscope)); } catch { }
+    try {
+        await redis_1.redisClient.setEx(cacheKey, 86400, JSON.stringify(horoscope));
+    }
+    catch { /* cache write failure is non-fatal */ }
     console.log(`[Forecast] Personal daily horoscope generated for user ${userId}`);
     return horoscope;
 }

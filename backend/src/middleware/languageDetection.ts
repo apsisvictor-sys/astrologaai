@@ -14,8 +14,8 @@ import { Request, Response, NextFunction } from 'express';
 export const SUPPORTED_LANGUAGES = ['bg', 'en'] as const;
 export type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];
 
-// Default language for BG market
-export const DEFAULT_LANGUAGE: SupportedLanguage = 'bg';
+// Default language — English (Bulgarian set explicitly per-user)
+export const DEFAULT_LANGUAGE: SupportedLanguage = 'en';
 
 // Extend Express Request type for user and detectedLanguage
 declare global {

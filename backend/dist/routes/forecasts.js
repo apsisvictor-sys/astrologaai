@@ -6,6 +6,39 @@
  *
  * Handles daily/weekly forecasts
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
 const auth_1 = require("../middleware/auth");
@@ -185,7 +218,7 @@ router.get('/transits', async (req, res) => {
                 },
             });
         }
-        const { getActiveTransitsForUser } = await Promise.resolve().then(() => require('../services/transits'));
+        const { getActiveTransitsForUser } = await Promise.resolve().then(() => __importStar(require('../services/transits')));
         const transitData = await getActiveTransitsForUser(birthChart.chartData);
         res.json({
             success: true,
@@ -209,18 +242,28 @@ router.get('/transits', async (req, res) => {
         });
     }
 });
-// GET /api/v1/forecasts/horoscope — personal daily horoscope, no query quota
+/**
+ * GET /api/v1/forecasts/horoscope
+ * Personal daily horoscope via SDK + Oracle voice rewrite.
+ * No query quota — this is a data feature, not a chat query.
+ * Cached per user per day (24h).
+ */
 router.get('/horoscope', async (req, res) => {
     try {
         const userId = req.user?.id;
-        if (!userId)
+        if (!userId) {
             return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } });
+        }
         const profile = await prisma_1.prisma.birthData.findUnique({
             where: { userId },
             select: { date: true, time: true, latitude: true, longitude: true, timezone: true },
         });
-        if (!profile)
-            return res.status(400).json({ success: false, error: { code: 'BIRTH_DATA_MISSING', message: 'Add your birth data first to get your daily horoscope' } });
+        if (!profile) {
+            return res.status(400).json({
+                success: false,
+                error: { code: 'BIRTH_DATA_MISSING', message: 'Add your birth data first to get your daily horoscope' },
+            });
+        }
         const birthDate = new Date(profile.date);
         const [hour, minute] = (profile.time || '12:00').split(':').map(Number);
         const birthData = {
@@ -229,12 +272,15 @@ router.get('/horoscope', async (req, res) => {
             latitude: profile.latitude, longitude: profile.longitude,
             timezone: profile.timezone || 'UTC',
         };
-        const horoscope = await forecast_1.getPersonalDailyHoroscope(userId, birthData);
+        const horoscope = await (0, forecast_1.getPersonalDailyHoroscope)(userId, birthData);
         res.json({ success: true, data: horoscope });
     }
     catch (error) {
         console.error('[Forecast] Horoscope error:', error);
-        res.status(500).json({ success: false, error: { code: 'HOROSCOPE_ERROR', message: 'Failed to generate your daily horoscope' } });
+        res.status(500).json({
+            success: false,
+            error: { code: 'HOROSCOPE_ERROR', message: 'Failed to generate your daily horoscope' },
+        });
     }
 });
 exports.default = router;

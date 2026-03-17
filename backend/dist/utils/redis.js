@@ -3,7 +3,8 @@
  * Redis Client Singleton
  * Used for password reset tokens, session caching, and chat context
  *
- * US-34: Graceful fallback when Redis is unavailable
+ * US-34: Graceful fallback to in-memory when Redis is unavailable.
+ * Connects via REDIS_URL env var (Upstash rediss:// URL).
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.redisClient = void 0;
@@ -18,11 +19,13 @@ exports.getResetToken = getResetToken;
 exports.invalidateResetToken = invalidateResetToken;
 exports.invalidateUserSessions = invalidateUserSessions;
 const redis_1 = require("redis");
+// In-memory fallback cache (used when Redis is unavailable)
 const memoryCache = new Map();
 const memoryClient = {
     get: async (key) => {
         const item = memoryCache.get(key);
-        if (item && item.expiresAt > Date.now()) return item.value;
+        if (item && item.expiresAt > Date.now())
+            return item.value;
         memoryCache.delete(key);
         return null;
     },
@@ -30,20 +33,21 @@ const memoryClient = {
         memoryCache.set(key, { value, expiresAt: Date.now() + ttl * 1000 });
     },
     del: async (...keys) => { keys.forEach(k => memoryCache.delete(k)); },
-    lPush: async (_key, _value) => {},
-    rPush: async (_key, _value) => {},
+    lPush: async (_key, _value) => { },
+    rPush: async (_key, _value) => { },
     lPop: async (_key) => null,
-    lTrim: async (_key, _start, _stop) => {},
+    lTrim: async (_key, _start, _stop) => { },
     keys: async (_pattern) => [],
     ping: async () => 'PONG',
-    on: () => {},
-    connect: async () => {},
+    on: () => { },
+    connect: async () => { },
 };
 let _connected = false;
+// activeClient starts as memoryClient, swaps to real Redis once connected
 let activeClient = memoryClient;
 const redisUrl = process.env.REDIS_URL;
 if (redisUrl) {
-    const realClient = redis_1.createClient({ url: redisUrl });
+    const realClient = (0, redis_1.createClient)({ url: redisUrl });
     realClient.on('connect', () => {
         _connected = true;
         activeClient = realClient;
@@ -59,7 +63,8 @@ if (redisUrl) {
     realClient.connect().catch((err) => {
         console.error('[Redis] ⚠️  Initial connect FAILED — cache will NOT persist across requests! All LLM forecast calls will re-run on every request. Error:', err.message);
     });
-} else {
+}
+else {
     console.warn('[Redis] ⚠️  No REDIS_URL set — using in-memory fallback. Cache lost on every restart. All LLM forecast calls will re-run after restarts.');
 }
 exports.redisClient = new Proxy(memoryClient, {

@@ -7,6 +7,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { CosmicSpinner } from '@/components/ui/spinner';
 
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
@@ -344,10 +345,7 @@ export function RegistrationForm({ onSuccess, onLoginClick }: RegistrationFormPr
         >
           {isLoading ? (
             <span className="flex items-center justify-center gap-2">
-              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+              <CosmicSpinner size="sm" />
               Creating account...
             </span>
           ) : (
@@ -384,10 +382,7 @@ export function RegistrationForm({ onSuccess, onLoginClick }: RegistrationFormPr
             className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-white/10 bg-white/5 hover:bg-white/8 hover:border-white/20 transition-colors duration-200 text-text-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {oauthLoading === 'google' ? (
-              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
+              <CosmicSpinner size="sm" />
             ) : (
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -441,10 +436,7 @@ export function RegistrationForm({ onSuccess, onLoginClick }: RegistrationFormPr
                 className="px-4 py-2.5 rounded-xl gradient-button text-white text-sm font-medium whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {oauthLoading === 'magic' ? (
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
+                  <CosmicSpinner size="sm" />
                 ) : 'Send'}
               </button>
             </div>

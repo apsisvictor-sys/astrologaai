@@ -83,7 +83,7 @@ async function searchLocations(query, limit = 10) {
                 '';
             const lat = parseFloat(result.lat);
             const lon = parseFloat(result.lon);
-            const timezone = geo_tz_1.find(lat, lon)[0] || 'UTC';
+            const timezone = (0, geo_tz_1.find)(lat, lon)[0] || 'UTC';
             return {
                 name: city || result.display_name.split(',')[0],
                 displayName: result.display_name,
@@ -94,12 +94,12 @@ async function searchLocations(query, limit = 10) {
                 timezone,
             };
         });
-        // Cache results (fire-and-forget with timeout)
+        // Cache results (fire-and-forget with timeout — don't block response)
         if (isRedisAvailable()) {
             Promise.race([
                 redis_1.redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(transformed)),
                 new Promise(resolve => setTimeout(resolve, 500)),
-            ]).catch(() => {});
+            ]).catch(() => { });
         }
         return transformed;
     }
@@ -157,7 +157,7 @@ async function reverseGeocode(lat, lon) {
             Promise.race([
                 redis_1.redisClient.setEx(cacheKey, CACHE_TTL, JSON.stringify(transformed)),
                 new Promise(resolve => setTimeout(resolve, 500)),
-            ]).catch(() => {});
+            ]).catch(() => { });
         }
         return transformed;
     }
@@ -170,7 +170,7 @@ async function reverseGeocode(lat, lon) {
  * Get IANA timezone for coordinates using geo-tz
  */
 function getTimezoneFromCoordinates(lat, lon) {
-    return geo_tz_1.find(lat, lon)[0] || 'UTC';
+    return (0, geo_tz_1.find)(lat, lon)[0] || 'UTC';
 }
 /**
  * Validate that coordinates are within valid ranges

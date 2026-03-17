@@ -6,6 +6,7 @@
  * Handles heartbeat, connection state management, and stream resumption
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.MAX_RECONNECT_ATTEMPTS = exports.HEARTBEAT_INTERVAL_MS = void 0;
 exports.storeStreamState = storeStreamState;
 exports.getStreamState = getStreamState;
 exports.clearStreamState = clearStreamState;
@@ -22,8 +23,8 @@ const client_1 = require("@prisma/client");
 const redis_1 = require("../utils/redis");
 const prisma = new client_1.PrismaClient();
 // Configuration
-const HEARTBEAT_INTERVAL_MS = 30000; // 30 seconds
-const MAX_RECONNECT_ATTEMPTS = 3; // US-38: Maximum 3 retry attempts
+exports.HEARTBEAT_INTERVAL_MS = 30000; // 30 seconds
+exports.MAX_RECONNECT_ATTEMPTS = 3; // US-38: Maximum 3 retry attempts
 const STREAM_STATE_TTL_SECONDS = 3600; // 1 hour
 /**
  * Store stream state for resumption
@@ -108,7 +109,7 @@ async function getConnectionMeta(userId) {
 /**
  * Register heartbeat interval for a socket
  */
-function createHeartbeatHandler(userId, socket, intervalMs = HEARTBEAT_INTERVAL_MS) {
+function createHeartbeatHandler(userId, socket, intervalMs = exports.HEARTBEAT_INTERVAL_MS) {
     const interval = setInterval(() => {
         if (socket.connected) {
             // Send heartbeat ping
@@ -196,7 +197,7 @@ async function clearMessageQueue(userId) {
 async function getReconnectionStatus(userId) {
     const meta = await getConnectionMeta(userId);
     return {
-        canReconnect: (meta?.reconnectCount || 0) < MAX_RECONNECT_ATTEMPTS,
+        canReconnect: (meta?.reconnectCount || 0) < exports.MAX_RECONNECT_ATTEMPTS,
         reconnectCount: meta?.reconnectCount || 0,
         lastConnected: meta?.connectedAt,
         lastHeartbeat: meta?.lastHeartbeat,
@@ -242,7 +243,7 @@ exports.default = {
     clearMessageQueue,
     getReconnectionStatus,
     recordReconnectionAttempt,
-    HEARTBEAT_INTERVAL_MS,
-    MAX_RECONNECT_ATTEMPTS,
+    HEARTBEAT_INTERVAL_MS: exports.HEARTBEAT_INTERVAL_MS,
+    MAX_RECONNECT_ATTEMPTS: exports.MAX_RECONNECT_ATTEMPTS,
 };
 //# sourceMappingURL=reconnection.js.map

@@ -1,4 +1,40 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.astrologyTools = void 0;
 exports.createAstrologyTools = createAstrologyTools;
@@ -6,10 +42,7 @@ const ai_1 = require("ai");
 const zod_1 = require("zod");
 const astroapi_typescript_1 = require("@astro-api/astroapi-typescript");
 const prisma_1 = require("../../utils/prisma");
-const geoip = require("geoip-lite");
-// ============================================
-// Context & Helpers
-// ============================================
+const geoip_lite_1 = __importDefault(require("geoip-lite"));
 const CHART_OPTIONS = {
     house_system: 'P',
     zodiac_type: 'Tropic',
@@ -40,7 +73,7 @@ function resolveIpLocation(ip) {
     const cleanIp = ip.replace(/^::ffff:/, ''); // strip IPv4-mapped IPv6 prefix
     if (cleanIp === '127.0.0.1' || cleanIp === '::1' || cleanIp.startsWith('192.168.') || cleanIp.startsWith('10.'))
         return null;
-    const geo = geoip.lookup(cleanIp);
+    const geo = geoip_lite_1.default.lookup(cleanIp);
     if (!geo?.ll)
         return null;
     return { latitude: geo.ll[0], longitude: geo.ll[1], timezone: geo.timezone || 'UTC' };
@@ -138,7 +171,7 @@ function createAstrologyTools(context) {
         inputSchema: transitsSchema,
         execute: async () => {
             console.log(`[Agent Tool] get_transits`);
-            const { getActiveTransitsForUser } = await Promise.resolve().then(() => require('../transits'));
+            const { getActiveTransitsForUser } = await Promise.resolve().then(() => __importStar(require('../transits')));
             const record = await prisma_1.prisma.birthData.findUnique({
                 where: { userId },
                 include: { birthChart: true },
@@ -152,6 +185,7 @@ function createAstrologyTools(context) {
     });
     /**
      * get_synastry — Inter-chart aspects between user and a stored partner.
+     * If the user has multiple partners, ask them to specify first.
      */
     const calculateSynastryTool = (0, ai_1.tool)({
         description: "Compares the user's birth chart with a stored partner's chart. CALL THIS for relationship compatibility questions. If multiple partners are stored, first ask the user which one to analyze.",
@@ -181,6 +215,7 @@ function createAstrologyTools(context) {
     });
     /**
      * get_progressions — Secondary progressions: inner psychological evolution.
+     * Frame as slow inner growth, not external events.
      */
     const calculateProgressionsTool = (0, ai_1.tool)({
         description: "Calculates secondary progressions — slow inner psychological evolution (~1 day = 1 year of life). Use for questions about internal emotional shifts, identity changes, or feeling fundamentally different. Frame as inner growth themes, not external events.",
@@ -220,6 +255,7 @@ function createAstrologyTools(context) {
     });
     /**
      * get_relocation — Relocated natal chart for a target city.
+     * Shows how house positions and angles shift at a new location.
      */
     const calculateRelocationTool = (0, ai_1.tool)({
         description: "Calculates the relocated natal chart for a target city. Shows how house cusps and angular placements shift — use for 'Is Paris a good city for me?' or relocation questions. Returns text analysis only (no map).",
@@ -244,6 +280,7 @@ function createAstrologyTools(context) {
     });
     /**
      * get_composite — The composite chart between user and a stored partner.
+     * Shows the relationship itself as its own entity.
      */
     const calculateCompositeTool = (0, ai_1.tool)({
         description: "Calculates the Composite Chart — the relationship as its own entity. Use for 'what is the ultimate purpose of this relationship?' or destiny/compatibility questions.",
@@ -294,6 +331,7 @@ function createAstrologyTools(context) {
     });
     /**
      * get_solar_arc — Solar Arc Directions (~1° per year of life).
+     * For deep timing questions and major life chapter shifts.
      */
     const calculateSolarArcTool = (0, ai_1.tool)({
         description: "Calculates Solar Arc Directions for a target date. Each planet moves ~1° per year. Use for 'why is this life theme emerging now?' or major life chapter questions. Complements secondary progressions.",

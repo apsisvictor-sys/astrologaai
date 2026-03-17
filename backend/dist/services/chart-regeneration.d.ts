@@ -5,9 +5,8 @@
  * Processes chart regeneration jobs from Redis queue
  */
 /**
- * Start the regeneration queue processor
- * In development, this runs in a setInterval
- * In production, this could be a separate worker process
+ * No-op — polling loop removed. Jobs are processed inline in regenerateChartNow.
+ * The 5-second Redis poll was generating ~17k empty lPop calls/day with zero users.
  */
 export declare function startRegenerationProcessor(): void;
 /**

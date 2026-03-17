@@ -245,6 +245,7 @@ async function login(req, res, next) {
         const clientIp = req.ip || req.connection.remoteAddress || 'unknown';
         const userAgent = req.get('user-agent') || 'unknown';
         // Find user
+        // Find user
         const user = await prisma_1.default.user.findUnique({
             where: { email },
             include: {

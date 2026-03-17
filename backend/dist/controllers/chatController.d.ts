@@ -58,6 +58,12 @@ export declare function updateSession(req: Request, res: Response): Promise<void
  * Get user's chat usage statistics
  */
 export declare function getUsage(req: Request, res: Response): Promise<void>;
+/**
+ * POST /api/v1/chat/sessions/:id/import
+ * Import guest messages into an existing session
+ * Used when a guest user registers to migrate their homepage chat
+ */
+export declare function importGuestMessages(req: Request, res: Response): Promise<void>;
 declare const _default: {
     sendMessage: typeof sendMessage;
     listSessions: typeof listSessions;

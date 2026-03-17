@@ -5,7 +5,6 @@
  */
 export { AstrologyProviderType, AstrologyProviderStatus, CircuitState, type AstrologyProvider, type AstrologyOrchestratorInterface, type BirthDataInput, type NatalChart, type TransitData, type SynastryData, type PlanetPosition, type HouseCusp, type Aspect, type ProviderHealth, type ProviderMetrics, type ProviderSwitchEvent, type AstrologyCalculationOptions, type CircuitBreakerState, } from './astrology-provider.interface';
 export { AstrologyAPIProvider, createAstrologyAPIProvider, } from './astrology-api-provider';
-export { SwissEphemerisProvider, createSwissEphemerisProvider, } from './swiss-ephemeris-provider';
 export { AstrologyOrchestrator, getAstrologyOrchestrator, resetAstrologyOrchestrator, type FailureLogEntry, } from './astrology-orchestrator';
 import type { BirthDataInput, NatalChart } from './astrology-provider.interface';
 /**

@@ -22,9 +22,7 @@ export declare function searchLocations(query: string, limit?: number): Promise<
  */
 export declare function reverseGeocode(lat: number, lon: number): Promise<GeocodingResult | null>;
 /**
- * Get timezone for coordinates
- * Uses a simple approximation based on longitude
- * For production, use a proper timezone API like GeoNames or tzf
+ * Get IANA timezone for coordinates using geo-tz
  */
 export declare function getTimezoneFromCoordinates(lat: number, lon: number): string;
 /**

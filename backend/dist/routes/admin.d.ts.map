@@ -1,1 +1,1 @@
-{"version":3,"file":"admin.d.ts","sourceRoot":"","sources":["../../src/routes/admin.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;;;;;;;;;;GAsBG;AAQH,QAAA,MAAM,MAAM,4CAAW,CAAC;AA+2BxB,eAAe,MAAM,CAAC"}
+{"version":3,"file":"admin.d.ts","sourceRoot":"","sources":["../../src/routes/admin.ts"],"names":[],"mappings":"AAAA;;;;;;;;;;;;;;;;;;;;;;GAsBG;AASH,QAAA,MAAM,MAAM,4CAAW,CAAC;AAy6BxB,eAAe,MAAM,CAAC"}

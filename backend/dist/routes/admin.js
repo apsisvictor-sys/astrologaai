@@ -140,23 +140,16 @@ router.get('/overview', async (req, res) => {
             success: true,
             data: {
                 totalUsers,
-                tiers: {
+                byTier: {
                     FREE: tierMap.FREE,
                     PRO: tierMap.PRO,
                     PREMIUM: tierMap.PREMIUM,
-                    freeShare: totalUsers > 0 ? ((tierMap.FREE / totalUsers) * 100).toFixed(0) : '0',
-                    proShare: totalUsers > 0 ? ((tierMap.PRO / totalUsers) * 100).toFixed(0) : '0',
-                    premiumShare: totalUsers > 0 ? ((tierMap.PREMIUM / totalUsers) * 100).toFixed(0) : '0',
                 },
                 newSignups,
-                conversionRate,
-                mrrEur: (mrrCents / 100).toFixed(2),
-                mrrBreakdown: {
-                    pro: (paidSubs.filter(s => s.tier === 'PRO').length * 10).toFixed(2),
-                    premium: (paidSubs.filter(s => s.tier === 'PREMIUM').length * 20).toFixed(2),
-                },
-                dailySignups: dailySignups.map(d => ({ day: d.day, count: Number(d.count) })),
-                failedPayments: failedPaymentDetails,
+                conversionRate: totalUsers > 0 ? (tierMap.PRO + tierMap.PREMIUM) / totalUsers * 100 : 0,
+                mrrEstimate: mrrCents / 100,
+                failedPayments: failedPaymentDetails.length,
+                dailySignups: dailySignups.map(d => ({ date: d.day, count: Number(d.count) })),
                 dateRange: { start: start.toISOString(), end: end.toISOString() },
             },
         });
@@ -187,10 +180,13 @@ router.get('/users', async (req, res) => {
             where.tier = tier;
         }
         where.createdAt = { gte: start, lte: end };
+        // Status filter maps to subscription status
         const statusFilter = status && status !== 'ALL' ? status : null;
+        // Billing month start (1st of current month UTC)
         const now = new Date();
         const billingStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-        const prices = await cost_calculator_1.getAdminPrices();
+        // Load price config once for all threshold checks
+        const prices = await (0, cost_calculator_1.getAdminPrices)();
         const thresholds = {
             FREE: prices['alert_threshold_free_eur_cents'] ?? 200,
             PRO: prices['alert_threshold_pro_eur_cents'] ?? 500,
@@ -209,32 +205,43 @@ router.get('/users', async (req, res) => {
             }),
             prisma_1.prisma.user.count({ where }),
         ]);
+        // Compute cost for each user in parallel (billing month to now)
         const usersWithCost = await Promise.all(users.map(async (u) => {
-            const costEurCents = await cost_calculator_1.getUserCostEurCents(u.id, billingStart, now);
+            const costEurCents = await (0, cost_calculator_1.getUserCostEurCents)(u.id, billingStart, now);
             const threshold = thresholds[u.tier] ?? Infinity;
-            return { user: u, costEurCents, aboveThreshold: costEurCents >= threshold };
+            const aboveThreshold = costEurCents >= threshold;
+            return { user: u, costEurCents, aboveThreshold };
         }));
         const formatted = usersWithCost
             .filter(({ user: u, aboveThreshold }) => {
-                if (flaggedHighCost && !aboveThreshold) return false;
-                if (!statusFilter) return true;
-                if (statusFilter === 'SUSPENDED') return u.isSuspended;
-                const subStatus = u.subscription?.status ?? 'ACTIVE';
-                return subStatus === statusFilter;
-            })
+            if (flaggedHighCost && !aboveThreshold)
+                return false;
+            if (!statusFilter)
+                return true;
+            if (statusFilter === 'SUSPENDED')
+                return u.isSuspended;
+            const subStatus = u.subscription?.status ?? 'ACTIVE';
+            return subStatus === statusFilter;
+        })
             .map(({ user: u, costEurCents, aboveThreshold }) => ({
-                id: u.id, email: u.email, fullName: u.fullName, tier: u.tier,
-                language: u.language, emailVerified: u.emailVerified, createdAt: u.createdAt,
-                subscriptionStatus: u.subscription?.status ?? (u.tier === 'FREE' ? 'FREE' : 'ACTIVE'),
-                cancelAtPeriodEnd: u.subscription?.cancelAtPeriodEnd ?? false,
-                monthlyQueries: u.monthlyQueryCount,
-                currentMonthUsage: u.usageRecords[0]?.queryCount ?? 0,
-                bonusQueries: u.bonusQueries, isSuspended: u.isSuspended,
-                costEurCents, aboveThreshold,
-            }));
+            id: u.id,
+            email: u.email,
+            fullName: u.fullName,
+            tier: u.tier,
+            createdAt: u.createdAt,
+            lastActive: u.lastQueryDate?.toISOString() ?? null,
+            queryCount: u.usageRecords[0]?.queryCount ?? u.monthlyQueryCount,
+            isSuspended: u.isSuspended,
+            costEurCents,
+            aboveThreshold,
+        }));
         res.json({
             success: true,
-            data: { users: formatted, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }, thresholds },
+            data: {
+                users: formatted,
+                pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
+                thresholds,
+            },
         });
     }
     catch (err) {
@@ -324,54 +331,77 @@ router.get('/usage', async (req, res) => {
       GROUP BY DATE("created_at"), metadata->>'tier', metadata->>'model'
       ORDER BY day ASC
     `;
-        // Compute totals
+        // Compute totals + per-day/tier/model aggregations in one pass
         let totalRequests = 0;
         let totalInput = BigInt(0);
         let totalOutput = BigInt(0);
-        let totalTokens = BigInt(0);
         let totalCostCents = 0;
+        let totalWeightedLatency = 0;
         const latencies = [];
         const modelCosts = {};
+        const dayAgg = {};
+        const tierAgg = {};
         rows.forEach(r => {
             const input = Number(r.input_tokens);
             const output = Number(r.output_tokens);
             const count = Number(r.request_count);
             const cost = estimateCostEurCents(input, output, r.model || '');
+            const avgLat = r.avg_latency || 0;
             totalRequests += count;
             totalInput += r.input_tokens;
             totalOutput += r.output_tokens;
-            totalTokens += r.total_tokens;
             totalCostCents += cost;
+            totalWeightedLatency += avgLat * count;
             if (r.max_latency > 0)
                 latencies.push(r.max_latency);
+            // byDay
+            const day = String(r.day);
+            if (!dayAgg[day])
+                dayAgg[day] = { requests: 0, inputTokens: 0, outputTokens: 0, costCents: 0, weightedLatency: 0 };
+            dayAgg[day].requests += count;
+            dayAgg[day].inputTokens += input;
+            dayAgg[day].outputTokens += output;
+            dayAgg[day].costCents += cost;
+            dayAgg[day].weightedLatency += avgLat * count;
+            // byTier
+            const tier = r.tier || 'FREE';
+            if (!tierAgg[tier])
+                tierAgg[tier] = { requests: 0, inputTokens: 0, outputTokens: 0, costCents: 0 };
+            tierAgg[tier].requests += count;
+            tierAgg[tier].inputTokens += input;
+            tierAgg[tier].outputTokens += output;
+            tierAgg[tier].costCents += cost;
+            // byModel
             const mKey = r.model || 'unknown';
             if (!modelCosts[mKey])
-                modelCosts[mKey] = { input: BigInt(0), output: BigInt(0), costCents: 0 };
+                modelCosts[mKey] = { requests: 0, input: BigInt(0), output: BigInt(0), costCents: 0 };
+            modelCosts[mKey].requests += count;
             modelCosts[mKey].input += r.input_tokens;
             modelCosts[mKey].output += r.output_tokens;
             modelCosts[mKey].costCents += cost;
         });
-        // Latency percentiles (using max_latency per bucket as approximation)
+        // Latency percentiles
         latencies.sort((a, b) => a - b);
         const p50 = latencies.length > 0 ? latencies[Math.floor(latencies.length * 0.5)] : 0;
         const p95 = latencies.length > 0 ? latencies[Math.floor(latencies.length * 0.95)] : 0;
         const p99 = latencies.length > 0 ? latencies[latencies.length - 1] : 0;
-        // Daily chart data grouped by tier
-        const dailyByTier = { FREE: [], PRO: [], PREMIUM: [] };
-        const dayMap = {};
-        rows.forEach(r => {
-            const day = String(r.day);
-            if (!dayMap[day])
-                dayMap[day] = { FREE: BigInt(0), PRO: BigInt(0), PREMIUM: BigInt(0) };
-            const t = r.tier || 'FREE';
-            if (t in dayMap[day])
-                dayMap[day][t] += r.total_tokens;
-        });
-        const dailyData = Object.entries(dayMap).map(([day, tiers]) => ({
-            day,
-            FREE: Number(tiers.FREE),
-            PRO: Number(tiers.PRO),
-            PREMIUM: Number(tiers.PREMIUM),
+        const avgLatencyMs = totalRequests > 0 ? Math.round(totalWeightedLatency / totalRequests) : 0;
+        const byDay = Object.entries(dayAgg)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([date, d]) => ({
+            date,
+            requests: d.requests,
+            inputTokens: d.inputTokens,
+            outputTokens: d.outputTokens,
+            costUsdCents: d.costCents,
+            avgLatencyMs: d.requests > 0 ? Math.round(d.weightedLatency / d.requests) : 0,
+        }));
+        const byTier = Object.entries(tierAgg).map(([tier, d]) => ({
+            tier,
+            requests: d.requests,
+            inputTokens: d.inputTokens,
+            outputTokens: d.outputTokens,
+            costUsdCents: d.costCents,
         }));
         // Top 10 heaviest users
         const heavyUsers = await prisma_1.prisma.$queryRaw `
@@ -415,23 +445,29 @@ router.get('/usage', async (req, res) => {
         res.json({
             success: true,
             data: {
-                totals: {
-                    requests: totalRequests,
-                    inputTokens: Number(totalInput),
-                    outputTokens: Number(totalOutput),
-                    totalTokens: Number(totalTokens),
-                    costEur: (totalCostCents / 100).toFixed(2),
+                summary: {
+                    totalRequests,
+                    totalInputTokens: Number(totalInput),
+                    totalOutputTokens: Number(totalOutput),
+                    totalCostUsdCents: totalCostCents,
+                    avgLatencyMs,
+                    p50LatencyMs: Math.round(p50),
+                    p95LatencyMs: Math.round(p95),
+                    p99LatencyMs: Math.round(p99),
                 },
-                latency: { p50: Math.round(p50), p95: Math.round(p95), p99: Math.round(p99) },
-                dailyData,
-                modelBreakdown: Object.entries(modelCosts).map(([model, d]) => ({
+                byDay,
+                byTier,
+                byModel: Object.entries(modelCosts).map(([model, d]) => ({
                     model,
-                    inputTokens: Number(d.input),
-                    outputTokens: Number(d.output),
-                    costEur: (d.costCents / 100).toFixed(2),
-                    costShare: totalCostCents > 0 ? ((d.costCents / totalCostCents) * 100).toFixed(0) : '0',
+                    requests: d.requests,
+                    costUsdCents: d.costCents,
                 })),
-                topUsers,
+                topUsers: topUsers.map(u => ({
+                    userId: u.userId,
+                    email: u.email,
+                    requests: u.requests,
+                    totalTokens: u.tokens,
+                })),
                 dateRange: { start: start.toISOString(), end: end.toISOString() },
             },
         });
@@ -476,17 +512,23 @@ router.get('/revenue', async (req, res) => {
             }
             catch { /* non-blocking */ }
         }
+        const mrrCents = mrrEur * 100;
+        const avgCentsPerSub = activeSubs > 0 ? Math.round(mrrCents / activeSubs) : 0;
         res.json({
             success: true,
             data: {
-                mrrEur,
-                proCount,
-                premiumCount,
-                activeSubs,
-                cancelledInPeriod: cancelledSubs,
+                active: activeSubs,
+                cancelled: cancelledSubs,
                 pastDue: pastDueSubs,
-                newPaidSubs,
-                billingPeriodSplit: { monthly: monthlyCount, yearly: yearlyCount },
+                totalRevenueCents: mrrCents,
+                mrrCents,
+                billingBreakdown: {
+                    monthly: { count: monthlyCount, revenueCents: monthlyCount * avgCentsPerSub },
+                    yearly: { count: yearlyCount, revenueCents: yearlyCount * avgCentsPerSub },
+                },
+                newSubscriptions: newPaidSubs,
+                churnCount: cancelledSubs,
+                stripeConfigured: !!stripe,
                 dateRange: { start: start.toISOString(), end: end.toISOString() },
             },
         });
@@ -597,27 +639,24 @@ router.get('/config/models', async (_req, res) => {
         const configs = await prisma_1.prisma.adminConfig.findMany({
             where: { key: { in: ['model_free', 'model_pro', 'model_premium'] } },
         });
-        const defaults = {
-            model_free: 'claude-haiku-4-5-20251001',
-            model_pro: 'claude-sonnet-4-6',
-            model_premium: 'claude-opus-4-6',
-        };
-        const result = { ...defaults };
-        configs.forEach(c => { result[c.key] = c.value; });
-        // Also include env overrides (env takes precedence over DB)
-        if (process.env.MODEL_FREE)
-            result.model_free = process.env.MODEL_FREE;
-        if (process.env.MODEL_PRO)
-            result.model_pro = process.env.MODEL_PRO;
-        if (process.env.MODEL_PREMIUM)
-            result.model_premium = process.env.MODEL_PREMIUM;
+        const dbMap = {};
+        configs.forEach(c => { dbMap[c.key] = c.value; });
+        function resolveModel(key, defaultVal) {
+            const envVar = key === 'model_free' ? process.env.MODEL_FREE
+                : key === 'model_pro' ? process.env.MODEL_PRO
+                    : process.env.MODEL_PREMIUM;
+            if (envVar)
+                return { model: envVar, source: 'env' };
+            if (dbMap[key])
+                return { model: dbMap[key], source: 'db' };
+            return { model: defaultVal, source: 'env' };
+        }
         res.json({
             success: true,
             data: {
-                models: result,
-                lastUpdated: configs.reduce((latest, c) => {
-                    return !latest || c.updatedAt > latest ? c.updatedAt : latest;
-                }, null),
+                FREE: resolveModel('model_free', 'claude-haiku-4-5-20251001'),
+                PRO: resolveModel('model_pro', 'claude-sonnet-4-6'),
+                PREMIUM: resolveModel('model_premium', 'claude-opus-4-6'),
             },
         });
     }
@@ -765,7 +804,8 @@ router.get('/referrals', async (_req, res) => {
         const formatted = links.map(l => {
             const byTier = { FREE: 0, PRO: 0, PREMIUM: 0 };
             l.conversions.forEach(c => {
-                if (c.tier in byTier) byTier[c.tier]++;
+                if (c.tier in byTier)
+                    byTier[c.tier]++;
             });
             return {
                 id: l.id,

@@ -4,6 +4,8 @@
  *
  * Handles heartbeat, connection state management, and stream resumption
  */
+export declare const HEARTBEAT_INTERVAL_MS = 30000;
+export declare const MAX_RECONNECT_ATTEMPTS = 3;
 /**
  * Store stream state for resumption
  */

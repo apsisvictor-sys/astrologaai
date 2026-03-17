@@ -38,7 +38,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetAstrologyOrchestrator = exports.getAstrologyOrchestrator = exports.AstrologyOrchestrator = exports.createSwissEphemerisProvider = exports.SwissEphemerisProvider = exports.createAstrologyAPIProvider = exports.AstrologyAPIProvider = exports.CircuitState = exports.AstrologyProviderStatus = exports.AstrologyProviderType = void 0;
+exports.resetAstrologyOrchestrator = exports.getAstrologyOrchestrator = exports.AstrologyOrchestrator = exports.createAstrologyAPIProvider = exports.AstrologyAPIProvider = exports.CircuitState = exports.AstrologyProviderStatus = exports.AstrologyProviderType = void 0;
 exports.calculateNatalChart = calculateNatalChart;
 exports.checkAstrologyApiHealth = checkAstrologyApiHealth;
 exports.getProviderHealth = getProviderHealth;
@@ -54,9 +54,6 @@ Object.defineProperty(exports, "CircuitState", { enumerable: true, get: function
 var astrology_api_provider_1 = require("./astrology-api-provider");
 Object.defineProperty(exports, "AstrologyAPIProvider", { enumerable: true, get: function () { return astrology_api_provider_1.AstrologyAPIProvider; } });
 Object.defineProperty(exports, "createAstrologyAPIProvider", { enumerable: true, get: function () { return astrology_api_provider_1.createAstrologyAPIProvider; } });
-var swiss_ephemeris_provider_1 = require("./swiss-ephemeris-provider");
-Object.defineProperty(exports, "SwissEphemerisProvider", { enumerable: true, get: function () { return swiss_ephemeris_provider_1.SwissEphemerisProvider; } });
-Object.defineProperty(exports, "createSwissEphemerisProvider", { enumerable: true, get: function () { return swiss_ephemeris_provider_1.createSwissEphemerisProvider; } });
 // Export orchestrator
 var astrology_orchestrator_1 = require("./astrology-orchestrator");
 Object.defineProperty(exports, "AstrologyOrchestrator", { enumerable: true, get: function () { return astrology_orchestrator_1.AstrologyOrchestrator; } });

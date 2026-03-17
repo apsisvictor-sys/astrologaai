@@ -71,13 +71,9 @@ export interface RelationshipChallenge {
  * Calculate synastry chart between user and partner
  */
 export declare function calculateSynastryChart(userBirthData: BirthDataInput, partnerBirthData: BirthDataInput, userId: string, partnerId: string): Promise<SynastryChart>;
-/**
- * Get cached synastry chart
- */
-export declare function getCachedSynastry(userId: string, partnerId: string): Promise<SynastryChart | null>;
-/**
- * Invalidate synastry cache
- */
-export declare function invalidateSynastryCache(userId: string, partnerId: string): Promise<void>;
+/** @deprecated Redis cache removed */
+export declare function getCachedSynastry(_userId: string, _partnerId: string): Promise<SynastryChart | null>;
+/** @deprecated Redis cache removed — no-op */
+export declare function invalidateSynastryCache(_userId: string, _partnerId: string): Promise<void>;
 export type { SynastryChart as SynastryChartType };
 //# sourceMappingURL=synastry.service.d.ts.map

@@ -120,9 +120,8 @@ export declare function calculateCompatibility(userId: string, partnerId: string
 /**
  * Get cached compatibility analysis
  */
-export declare function getCachedCompatibility(userId: string, partnerId: string): Promise<CompatibilityAnalysis | null>;
-/**
- * Invalidate compatibility cache
- */
-export declare function invalidateCompatibilityCache(userId: string, partnerId: string): Promise<void>;
+/** @deprecated Redis cache removed */
+export declare function getCachedCompatibility(_userId: string, _partnerId: string): Promise<CompatibilityAnalysis | null>;
+/** @deprecated Redis cache removed — no-op */
+export declare function invalidateCompatibilityCache(_userId: string, _partnerId: string): Promise<void>;
 //# sourceMappingURL=compatibility.d.ts.map

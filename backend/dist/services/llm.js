@@ -5,7 +5,7 @@
  * Providers: Anthropic Claude (primary) → OpenAI GPT-4o (fallback)
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildEnhancedContext = exports.generateSessionSummary = exports.buildSystemPrompt = exports.generateChartSummary = exports.ASTROLOGER_SYSTEM_PROMPT = void 0;
+exports.ASTROLOGER_SYSTEM_PROMPT = exports.buildEnhancedContext = exports.generateSessionSummary = exports.buildSystemPrompt = exports.generateChartSummary = void 0;
 exports.getModelIdForTier = getModelIdForTier;
 exports.streamChatCompletion = streamChatCompletion;
 exports.chatCompletion = chatCompletion;
@@ -17,7 +17,6 @@ const ai_1 = require("ai");
 const openai_1 = require("@ai-sdk/openai");
 const anthropic_1 = require("@ai-sdk/anthropic");
 const agent_tools_1 = require("./agent-tools");
-// createAstrologyTools is imported from agent_tools_1
 // Re-export helpers from legacy (prompt building, chart summary, session summary)
 var llm_helpers_1 = require("./llm-helpers");
 Object.defineProperty(exports, "generateChartSummary", { enumerable: true, get: function () { return llm_helpers_1.generateChartSummary; } });
@@ -25,7 +24,7 @@ Object.defineProperty(exports, "buildSystemPrompt", { enumerable: true, get: fun
 Object.defineProperty(exports, "generateSessionSummary", { enumerable: true, get: function () { return llm_helpers_1.generateSessionSummary; } });
 Object.defineProperty(exports, "buildEnhancedContext", { enumerable: true, get: function () { return llm_helpers_1.buildEnhancedContext; } });
 Object.defineProperty(exports, "ASTROLOGER_SYSTEM_PROMPT", { enumerable: true, get: function () { return llm_helpers_1.ASTROLOGER_SYSTEM_PROMPT; } });
-const { ASTROLOGER_SYSTEM_PROMPT } = llm_helpers_1;
+const llm_helpers_2 = require("./llm-helpers");
 /**
  * Maps the legacy chat message format to Vercel AI SDK's format.
  */
@@ -89,7 +88,7 @@ async function* streamChatCompletion(messages, config = {}, callbacks) {
         const tier = config.tier || 'FREE';
         const model = getProviderModel(tier);
         // Create tools with user context (userId + IP for solar/lunar return location)
-        const tools = agent_tools_1.createAstrologyTools({ userId: config.userId || '', userIp: config.userIp });
+        const tools = (0, agent_tools_1.createAstrologyTools)({ userId: config.userId || '', userIp: config.userIp });
         // Gating Tools based on User Subscription Tier
         const activeTools = {};
         // Natal chart and current transits are pre-injected into the system prompt.
@@ -133,20 +132,23 @@ You have access to seven additional tools for on-demand specific queries:
 - get_composite: the composite chart — the relationship as its own entity
 For synastry/composite tools, use the partner ID from the stored partners list below.
 ${config.partners && config.partners.length > 0
-  ? `Stored partners: ${config.partners.map(p => `${p.name} (id: ${p.id})`).join(', ')}. If the user refers to someone not in this list, ask them to add that person's birth data via Settings → Partners first.`
-  : `No partners stored yet. If the user asks about relationship compatibility, invite them to add a partner's birth data via Settings → Partners.`}
+                    ? `Stored partners: ${config.partners.map(p => `${p.name} (id: ${p.id})`).join(', ')}. If the user refers to someone not in this list, ask them to add that person's birth data via Settings → Partners first.`
+                    : `No partners stored yet. If the user asks about relationship compatibility, invite them to add a partner's birth data via Settings → Partners.`}
 Answer every question with depth, nuance, and comprehensive multi-tool synthesis when relevant.`;
         if (coreMessages.length > 0 && coreMessages[0].role === 'system') {
             coreMessages[0].content += `\n\n[TIER SYSTEM INSTRUCTION]\n${systemPromptContext}`;
         }
-        // Anthropic 2-layer prompt caching
+        // Anthropic 2-layer prompt caching: split system message into static (Layer 1)
+        // and per-user/day (Layer 2) blocks, each marked with cache_control: ephemeral.
+        // Layer 1 (persona) is shared across ALL users → very high cache hit rate.
+        // Layer 2 (chart + transits + tier) is stable within a session → per-user hits.
         const modelIdForCache = getModelIdForTier(tier);
         if (modelIdForCache.startsWith('claude-') && coreMessages.length > 0 && coreMessages[0].role === 'system') {
             const fullContent = coreMessages[0].content;
-            const dynamicPart = fullContent.substring(ASTROLOGER_SYSTEM_PROMPT.length);
+            const dynamicPart = fullContent.substring(llm_helpers_2.ASTROLOGER_SYSTEM_PROMPT.length);
             coreMessages[0] = {
                 role: 'system',
-                content: ASTROLOGER_SYSTEM_PROMPT,
+                content: llm_helpers_2.ASTROLOGER_SYSTEM_PROMPT,
                 providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
             };
             if (dynamicPart.trim()) {
@@ -213,7 +215,7 @@ Answer every question with depth, nuance, and comprehensive multi-tool synthesis
 async function chatCompletion(messages, config = {}) {
     const coreMessages = mapToCoreMessages(messages);
     const model = getProviderModel();
-    // No tools — used for forecast/oracle generation, not chat.
+    // No tools — this function is used for forecast/oracle generation, not chat.
     // Passing tool schemas wastes thousands of input tokens per call.
     const result = await (0, ai_1.generateText)({
         model,

@@ -5,8 +5,43 @@
  *
  * Calculates current planetary positions and their aspects to natal chart
  */
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.calculateTransitsToNatal = calculateTransitsToNatal;
+exports.getActiveTransitsForUser = getActiveTransitsForUser;
+exports.computeTransitHouses = computeTransitHouses;
 const redis_1 = require("../utils/redis");
 // ============================================
 // Constants
@@ -250,6 +285,11 @@ function calculateTransitsToNatal(transits, natalChart) {
 }
 /**
  * Get active transit-to-natal aspects for a user's chart.
+ * Fetches today's sky from astrology-api.io via SDK (cached 24h, one call per day for all users),
+ * then computes which transiting planets are aspecting the user's natal planets.
+ *
+ * @param natalChart - The user's natal chart object (birthChart.chartData from DB)
+ * @returns { skyPositions, aspectsToNatal, moonPhase, generatedAt }
  */
 async function getActiveTransitsForUser(natalChart) {
     const today = new Date();
@@ -261,8 +301,9 @@ async function getActiveTransitsForUser(natalChart) {
     const cached = await redis_1.redisClient.get(cacheKey);
     if (cached) {
         skyPositions = JSON.parse(cached);
-    } else {
-        const { AstrologyClient } = await Promise.resolve().then(() => require('@astro-api/astroapi-typescript'));
+    }
+    else {
+        const { AstrologyClient } = await Promise.resolve().then(() => __importStar(require('@astro-api/astroapi-typescript')));
         const client = new AstrologyClient({ apiKey: process.env.ASTROLOGY_API_KEY });
         const [year, month, day] = dateStr.split('-').map(Number);
         const response = await client.data.getGlobalPositions({
@@ -297,8 +338,9 @@ async function getActiveTransitsForUser(natalChart) {
         generatedAt: new Date().toISOString(),
     };
 }
-exports.getActiveTransitsForUser = getActiveTransitsForUser;
-// House activation math
+// ============================================
+// House Activation Math (no API calls)
+// ============================================
 const SIGN_TO_LONGITUDE = {
     Aries: 0, Taurus: 30, Gemini: 60, Cancer: 90, Leo: 120, Virgo: 150,
     Libra: 180, Scorpio: 210, Sagittarius: 240, Capricorn: 270, Aquarius: 300, Pisces: 330,
@@ -311,14 +353,23 @@ function getHouseForLongitude(longitude, cuspLongitudes) {
         const start = cuspLongitudes[i];
         const end = cuspLongitudes[(i + 1) % 12];
         if (end > start) {
-            if (longitude >= start && longitude < end) return i + 1;
-        } else {
-            if (longitude >= start || longitude < end) return i + 1;
+            if (longitude >= start && longitude < end)
+                return i + 1;
+        }
+        else {
+            // wrap around 0°/360°
+            if (longitude >= start || longitude < end)
+                return i + 1;
         }
     }
     return 1;
 }
+/**
+ * Given today's sky positions and the user's natal house cusps,
+ * returns which natal house each transiting planet occupies.
+ */
 function computeTransitHouses(skyPositions, natalHouses) {
+    // Build sorted cusp longitude array (index 0 = house 1 cusp)
     const sortedCusps = [...natalHouses].sort((a, b) => a.number - b.number);
     const cuspLongitudes = sortedCusps.map(h => signDegreeToLongitude(h.sign, h.degree));
     const result = {};
@@ -328,5 +379,4 @@ function computeTransitHouses(skyPositions, natalHouses) {
     }
     return result;
 }
-exports.computeTransitHouses = computeTransitHouses;
 //# sourceMappingURL=transits.js.map
