@@ -109,6 +109,14 @@
 
 ---
 
+### BUG-18 — Pre-existing TypeScript errors in agent-tools (non-blocking)
+- **Priority:** Low — non-blocking, dist emits correctly (`noEmitOnError: false`)
+- **Where:** `backend/src/services/agent-tools/index.ts` — 20 errors, AI SDK `tool()` overload type mismatch + implicit `any` for `args`
+- **Root cause:** AI SDK types are unstable/narrow for `tool()`. Code works correctly at runtime — only type-level issue.
+- **Fix:** Update AI SDK types when they stabilize, or add explicit type annotations to each `tool()` call.
+
+---
+
 ### BUG-17 — Admin Prompts UI is disconnected from the live Oracle
 - **Priority:** Medium
 - **Where:** `backend/src/routes/admin.ts` (prompts endpoints) + `backend/src/services/llm-helpers.ts`
@@ -195,6 +203,19 @@
 - **Status:** ✅ COMPLETE — implemented 2026-03-17, commit `0106139`, pushed to GitHub
 - **What was done:** Deleted `socket-client.ts`, `socket/`, `use-websocket.ts`. Rewrote `chat-context-ws.tsx` (SSE-only, AbortController cancel, fixed named-event parser). Inlined `ConnectionState` type in `connection-status.tsx`. Removed `socket.io` + `socket.io-client` packages. Backend uses `app.listen` directly.
 - **Resolved:** BUG-13 permanently (WebSocket gone). BUG-14 partially (WebSocket failure mode gone; input-clearing still needs fixing).
+
+---
+
+## ⏸ Deferred (awaiting product decision or setup)
+
+| Item | Blocker | Notes |
+|------|---------|-------|
+| Chart history UI | Product decision | Backend archives charts on every edit. Build "chart timeline" UI, or remove archiving? |
+| Email onboarding sequences | Resend DKIM DNS propagation | Welcome email, chart-computed trigger, weekly digest — schema + Resend in place, sequences not built |
+| Discount codes → Stripe checkout | Product decision | Backend + admin UI exist. Pricing strategy (% vs fixed, which tiers) TBD before wiring to checkout |
+| Referral affiliate dashboard | Product decision | Affiliate-facing view of their conversions + commissions — separate from admin view |
+| Cloudflare Turnstile on guest chat | Traffic trigger | Add bot protection when daily guest sessions exceed ~100 or abuse detected |
+| Yearly Stripe price IDs | Victor creates in Stripe | `STRIPE_PRO_PRICE_ID_YEARLY` + `STRIPE_PREMIUM_PRICE_ID_YEARLY` — only needed when yearly billing is offered |
 
 ---
 
