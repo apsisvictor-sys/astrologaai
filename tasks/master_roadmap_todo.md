@@ -1,206 +1,318 @@
-# AstroLogAI — Master Roadmap & Todo
-
-> **Single source of truth.** Last audited: 2026-03-14.
-> Reflects actual codebase state — not aspirational.
-
----
-
-## Core Infrastructure ✓
-
-- [x] Express + TypeScript backend with helmet, CORS, rate limiting
-- [x] Next.js 14 frontend with Tailwind CSS
-- [x] PostgreSQL + Prisma ORM (schema: User, BirthProfile, BirthChart, ChartHistory, ChatSession, ChatMessage, Partner, Subscription, UsageRecord, NotificationPreference)
-- [x] Supabase Auth + JWT authentication middleware
-- [x] Google OAuth integration
-- [x] Redis caching layer (session context, rate limits, health checks) — currently in-memory fallback only in production (see Task 10)
-- [x] Socket.io WebSocket server for real-time streaming chat
-- [x] Health check endpoints: `/health`, `/health/db`, `/health/redis`, `/health/astrology`, `/health/env`
-- [x] Background chart regeneration processor (on birth data change)
-- [x] Monthly query reset cron job
+# AstroLogAI — Master Roadmap & Source of Truth
+> **Single source of truth.** Last updated: 2026-03-17 (SSE migration complete).
+> All bugs found during testing, all pending work, all future plans live here.
+> When testing resumes (Section 7+), new bugs get added to this file.
 
 ---
 
-## AI Agent (Core Product) ✓
+## Pending Manual Actions (Victor must do these)
 
-- [x] Autonomous agent engine via Vercel AI SDK `streamText` with tool calling
-- [x] Anthropic Claude (primary) → OpenAI GPT-4o (fallback) provider selection
-- [x] 10 astrological tools: natal chart, transits, synastry, progressions, solar return, relocation, composite, venus return, lunar return, solar arc directions
-- [x] Tool access gated by subscription tier (FREE/PRO/PREMIUM)
-- [x] Tier-aware system prompt injection
-- [x] Tool call events streamed to frontend (`chat:tool_call`)
-- [x] Stream cancellation support (AbortController)
-
----
-
-## Astrology API Layer ✓
-
-- [x] SDK: `@astro-api/astroapi-typescript` — all tools call SDK directly (orchestrator removed)
-- [x] `createAstrologyTools` factory — all 8 tools → SDK endpoints
-- [x] Global transits: `client.data.getGlobalPositions()` with 24h Redis cache
-- [x] Personal daily horoscope: `client.horoscope.getPersonalDailyHoroscope()` with 24h cache
-- [x] Transit house injection: `computeTransitHouses()` math in `transits.ts` — sky + house context for all users
-- [x] Exponential backoff (3 retries, 1s → 30s max)
-- [x] Circuit breaker pattern
-- [x] Failure logging to Redis
-- [x] Provider health check polling (60s interval, 5min cache)
+| Action | Why | Unblocks |
+|--------|-----|---------|
+| Create Google Cloud project → enable Maps JS API + Places API + Geocoding API + Time Zone API | Location autocomplete + timezone accuracy | ENH-02, BUG-04 stopgap |
+| Add `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` to Vercel env vars | Frontend Places autocomplete | ENH-02 |
+| Add `GOOGLE_MAPS_API_KEY` to Railway env vars | Backend Time Zone API | ENH-02 |
+| Get Google OAuth client ID + secret from same Google Cloud project → add to Railway | Google login | FEAT-01 |
+| Create Facebook Developer App → get App ID + Secret → add to Railway | Facebook login replacing Magic Link | FEAT-02 |
 
 ---
 
-## Chat System ✓
+## 🚀 Ready to Deploy (code done locally, one deploy batch)
 
-- [x] WebSocket-based streaming chat (Socket.io rooms)
-- [x] Chat sessions with per-session message history
-- [x] Session context stored in Redis
-- [x] 100-message context window
-- [x] Conversation title auto-generated from first message
-- [x] Typing indicator events
-- [x] Message deduplication via client-generated IDs
-- [x] Guest chat → authenticated migration (SSE parse fix, timezone fix, migrateGuestSession helper, Google OAuth migration)
+| # | What | Files |
+|---|------|-------|
+| BUG-01 | Guest session localStorage cleared on login/register | `frontend/src/lib/auth-context.tsx` |
+| BUG-02 | Swiss Ephemeris second provider removed | `astrology-orchestrator.ts`, `services/astrology/index.ts`, `routes/astrology.ts`, `src/index.ts` |
+| BUG-03 | Login error shows correctly (submitError state + min-h reserved space) | `frontend/src/components/login-form.tsx`, `frontend/src/lib/auth-context.tsx` |
+| BUG-15 | Oracle language default fixed (bg → en) | `middleware/languageDetection.ts`, `controllers/chatController.ts` (4 places) |
+| BUG-16 | New Oracle system prompt written by Opus | `services/llm-helpers.ts` — full `ASTROLOGER_SYSTEM_PROMPT` rewrite |
+| UI | CosmicSpinner — unified orbital loading animation across all spinners | `frontend/src/components/ui/spinner.tsx` + login-form, registration-form, forecast-panel, chart-loading |
 
----
-
-## Subscription & Billing ✓
-
-- [x] 3 tiers: FREE (10q/mo, 4/day), PRO (unlimited), PREMIUM (unlimited + all tools)
-- [x] Stripe integration
-- [x] Scheduled downgrades
-- [x] Monthly usage reset
+**Deploy command:** commit all changes, push to Railway (backend) + Vercel (frontend).
 
 ---
 
-## Rate Limiting ✓
+## 🔴 Active Bugs (code fix needed)
 
-- [x] Monthly + daily + burst limits enforced
-- [x] Redis burst counter (60s sliding window)
-- [x] 429 responses with Retry-After header
-- [x] Localized error messages (BG/EN)
-- [x] 80% usage warning header
-- [x] Rate limit headers on all responses (X-RateLimit-*)
-- [x] Fail-open on DB error
+### BUG-04 — Location search hits 429 and silently breaks
+- **Priority:** SKIPPED — superseded by ENH-02 (Google Places replaces Nominatim entirely)
+- **⚠️ PENDING MANUAL ACTION:** Victor must create Google Cloud project + get API keys before ENH-02 can be implemented
 
 ---
 
-## User Features ✓
-
-- [x] User registration + email verification
-- [x] Birth data input with geocoding (location autocomplete)
-- [x] Natal chart calculation + storage
-- [x] Chart history archiving when birth data changes
-- [x] Multi-birth-profile support (family members)
-- [x] Partner management (add partner birth data for synastry) — PREMIUM-only, limit 10
-- [x] Compatibility analysis: 5-category scoring (love, communication, trust, adventure, values) with Redis cache
-- [x] Daily/weekly forecast generation — SDK-powered + LLM Oracle voice rewrite
-- [x] Daily Horoscope Card — tier-gated life areas (FREE: love+career, PRO/PREMIUM: all 6)
-- [x] PDF export of chart data — `professional-pdf-export.tsx` + `chart-download.tsx` (PNG/PDF)
-- [x] Notification preferences (email/push/SMS toggles)
-- [x] Language toggle (Bulgarian / English)
-- [x] Language detection via Accept-Language header
-- [x] Onboarding tutorial
+### BUG-06 — ASC/house discrepancy vs astro-seek for polar latitudes
+- **Priority:** Medium — affects users born above Arctic Circle (~0.1% of users)
+- **Root cause:** Placidus is mathematically undefined above 66.5°N. Different software implements different approximation algorithms. Also: our Nominatim coordinates differ from astro-seek's (BUG-08 is a contributor).
+- **Actions:**
+  1. After BUG-08 fix, test with exact coordinates 70.6667°N 23.6833°E → if ASC still differs, it's the polar algorithm in astrology-api.io
+  2. If algorithm issue: contact astrology-api.io support with test case (15 Apr 1982, 06:00 UTC, 70.6667N 23.6833E, Placidus)
+  3. Add gentle UI warning for births above 66°N: "For Arctic latitudes, Placidus houses may be approximate. Whole Sign houses are recommended."
 
 ---
 
-## Frontend Pages & Components ✓
-
-- [x] Auth forms (login, registration, Google OAuth)
-- [x] Chat interface with streaming display
-- [x] Oracle Welcome screen — Oracle persona glyph (pulsing ring), personalized greeting, value props, inline birth form
-- [x] SVG Natal Chart Wheel — `circular-chart-wheel.tsx` (777 lines): all 14 planets, zodiac ring, 12 houses, aspect lines, entrance animation, interactive hover tooltips (EN/BG)
-- [x] Aspect Explorer — interactive aspect filtering and modal details
-- [x] Chart panel — BigThreeCard, PlanetTable, ElementsCard, AspectsSummary
-- [x] Connection status indicator + WebSocket reconnection service
-- [x] Typing indicator
-- [x] Usage counter
-- [x] Global nav + navigation
-- [x] Partner card + form
-- [x] Language switcher
-- [x] Provider status indicator
-- [x] Marketing chat preview
-- [x] Daily Forecast page — `/forecast/page.tsx` with DailyHoroscopeCard
-- [x] Weekly Forecast page — `/forecast/weekly/page.tsx`
+### BUG-07 — geo-tz returns Europe/Berlin for Norwegian coordinates
+- **Priority:** Low (Europe/Oslo and Europe/Berlin have identical UTC offsets since 1970s — no practical impact)
+- **Fix:** `npm update geo-tz` in backend, OR add country_code post-processing override
+- **Note:** Fully resolved by ENH-02 (Google Time Zone API replaces geo-tz entirely)
 
 ---
 
-## Admin Dashboard ✓
-
-- [x] Admin auth middleware
-- [x] 19 backend endpoints under `/api/v1/admin/*`
-- [x] Overview page — metric cards, signups sparkline, tier donut, date range filters
-- [x] Users page — paginated + searchable, tier/status filters, user detail modal, inline tier/suspend actions
-- [x] Usage & Cost page — token charts, latency p50/p95/p99, cost by tier
-- [x] Revenue page — MRR chart, new subs vs churn, Stripe data
-- [x] Prompt Editor — split panel: list + editor + version history + restore
-- [x] Model Config — per-tier model string inputs, hot-reload save
-- [x] Discount Codes — table + create modal + Stripe coupon link
-- [x] Referral Links — table + create modal + commission tracking
+### BUG-08 — Location search returns administrative boundary before town center
+- **Priority:** Medium — affects coordinate accuracy for all city searches, impacts chart accuracy
+- **Where:** `backend/src/services/geocoding.ts` — `searchLocations()` result ordering
+- **Fix:** Sort results by type priority: `['city', 'town', 'village', 'suburb', 'hamlet']` before `administrative`
+- **Note:** Fully resolved by ENH-02 (Google Places replaces Nominatim)
 
 ---
 
-## Holistic Chart Reasoning (DESIGN-01) ✓
-
-- [x] Layer 1: Expanded `generateChartSummary` — all 14 bodies, chart ruler + placement, MC, angular planets, stelliums, all aspects sorted by orb, dominant element + modality
-- [x] Layer 2: Rewrote `ASTROLOGER_SYSTEM_PROMPT` — semantic question classification (8 types), depth rule (min 3-4 elements), special points guidance (Nodes, Chiron, Lilith, retrograde, 12th house)
-- [x] Layer 3: Per-tier synthesis instruction — accurate tool lists, upsell language in Bulgarian, multi-tool synthesis guidance for PRO/PREMIUM
-- [x] SYNASTRY READING PROTOCOL — all aspects sorted by orb, grouped into 5 thematic buckets, agent instructed to cover full picture
-- [x] Aspect interpretation library (partial) — covers 9 romantic planet pairs (sun/moon/venus/mars combos) in `synastry.service.ts`. Missing: Saturn, Jupiter, Pluto, Uranus, Neptune aspects and all outer planet interactions.
+### BUG-09 — Quick action card labels are wrong on Dashboard
+- **Priority:** Medium — misleading navigation labels
+- **Where:** `frontend/src/app/[locale]/(app)/dashboard/page.tsx` — Quick Actions section
+- **Fix:** Oracle → Chat → `/chat` | Transits → Forecast → `/forecast` | Synastry → Partners → `/partners`
 
 ---
 
-## Bug Fixes ✓
-
-- [x] BUG-01: `analyzePlanetPair` aspect lookup — finds strongest aspect (tightest orb) involving the planet across full synastry
-- [x] BUG-02: PRO tier system prompt now accurately reflects tool access (FREE: natal only, PRO: natal + transits + solar return, PREMIUM: all 8)
-
----
-
-## Code Quality ✓
-
-- [x] REFACTOR-01: Model per tier driven by env vars — `MODEL_FREE`, `MODEL_PRO`, `MODEL_PREMIUM` — defaults: haiku-4-5 / sonnet-4-6 / opus-4-6
-- [x] REFACTOR-02: Removed all `// @ts-ignore` from agent tool definitions
-- [x] REFACTOR-03: Actual model ID tracked in chat metadata via `getModelIdForTier()`
-- [x] REFACTOR-04: `processingTime` now records actual ms elapsed per stream
-- [x] REFACTOR-05: Migrated `llm-legacy.ts` → `llm-helpers.ts`, deleted legacy file
-- [x] REFACTOR-06: `MAX_CONTEXT_MESSAGES` = 100, auto-summary deprioritized
-- [x] Deleted old LLM orchestrator, stripped dead GLM/MiniMax code
-- [x] Winston structured error logger with console + file transports
-- [x] Resend email integration (transactional emails active)
-- [x] LlmUsage + SystemPrompt + AdminConfig + DiscountCode + ReferralLink DB tables migrated
+### BUG-10 — DailyHoroscopeCard entirely locked for FREE tier
+- **Priority:** HIGH — conversion impact (free users see zero value)
+- **Where:** `frontend/src/components/chart/` — DailyHoroscopeCard component
+- **What should happen:** FREE users see Love + Career sections with content. Other 4 areas (Health, Finances, Family, Personal Growth) locked with upgrade prompt.
+- **Fix:** Add tier check — fetch and display 2 sections for FREE, show lock wall only on remaining 4
 
 ---
 
-## Outstanding Work
-
-### HIGH — Sprint Tasks (next up)
-
-- [ ] **Task 9 — Wire LlmUsage table** — populate `LlmUsage` after each LLM stream (date, tier, model, input/output tokens, latency). Currently table exists but is empty.
-- [ ] **Task 10 — Re-enable Redis in production** — currently using in-memory fallback only. Wire Upstash credentials in Railway. Risk: multi-dyno cache isolation, Nominatim rate limit under load.
-
-### MEDIUM — Planned Features
-
-- [ ] **Facebook OAuth** — DECISION LOCKED 2026-03-13: Remove Magic Link from login/register forms, add Facebook OAuth via Supabase Facebook provider. Add FB app credentials to Railway env vars.
-- [ ] **Forecast notifications** — hook daily horoscope into NotificationPreference (email channel via Resend). Schema already has `emailEnabled` flag.
-- [ ] **ENH-09: Aspect Grid Matrix** — planet-vs-planet grid with aspect symbols (☌△□⚹☍) in matching colors. Data available from `rawChart.aspects`. Add `AspectGrid` component in `src/components/chart/`, as collapsible panel in `chart-panel.tsx`.
-
-### LOW — Future / Backlog
-
-- [ ] **ENH-02: DB schema cleanup** — `BirthData` and `Message` legacy models still in schema with deprecation notes. Write migration to move remaining records → new tables, drop old ones.
-- [ ] **ENH-03: Compatibility cache invalidation** — when birth data changes, invalidate stale compatibility cache entries.
-- [ ] **ENH-04: Stripe webhook hardening** — verify signature validation + add idempotency checks.
-- [ ] **ENH-05: Rate limit fail-open audit** — add Redis-based fallback counter so limits still apply when Postgres is down.
-- [ ] **ENH-06: WebSocket reconnection UX** — `reconnection.ts` exists, but spinner/toast/queuing UX not polished.
-- [ ] **ENH-08: Multi-language expansion** — RO, RS, GR markets. i18n infrastructure (next-intl) already in place.
-- [ ] **DESIGN-01 Future: Chart intake** — on first session, generate + store synthesis of user's top 5-7 life themes from natal chart, so Oracle always has a narrative foundation without re-calling the tool.
-- [ ] **ENH-07: Aspect interpretation library (complete)** — current library only covers 9 romantic planet pairs. Needs Saturn, Jupiter, Pluto, Uranus, Neptune aspects for full coverage.
-- [ ] **ENH-00: Professional PDF Export (server-side)** — client-side PDF exists. Server-side: pdfkit + `@resvg/resvg-js` for SVG→PNG, bilingual A4 layout with cover page. Currently backend returns graceful error when called.
-- [ ] **Chart history UI** — backend archives on every birth data edit. Minimal "chart timeline" page or remove archiving. Decision: TBD.
-- [ ] **Email onboarding sequences** — welcome email, chart-computed notification, weekly forecast digest. Needs Resend DKIM to propagate first.
-- [ ] **Astrocartography map** — relocation tool returns text only. Needs Leaflet/Mapbox with astro lines for full experience.
-- [ ] **Discount codes → Stripe checkout** — backend exists, pending pricing strategy decision.
-- [ ] **Referral attribution UI** — backend fully wired. Pending: affiliate dashboard for referrers.
+### BUG-11 — Wrong CTA + no Chat button in navigation
+- **Priority:** HIGH — Chat is the core product and is not reachable from main nav
+- **Where:** `frontend/src/app/[locale]/(app)/dashboard/page.tsx` + `frontend/src/components/shell/sidebar.tsx`
+- **Fix 1:** CTA button: change label "Unlock The Oracle" → "Chat with the Oracle", href → `/chat`
+- **Fix 2:** Add Chat nav item to sidebar near top of nav list
 
 ---
 
-## Deferred / Won't Do (This Phase)
+### BUG-12 — Left sidebar not translating when language is switched
+- **Priority:** DEFERRED — see DECISION-01 (English first)
+- **Where:** `frontend/src/components/shell/sidebar.tsx` — nav labels not using i18n keys
+- **Action:** Do not fix until full English version is complete and stable
 
-- **FEATURE-04: Real Session Summarization** — deprioritized. 100-message context window is sufficient. Revisit if users hit the cap regularly.
-- **FEATURE-06: Push Notifications** — schema has `pushEnabled`, no delivery implemented. Not in active roadmap.
-- **ENH-07: Aspect interpretation library** — DONE via `synastry.service.ts` (100+ interpretations).
+---
+
+### ~~BUG-13~~ — ✅ RESOLVED (2026-03-17)
+- WebSocket and heartbeat removed entirely via ARCH-01. No longer applicable.
+
+---
+
+### BUG-14 — Typed message cleared from input on failed send (message lost)
+- **Priority:** HIGH — users lose work, causes real frustration
+- **Where:** `frontend/src/components/chat/chat-input-bar.tsx` — send handler
+- **Fix:** Only clear input AFTER confirmed successful send. On failure: keep text in input, show red error banner "Message failed to send — your text is preserved above".
+- **Also:** Add `localStorage.setItem('astrologaai_draft_' + conversationId, inputValue)` with 1s debounce autosave. Restore on page load.
+- **Note:** WebSocket failure mode removed by ARCH-01. Input-clearing issue still applies to SSE path.
+
+---
+
+### BUG-17 — Admin Prompts UI is disconnected from the live Oracle
+- **Priority:** Medium
+- **Where:** `backend/src/routes/admin.ts` (prompts endpoints) + `backend/src/services/llm-helpers.ts`
+- **What:** `/admin/prompts` saves to `system_prompts` DB table. Chat controller never reads from that table — uses hardcoded `ASTROLOGER_SYSTEM_PROMPT` constant directly. Editing admin does nothing to the Oracle.
+- **Fix (Option A — recommended):** In `buildSystemPrompt()`, do a DB lookup for the 'master' prompt; use DB content if non-empty, fall back to hardcoded constant. Makes the admin UI live.
+- **Fix (Option B):** Remove the admin prompt editor and document that system prompt changes require code deploy.
+
+---
+
+## 🟡 Enhancements
+
+### ENH-01 — Page transition animation
+- **Priority:** Medium
+- **Fix:** Install `nextjs-toploader`. In `app/[locale]/layout.tsx`:
+  ```tsx
+  import NextTopLoader from 'nextjs-toploader';
+  <NextTopLoader color="#e41aff" showSpinner={false} />
+  ```
+
+---
+
+### ENH-02 — Replace Nominatim with Google Places API *(blocked on Google Maps API key)*
+- **Priority:** HIGH — directly impacts onboarding conversion
+- **Resolves:** BUG-04, BUG-07, BUG-08, BUG-06 (coordinate precision contributor)
+- **Steps:**
+  1. Victor creates Google Cloud project → enables Maps JS API + Places API + Geocoding API + Time Zone API
+  2. Add `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` to Vercel + `GOOGLE_MAPS_API_KEY` to Railway
+  3. `npm install @googlemaps/js-api-loader` in frontend
+  4. Create `frontend/src/components/ui/google-places-input.tsx` — AutocompleteService + Geocoder
+  5. Replace location input in `birth-data-form.tsx` + `partner-form.tsx`
+  6. Backend `geocoding.ts`: replace `geo-tz` with Google Time Zone API call
+  7. Remove `routes/locations.ts` + Nominatim search from `geocoding.ts`
+
+---
+
+### ENH-03 — House numeral display for narrow houses
+- **Priority:** Medium — visual quality issue for polar charts
+- **Where:** `frontend/src/components/astrology/natal-chart-canvas.tsx`
+- **Fix:** Place numeral at angular midpoint of each house at fixed inner radius (~52%). Skip if house < 3°, reduce font if < 20°.
+
+---
+
+### ENH-04 — Wire LlmUsage table (Task 9 from old roadmap)
+- **Priority:** Medium — admin usage/cost page currently shows no data
+- **Where:** `backend/src/controllers/chatController.ts` — after each LLM stream completes
+- **Fix:** After stream, write to `LlmUsage` table: date, tier, model, inputTokens, outputTokens, latencyMs
+
+---
+
+### ENH-05 — Re-enable Redis in production (Task 10 from old roadmap)
+- **Priority:** Medium — currently using in-memory fallback only
+- **Fix:** Confirm `REDIS_URL` is set correctly on Railway (rediss:// format for Upstash). Wire Upstash credentials.
+
+---
+
+## 🟠 Features (blocked on external setup)
+
+### FEAT-01 — Google OAuth *(blocked on Victor creating Google Cloud project)*
+- Google Cloud OAuth credentials needed → add `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` to Railway
+- Same Google Cloud project as ENH-02 (Maps API key)
+
+### FEAT-02 — Replace Magic Link with Facebook OAuth *(blocked on Victor creating Facebook Dev App)*
+- **Steps:**
+  1. Victor creates Facebook Developer App → App ID + App Secret
+  2. Add `FACEBOOK_CLIENT_ID` + `FACEBOOK_CLIENT_SECRET` to Railway
+  3. Backend: add `/api/v1/auth/facebook` OAuth route (mirror Google handler)
+  4. Frontend: replace Magic Link button in `login-form.tsx` + `register-form.tsx` with Facebook button (`#1877F2`, FB logo SVG)
+  5. Remove `signInWithMagicLink` + magic link inline form from both components
+
+### FEAT-03 — Forecast email notifications
+- Hook daily horoscope into `NotificationPreference.emailEnabled` via Resend
+- Schema and Resend integration already in place
+
+### FEAT-04 — Aspect Grid Matrix (ENH-09 from old roadmap)
+- Planet-vs-planet grid with aspect symbols (☌△□⚹☍) in matching colors
+- Data available from `rawChart.aspects`
+- Add `AspectGrid` component in `src/components/chart/`, collapsible panel in `chart-panel.tsx`
+
+---
+
+## 🔵 Architecture
+
+### ARCH-01 — Migrate chat from WebSocket to HTTP POST + SSE streaming
+- **Status:** ✅ COMPLETE — implemented 2026-03-17, commit `0106139`, pushed to GitHub
+- **What was done:** Deleted `socket-client.ts`, `socket/`, `use-websocket.ts`. Rewrote `chat-context-ws.tsx` (SSE-only, AbortController cancel, fixed named-event parser). Inlined `ConnectionState` type in `connection-status.tsx`. Removed `socket.io` + `socket.io-client` packages. Backend uses `app.listen` directly.
+- **Resolved:** BUG-13 permanently (WebSocket gone). BUG-14 partially (WebSocket failure mode gone; input-clearing still needs fixing).
+
+---
+
+## 🟣 Future Features (post-launch)
+
+### FUTURE-01 — Real-time Transit Prediction Engine
+*(See `docs/oracle-engagement-strategy.md` for full spec)*
+- Pre-calculate exact transit dates for each user for next 6 months
+- Store in `user_transit_forecasts` table
+- Nightly cron extends the calendar
+- Oracle 4-stage engagement arc per transit: T-4 weeks → T-2 weeks → T-0 → T+1 week
+- Inject next 3 upcoming transits into Oracle context automatically
+- Push notifications: "Your Saturn return begins in 6 weeks"
+
+### FUTURE-02 — Long-term Personal Memory (PGVector + RAG)
+*(See `docs/oracle-engagement-strategy.md` for full spec)*
+- After-session Haiku job extracts structured memories → `user_memories` + `user_relationships` tables
+- pgvector embeddings of memories + session summaries
+- Before each Oracle response: embed user message → similarity search → inject top-5 relevant memories
+- Enables: "This reminds me of what you told me about your father in January"
+- The competitive moat — no other astrology app has this
+
+### FUTURE-03 — Astrocartography Map
+- Relocation tool returns text only. Needs Leaflet/Mapbox with astro lines for full experience.
+
+### FUTURE-04 — Multi-language Expansion
+- After BG translation is complete: evaluate RO, RS, GR markets
+- next-intl i18n infrastructure already in place
+
+### FUTURE-05 — Wire Admin Prompts UI to Live Oracle (BUG-17 Option A)
+- Makes system prompt editable from admin panel without requiring code deploy
+
+---
+
+## ✅ Decisions
+
+| Decision | What |
+|----------|------|
+| DECISION-01 | **English first.** Complete and deploy full app in English before touching Bulgarian translation. BUG-12 and all i18n issues deferred until English version is stable. |
+| DECISION-02 | **WebSocket → SSE migration** ✅ COMPLETE (2026-03-17). Chat runs on HTTP POST + SSE only. Socket.io removed from both backend and frontend. |
+| DECISION-03 | **One Oracle system prompt** lives in `services/llm-helpers.ts` as a hardcoded constant. Admin prompts UI is currently disconnected (BUG-17). Until BUG-17 is fixed, all prompt changes require a code deploy. |
+
+---
+
+## 🧪 Testing Progress
+
+| Section | Status | Notes |
+|---------|--------|-------|
+| 1. Health checks (backend) | ✅ Done | All 4 curl commands passed |
+| 2. Environment check | ✅ Done | |
+| 3A. Registration | ✅ Done | |
+| 3B. Login / Password reset | ✅ Done | BUG-03 found |
+| 3C. Google OAuth | ⏭ Skipped | Needs Google Cloud credentials |
+| 3D. Magic Link / Facebook | ⏭ Skipped | Magic Link to be replaced with Facebook OAuth (FEAT-02) |
+| 4. Onboarding / Birth data | ✅ Partial | BUG-04 (location 429), BUG-06/07/08 (chart accuracy) found |
+| 5. Dashboard | ✅ Partial | BUG-09/10/11/12 found |
+| 6. Chat / Oracle | 🛑 Stopped | BUG-13/14/15/16 found. BUG-15+16 now fixed (pending deploy). |
+| **7–16** | ⏳ **Not started — resume here next session** | |
+
+---
+
+## ✅ Completed & Deployed (historical)
+
+### Infrastructure & Core
+- Express + TypeScript backend, Next.js frontend, PostgreSQL + Prisma, Supabase Auth + JWT
+- Redis caching layer (Upstash, rediss:// format), HTTP POST + SSE streaming chat (WebSocket removed 2026-03-17)
+- Health endpoints: `/health`, `/health/db`, `/health/redis`, `/health/astrology`, `/health/env`
+- Background chart regeneration processor, monthly query reset cron
+
+### AI Agent
+- Vercel AI SDK `streamText` autonomous agent with tool calling
+- Anthropic Claude primary / OpenAI GPT-4o fallback
+- 10 astrological tools gated by subscription tier (FREE/PRO/PREMIUM)
+- Tier-aware system prompt injection, tool call events streamed to frontend
+- Stream cancellation (AbortController)
+- Model per tier driven by env vars: `MODEL_FREE` / `MODEL_PRO` / `MODEL_PREMIUM`
+
+### Astrology API
+- Astrology-API.io as sole provider (Swiss Ephemeris secondary removed — BUG-02)
+- Circuit breaker, exponential backoff (3 retries), failure logging
+- Global transits: 24h Redis cache. Personal daily horoscope: 24h cache.
+- Transit house injection: `computeTransitHouses()` in `transits.ts`
+
+### Subscription & Billing
+- 3 tiers: FREE (10q/mo), PRO (unlimited), PREMIUM (unlimited + all tools)
+- Stripe integration, scheduled downgrades, monthly usage reset
+
+### User Features
+- Registration + email verification, birth data input with geocoding
+- Natal chart calculation + storage, chart history archiving
+- Multi-birth-profile support, partner management (PREMIUM, limit 10)
+- Compatibility analysis (5 categories, Redis cached)
+- Daily/weekly forecast generation (nightly cron pre-generates for PRO/PREMIUM)
+- FREE tier LLM gating: zero API calls for free users on paywall pages
+- Daily Horoscope Card (tier-gated), PDF export, notification preferences
+- Language toggle (BG/EN), language detection
+
+### Frontend (11-step build)
+- Auth forms (login, registration), Google OAuth callback
+- Chat interface with streaming display, Oracle Welcome screen
+- SVG Natal Chart Wheel (`circular-chart-wheel.tsx`): 14 planets, zodiac ring, 12 houses, aspect lines, animations, hover tooltips
+- Aspect Explorer, Chart panel (BigThreeCard, PlanetTable, ElementsCard, AspectsSummary)
+- Forecast pages (`/forecast`, `/forecast/weekly`), Partners panel, Settings (6 pages)
+- Admin Dashboard: 9 pages at `/admin/*` (overview, users, usage, revenue, prompts, config, discounts, referrals)
+- Void Prism design system: `#e41aff` primary, `#0D0010` bg, glass panels, Inter font
+
+### Infrastructure Hardening (March 2026)
+- Redis Proxy bind bug fixed (private class field Proxy issue)
+- Chart_regeneration_queue polling loop removed (17k Redis calls/day → ~0)
+- LLM token waste fixed (removed unused tool schemas from `chatCompletion()`)
+- FREE tier LLM leak fixed (DailyHoroscopeCard + ForecastPanel gated)
+- Railway npm ci fixed (package-lock.json regenerated)
+- Domain confirmed live: astrologa.bg
+
+---
+
+## 📚 Reference Documents (still active)
+- `docs/oracle-engagement-strategy.md` — Oracle engagement framework, transit engine spec, memory architecture spec
+- `docs/TESTING_CHECKLIST.md` — Complete production testing checklist (sections 7–16 still to run)
+- `docs/CACHING_STRATEGY.md` — Redis caching architecture
+- `docs/ERROR_HANDLING_STANDARDS.md` — Error response format standards
