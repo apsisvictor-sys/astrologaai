@@ -54,7 +54,7 @@ const PLANS = [
     tagline: 'Begin your cosmic journey',
     monthlyPrice: 0,
     yearlyPrice: 0,
-    consultations: '10 / month',
+    consultations: '3 / day',
     popular: false,
     cta: 'Get Started Free',
     accentColor: 'rgba(255,255,255,0.15)',
@@ -72,7 +72,7 @@ const PLANS = [
     tagline: 'Deep celestial intelligence',
     monthlyPrice: 9.99,
     yearlyPrice: 7.49,
-    consultations: '150 / month',
+    consultations: 'Unlimited',
     popular: true,
     cta: 'Upgrade to Pro',
     accentColor: '#e41aff',
@@ -152,36 +152,48 @@ export default function PricingPage() {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [faqOpen, setFaqOpen] = useState<number[]>([]);
-  const [userUsage, setUserUsage] = useState<{ queriesThisMonth: number; queriesLimit: number } | null>(null);
+  const [userUsage, setUserUsage] = useState<{ queriesThisMonth: number; queriesLimit: number; resetType?: string } | null>(null);
   const [currentTier, setCurrentTier] = useState<string | null>(null);
   const [promoCode, setPromoCode] = useState('');
   const [promoOpen, setPromoOpen] = useState(false);
   const [promoError, setPromoError] = useState('');
 
-  // Fetch usage data only (for the FREE usage bar)
+  // Fetch live subscription status
   useEffect(() => {
     if (!isAuthenticated) return;
-    async function fetchUsage() {
+    async function fetchStatus() {
       try {
         const token = localStorage.getItem('astrologaai_access_token');
-        const res = await fetch(`${API_URL}/api/v1/subscription/plans`, {
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        const res = await fetch(`${API_URL}/api/v1/subscription/status`, {
+          headers: { 'Authorization': `Bearer ${token}` },
         });
         const result = await res.json();
-        if (result.data) {
-          setUserUsage(result.data.userUsage ?? null);
-          setCurrentTier(result.data.currentSubscription?.tier ?? null);
+        if (result.success && result.data) {
+          setCurrentTier(result.data.tier ?? null);
+          setUserUsage(result.data.usage ? {
+            queriesThisMonth: result.data.usage.queriesThisMonth,
+            queriesLimit: result.data.usage.queriesLimit,
+            resetType: result.data.usage.resetType,
+          } : null);
         }
       } catch {
-        // non-blocking — usage bar just won't show
+        // non-blocking
       }
     }
-    fetchUsage();
+    fetchStatus();
   }, [isAuthenticated]);
 
+  const TIER_RANK: Record<string, number> = { FREE: 0, PRO: 1, PREMIUM: 2 };
+
   const handleCheckout = async (tier: string) => {
-    if (tier === 'FREE') return router.push('/register');
-    if (!isAuthenticated) return router.push('/login?redirect=/pricing');
+    if (!isAuthenticated) {
+      if (tier === 'FREE') return router.push('/register');
+      return router.push('/login?redirect=/pricing');
+    }
+    // Downgrade (including to FREE) → manage in billing settings
+    if (currentTier && TIER_RANK[tier] < TIER_RANK[currentTier]) {
+      return router.push('/settings/subscription');
+    }
     setPromoError('');
     try {
       setCheckoutLoading(tier);
@@ -254,30 +266,61 @@ export default function PricingPage() {
           </p>
         </motion.div>
 
-        {/* ── Usage Bar (FREE users only) ── */}
-        {isAuthenticated && currentTier === 'FREE' && userUsage && (
+        {/* ── Current Plan Banner (logged-in users) ── */}
+        {isAuthenticated && currentTier && (
           <motion.div
-            className="max-w-lg mx-auto mb-12 rounded-2xl p-6"
-            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', backdropFilter: 'blur(12px)' }}
+            className="max-w-2xl mx-auto mb-12 rounded-2xl p-5"
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(228,26,255,0.2)', backdropFilter: 'blur(12px)' }}
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <div className="flex justify-between items-center mb-3">
-              <span className="text-white/70 text-sm font-medium">Monthly Consultations Used</span>
-              <span className="text-sm font-bold" style={{ color: '#e41aff' }}>
-                {userUsage.queriesThisMonth} / {userUsage.queriesLimit}
-              </span>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest mb-1.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                  Your Current Plan
+                </p>
+                <div className="flex items-center gap-2.5 mb-1">
+                  <span className="text-lg font-bold text-white">
+                    {PLANS.find(p => p.id === currentTier)?.name ?? currentTier}
+                  </span>
+                  <span
+                    className="px-2 py-0.5 rounded-full text-xs font-bold"
+                    style={{ background: 'rgba(228,26,255,0.15)', color: '#e41aff', border: '1px solid rgba(228,26,255,0.3)' }}
+                  >
+                    Active
+                  </span>
+                </div>
+                {userUsage && typeof userUsage.queriesLimit === 'number' ? (
+                  <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                    {userUsage.queriesThisMonth} of {userUsage.queriesLimit} consultations used {userUsage.resetType === 'daily' ? 'today' : 'this month'}
+                  </p>
+                ) : (
+                  <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>Unlimited consultations</p>
+                )}
+              </div>
+              <Link
+                href="/settings/subscription"
+                className="shrink-0 text-sm px-4 py-2 rounded-xl font-medium transition-all hover:opacity-80"
+                style={{ background: 'rgba(228,26,255,0.1)', border: '1px solid rgba(228,26,255,0.25)', color: '#e41aff' }}
+              >
+                Manage billing →
+              </Link>
             </div>
-            <div className="h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-              <motion.div
-                className="h-full rounded-full"
-                style={{ background: 'linear-gradient(90deg, #e41aff, #00f0ff)' }}
-                initial={{ width: 0 }}
-                animate={{ width: `${Math.min(100, (userUsage.queriesThisMonth / userUsage.queriesLimit) * 100)}%` }}
-                transition={{ duration: 0.8, delay: 0.4 }}
-              />
-            </div>
+            {/* Usage bar for FREE users */}
+            {currentTier === 'FREE' && userUsage && typeof userUsage.queriesLimit === 'number' && (
+              <div className="mt-4">
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                  <motion.div
+                    className="h-full rounded-full"
+                    style={{ background: 'linear-gradient(90deg, #e41aff, #00f0ff)' }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.min(100, (userUsage.queriesThisMonth / userUsage.queriesLimit) * 100)}%` }}
+                    transition={{ duration: 0.8, delay: 0.4 }}
+                  />
+                </div>
+              </div>
+            )}
           </motion.div>
         )}
 
@@ -323,6 +366,7 @@ export default function PricingPage() {
           {PLANS.map((plan, i) => {
             const isCurrent = currentTier === plan.id;
             const isPopular = plan.popular;
+            const isDowngrade = !!(isAuthenticated && currentTier && TIER_RANK[plan.id] < TIER_RANK[currentTier]);
 
             return (
               <motion.div
@@ -395,12 +439,14 @@ export default function PricingPage() {
                   style={
                     isCurrent
                       ? { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.3)', cursor: 'default', border: '1px solid rgba(255,255,255,0.08)' }
+                      : isDowngrade
+                      ? { background: 'transparent', color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.1)' }
                       : isPopular
                       ? { background: 'linear-gradient(135deg, #ff0080, #e41aff, #00f0ff)', color: 'white', boxShadow: '0 0 30px rgba(228,26,255,0.3)' }
                       : { background: 'rgba(255,255,255,0.07)', color: 'white', border: '1px solid rgba(255,255,255,0.12)' }
                   }
                 >
-                  {checkoutLoading === plan.id ? '...' : isCurrent ? 'Current Plan' : plan.cta}
+                  {checkoutLoading === plan.id ? '…' : isCurrent ? 'Current Plan' : isDowngrade ? 'Downgrade' : plan.cta}
                 </button>
               </motion.div>
             );

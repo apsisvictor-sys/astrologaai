@@ -12,7 +12,7 @@ import { authMiddleware } from '../middleware/auth';
 import { prisma } from '../utils/prisma';
 import Stripe from 'stripe';
 import { getUserUsageStats, checkQueryLimit } from '../middleware/queryLimit';
-import { TIER_CONFIG, getEffectiveMonthlyLimit } from '../config/subscription-tiers';
+import { TIER_CONFIG, getEffectiveMonthlyLimit, getTierLimits } from '../config/subscription-tiers';
 
 const router = Router();
 
@@ -219,7 +219,7 @@ router.get('/status', authMiddleware, async (req: Request, res: Response) => {
     // Get user's tier from User model as fallback
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { tier: true, language: true },
+      select: { tier: true, language: true, dailyQueryCount: true, lastQueryDate: true },
     });
     
     const lang = user?.language || 'bg';
@@ -234,17 +234,46 @@ router.get('/status', authMiddleware, async (req: Request, res: Response) => {
     // Check current query limit status
     const limitStatus = await checkQueryLimit(userId, effectiveTier);
     
-    // Build response
-    const response: any = {
-      tier: effectiveTier,
-      status: effectiveStatus,
-      usage: {
+    // For FREE tier (daily-limited), compute daily usage directly from user record
+    const tierCfg = getTierLimits(effectiveTier);
+    let usageBlock: Record<string, unknown>;
+    if (tierCfg.dailyQueries) {
+      const now = new Date();
+      const last = user?.lastQueryDate;
+      const isNewDay = !last || (
+        last.getDate() !== now.getDate() ||
+        last.getMonth() !== now.getMonth() ||
+        last.getFullYear() !== now.getFullYear()
+      );
+      const dailyUsed = isNewDay ? 0 : (user?.dailyQueryCount ?? 0);
+      const dailyLimit = tierCfg.dailyQueries;
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+      usageBlock = {
+        queriesThisMonth: dailyUsed,
+        queriesLimit: dailyLimit,
+        queriesRemaining: Math.max(0, dailyLimit - dailyUsed),
+        percentage: Math.round((dailyUsed / dailyLimit) * 100),
+        resetDate: tomorrow.toISOString(),
+        resetType: 'daily',
+      };
+    } else {
+      usageBlock = {
         queriesThisMonth: usageStats.used,
         queriesLimit: usageStats.limit,
         queriesRemaining: usageStats.remaining,
         percentage: usageStats.percentage,
         resetDate: usageStats.resetAt,
-      },
+        resetType: 'monthly',
+      };
+    }
+
+    // Build response
+    const response: any = {
+      tier: effectiveTier,
+      status: effectiveStatus,
+      usage: usageBlock,
       // US-36: Additional limit details for UI
       limits: {
         monthly: usageStats.limit,

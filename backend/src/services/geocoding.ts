@@ -172,7 +172,7 @@ export async function searchLocations(query: string, limit: number = 5): Promise
   // Step 1: Places Autocomplete — city suggestions only
   const params = new URLSearchParams({
     input: query,
-    types: '(cities)',
+    types: 'geocode',
     language: 'en',
     key: GOOGLE_MAPS_API_KEY,
   });
@@ -192,26 +192,27 @@ export async function searchLocations(query: string, limit: number = 5): Promise
     return [];
   }
 
-  // Step 2: Resolve lat/lon + timezone for each prediction
-  // Each place_id and each timezone result is individually cached,
-  // so popular cities hit Redis after the very first search.
-  const results: GeocodingResult[] = [];
-  for (const prediction of predictions) {
-    const details = await getPlaceDetails(prediction.place_id);
-    if (!details) continue;
-
-    const timezone = await getTimezoneFromCoordinates(details.lat, details.lon);
-
-    results.push({
-      name: details.city || prediction.description.split(',')[0],
-      displayName: prediction.description,
-      latitude: details.lat,
-      longitude: details.lon,
-      country: details.country,
-      city: details.city,
-      timezone,
-    });
-  }
+  // Step 2: Resolve lat/lon + timezone for all predictions in parallel.
+  // Each place_id and timezone is individually cached (7d / 30d), so popular
+  // cities are instant from Redis. Parallel execution means uncached lookups
+  // take ~200ms total instead of N×200ms.
+  const settled = await Promise.all(
+    predictions.map(async (prediction) => {
+      const details = await getPlaceDetails(prediction.place_id);
+      if (!details) return null;
+      const timezone = await getTimezoneFromCoordinates(details.lat, details.lon);
+      return {
+        name: details.city || prediction.description.split(',')[0],
+        displayName: prediction.description,
+        latitude: details.lat,
+        longitude: details.lon,
+        country: details.country,
+        city: details.city,
+        timezone,
+      } as GeocodingResult;
+    })
+  );
+  const results = settled.filter((r): r is GeocodingResult => r !== null);
 
   // Cache the assembled search result for 24h
   redisSet(cacheKey, CACHE_TTL_SEARCH, JSON.stringify(results));

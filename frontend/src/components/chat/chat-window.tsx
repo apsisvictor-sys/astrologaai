@@ -127,6 +127,15 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
         />
       )}
 
+      {/* Query counter for limited tiers */}
+      {usage && typeof usage.remaining === 'number' && !isLimitReached && (
+        <div className="px-4 pb-1 text-right shrink-0">
+          <span className="text-xs" style={{ color: usage.remaining <= 1 ? 'rgba(245,158,11,0.7)' : 'rgba(255,255,255,0.22)' }}>
+            {usage.remaining} {usage.remaining === 1 ? 'query' : 'queries'} remaining today
+          </span>
+        </div>
+      )}
+
       {/* Input */}
       <ChatInputBar
         onSend={(content) => sendMessage(content)}

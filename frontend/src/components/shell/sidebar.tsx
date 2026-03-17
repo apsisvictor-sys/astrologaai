@@ -66,7 +66,7 @@ export function Sidebar({ onLockedFeatureClick }: SidebarProps) {
       </div>
 
       {/* Chat history */}
-      <div className="flex-1 overflow-hidden px-3 py-2">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-3 py-2">
         <ChatHistoryList />
       </div>
 

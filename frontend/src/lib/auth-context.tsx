@@ -56,7 +56,6 @@ const API_URL = getApiBaseUrl();
 // Storage keys
 const ACCESS_TOKEN_KEY = 'astrologaai_access_token';
 const REFRESH_TOKEN_KEY = 'astrologaai_refresh_token';
-const USER_KEY = 'astrologaai_user';
 
 function friendlyAuthError(error: unknown, response?: Response | null): string {
   // Handle fetch/Type errors (network issues)
@@ -124,22 +123,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return currentLocale === 'bg' ? `/bg${path}` : path;
   };
 
-  // Load user from storage on mount
+  // Hydrate user from server on mount — server-authoritative tier (ARCH-02/03)
   useEffect(() => {
-    const storedUser = localStorage.getItem(USER_KEY);
     const accessToken = localStorage.getItem(ACCESS_TOKEN_KEY);
+    if (!accessToken) {
+      setIsLoading(false);
+      return;
+    }
 
-    if (storedUser && accessToken) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch {
-        // Invalid stored data, clear it
-        localStorage.removeItem(USER_KEY);
+    fetch(`${API_URL}/api/v1/user/profile`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+      .then((res) => parseApiResponse(res))
+      .then((data) => {
+        if (data?.data?.user) {
+          const u = data.data.user;
+          setUser({
+            id: u.id,
+            email: u.email,
+            fullName: u.fullName,
+            tier: u.tier,
+            language: u.language,
+            emailVerified: u.emailVerified,
+            avatarUrl: u.avatarUrl,
+          });
+        } else {
+          // Token invalid or profile missing — clear tokens
+          localStorage.removeItem(ACCESS_TOKEN_KEY);
+          localStorage.removeItem(REFRESH_TOKEN_KEY);
+        }
+      })
+      .catch(() => {
         localStorage.removeItem(ACCESS_TOKEN_KEY);
         localStorage.removeItem(REFRESH_TOKEN_KEY);
-      }
-    }
-    setIsLoading(false);
+      })
+      .finally(() => setIsLoading(false));
   }, []);
 
   /**
@@ -274,7 +292,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
       localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
-      localStorage.setItem(USER_KEY, JSON.stringify(userData));
 
       // Clear referral slug after successful registration
       if (typeof window !== 'undefined') {
@@ -304,19 +321,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(true);
     setError(null);
 
-    // Get user's stored language preference or browser language
-    const acceptLanguage = (() => {
-      try {
-        const storedUser = localStorage.getItem(USER_KEY);
-        if (storedUser) {
-          const user = JSON.parse(storedUser);
-          if (user.language) return user.language;
-        }
-      } catch {
-        // Ignore errors
-      }
-      return typeof window !== 'undefined' ? (navigator.language || 'bg') : 'bg';
-    })();
+    const acceptLanguage = typeof window !== 'undefined' ? (navigator.language || 'bg') : 'bg';
 
     let response: Response | null = null;
 
@@ -341,7 +346,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
       localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
-      localStorage.setItem(USER_KEY, JSON.stringify(userData));
 
       setUser(userData);
 
@@ -430,7 +434,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
       localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
-      localStorage.setItem(USER_KEY, JSON.stringify(userData));
 
       setUser(userData);
 
@@ -453,7 +456,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = () => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
     setUser(null);
     router.push(localePath('/login'));
   };
@@ -526,8 +528,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         emailVerified: userData.emailVerified,
         avatarUrl: userData.avatarUrl,
       };
-      
-      localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
+
       setUser(updatedUser);
     } catch (err) {
       console.error('[Auth] Failed to refresh user:', err);
@@ -562,9 +563,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Update local user state
-      const updatedUser = { ...user, language };
-      localStorage.setItem(USER_KEY, JSON.stringify(updatedUser));
-      setUser(updatedUser);
+      setUser({ ...user, language });
     } catch (err) {
       console.error('[Auth] Failed to update language:', err);
       throw err;

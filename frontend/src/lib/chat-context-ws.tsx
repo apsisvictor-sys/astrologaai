@@ -280,6 +280,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (response.status === 429) {
         const data = await response.json();
         setError(data.error?.message || 'Rate limit exceeded');
+        // Force remaining=0 so the upgrade CTA banner activates in the UI
+        setUsage((prev) => prev ? { ...prev, remaining: 0 } : null);
         setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
         return;
       }
@@ -325,7 +327,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 setStreamingContent(assistantContent);
               } else if (currentEvent === 'error') {
                 setError(data.message || 'Stream error');
-                setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
+                // Only remove user message if no content was received (stream never started)
+                if (!assistantContent) {
+                  setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
+                }
               } else if (currentEvent === 'complete' || data.messageId) {
                 assistantMessageId = data.messageId || assistantMessageId;
               }

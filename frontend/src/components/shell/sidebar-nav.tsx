@@ -5,7 +5,8 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
 const NAV_ITEMS = [
-  { href: '/chat',     icon: '✦', label: 'Chat',      minTier: null      },
+  { href: '/dashboard', icon: '⌂', label: 'Dashboard', minTier: null      },
+  { href: '/chat',      icon: '✦', label: 'Chat',      minTier: null      },
   { href: '/chart',    icon: '◉', label: 'My Chart',  minTier: null      },
   { href: '/forecast', icon: '◎', label: 'Forecast',  minTier: 'PRO'     },
   { href: '/partners', icon: '♡', label: 'Partners',  minTier: 'PREMIUM' },

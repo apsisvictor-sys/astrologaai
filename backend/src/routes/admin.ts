@@ -612,7 +612,7 @@ router.get('/prompts', async (_req: Request, res: Response) => {
       orderBy: { name: 'asc' },
       select: { id: true, name: true, label: true, isActive: true, version: true, updatedAt: true },
     });
-    res.json({ success: true, data: { prompts } });
+    res.json({ success: true, data: prompts });
   } catch (err) {
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR' } });
   }

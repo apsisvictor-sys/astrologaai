@@ -24,7 +24,7 @@ export interface TierLimits {
 
 /**
  * Tier configuration with query limits
- * US-36: FREE tier = 10 queries/month, 4 queries/day
+ * US-36: FREE tier = 3 queries/day (no monthly cap)
  * US-37: Burst limits based on OpenAI provider limits:
  *   - FREE: 3 req/min (matches OpenAI free tier)
  *   - PRO: 30 req/min (10x free - gives paying users more headroom)
@@ -34,12 +34,11 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
   FREE: {
     tier: 'FREE',
     name: { bg: 'Безплатен', en: 'Free' },
-    monthlyQueries: 10,
-    dailyQueries: 4,
+    monthlyQueries: 9999, // effectively unlimited — daily cap is the binding constraint
+    dailyQueries: 3,
     burstLimit: 3,
     features: [
-      '10_queries_month',
-      '4_queries_day',
+      '3_queries_day',
       'tool:get_natal_chart', // Free users can only ask about their static birth chart
     ],
     price: {

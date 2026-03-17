@@ -47,6 +47,21 @@ const prisma = new PrismaClient();
 // PREMIUM: unlimited, no burst limit
 
 const RATE_LIMIT_WINDOW = 60; // 1 minute for burst
+
+/**
+ * Extract a ~140-char snippet from content centred around the search term.
+ * Used by listSessions to return a relevant preview for the search popover.
+ */
+function extractSearchSnippet(content: string, term: string, maxLen = 140): string {
+  const idx = content.toLowerCase().indexOf(term.toLowerCase());
+  if (idx === -1) return content.length > maxLen ? content.substring(0, maxLen) + '…' : content;
+  const start = Math.max(0, idx - 50);
+  const end = Math.min(content.length, idx + term.length + 90);
+  let snippet = content.substring(start, end);
+  if (start > 0) snippet = '…' + snippet;
+  if (end < content.length) snippet += '…';
+  return snippet;
+}
 const MAX_CONTEXT_MESSAGES = 10; // Last 10 messages for context
 const SUMMARY_THRESHOLD = 20; // Generate summary after 20 messages
 
@@ -436,61 +451,7 @@ ${aspectLines || 'No major aspects within orb today.'}`;
       })}\n\n`);
     }
 
-    // Save assistant response if no error
-    if (!hasError && fullResponse) {
-      const assistantMessage = await prisma.chatMessage.create({
-        data: {
-          sessionId: session.id,
-          role: 'ASSISTANT',
-          content: fullResponse,
-          metadata: {
-            model: process.env.LLM_MODEL || 'glm-5',
-            tokensUsed: Math.ceil(fullResponse.length / 4), // Rough estimate
-          },
-        },
-      });
-      assistantMessageId = assistantMessage.id;
-
-      // Update session updatedAt
-      await prisma.chatSession.update({
-        where: { id: session.id },
-        data: { updatedAt: new Date() },
-      });
-
-      // US-09: Update Redis session context with new messages
-      const updatedMessages = [
-        ...session.messages.map(m => ({ role: m.role.toLowerCase(), content: m.content })),
-        { role: 'user', content: content.trim() },
-        { role: 'assistant', content: fullResponse },
-      ];
-      
-      // Get current summary from DB or Redis
-      const currentSummary = session.summary || 
-        (await getSessionContext(session.id))?.summary || undefined;
-      
-      // Store updated context in Redis
-      await storeSessionContext(
-        session.id,
-        userId,
-        updatedMessages,
-        currentSummary
-      );
-
-      // US-09: Generate session summary if threshold reached
-      const totalMessages = session.messages.length + 2; // +2 for new messages
-      if (totalMessages >= SUMMARY_THRESHOLD && !session.summary) {
-        // Generate summary in background (non-blocking)
-        generateAndStoreSessionSummary(session.id, userId, updatedMessages, userLanguage)
-          .then(summary => {
-            console.log(`[Chat] Session ${session.id} summary generated: ${summary.substring(0, 50)}...`);
-          })
-          .catch(err => {
-            console.error('[Chat] Failed to generate session summary:', err);
-          });
-      }
-    }
-
-    // Send completion event
+    // Send completion event immediately — respond to client before DB ops
     const latencyMs = Date.now() - startTime;
     const finalStatus = getOrchestratorStatus();
 
@@ -503,6 +464,56 @@ ${aspectLines || 'No major aspects within orb today.'}`;
     })}\n\n`);
 
     res.end();
+
+    // Background: save assistant response + update context (non-blocking)
+    // Client already received the complete event — DB failure is silent
+    if (!hasError && fullResponse) {
+      (async () => {
+        try {
+          const assistantMessage = await prisma.chatMessage.create({
+            data: {
+              sessionId: session.id,
+              role: 'ASSISTANT',
+              content: fullResponse,
+              metadata: {
+                model: process.env.LLM_MODEL || 'glm-5',
+                tokensUsed: Math.ceil(fullResponse.length / 4),
+              },
+            },
+          });
+          assistantMessageId = assistantMessage.id;
+
+          await prisma.chatSession.update({
+            where: { id: session.id },
+            data: { updatedAt: new Date() },
+          });
+
+          const updatedMessages = [
+            ...session.messages.map(m => ({ role: m.role.toLowerCase(), content: m.content })),
+            { role: 'user', content: content.trim() },
+            { role: 'assistant', content: fullResponse },
+          ];
+
+          const currentSummary = session.summary ||
+            (await getSessionContext(session.id))?.summary || undefined;
+
+          await storeSessionContext(session.id, userId, updatedMessages, currentSummary);
+
+          const totalMessages = session.messages.length + 2;
+          if (totalMessages >= SUMMARY_THRESHOLD && !session.summary) {
+            generateAndStoreSessionSummary(session.id, userId, updatedMessages, userLanguage)
+              .then(summary => {
+                console.log(`[Chat] Session ${session.id} summary generated: ${summary.substring(0, 50)}...`);
+              })
+              .catch(err => {
+                console.error('[Chat] Failed to generate session summary:', err);
+              });
+          }
+        } catch (err) {
+          console.error('[Chat] Failed to persist assistant message (non-fatal):', err);
+        }
+      })();
+    }
   } catch (error) {
     console.error('[Chat] Error sending message:', error);
     
@@ -546,56 +557,51 @@ export async function listSessions(req: Request, res: Response): Promise<void> {
 
     // Build where clause
     let whereClause: any = { userId };
-    
+    // Map of session_id → matching message content snippet (populated during search)
+    const snippetMap = new Map<string, string>();
+
     // Full-text search on message content (US-08)
     if (search && typeof search === 'string' && search.trim().length > 0) {
       const searchTerm = search.trim();
-      
-      // Use PostgreSQL full-text search via Prisma raw query for better search
-      // First find session IDs that contain matching messages
-      const matchingSessions = await prisma.$queryRaw<{ session_id: string }[]>`
-        SELECT DISTINCT cm.session_id
+
+      // Use PostgreSQL full-text search — returns one matching message per session
+      // DISTINCT ON ensures one row per session, ordered by most recent match
+      const matchingSessions = await prisma.$queryRaw<{ session_id: string; content: string }[]>`
+        SELECT DISTINCT ON (cm.session_id) cm.session_id, cm.content
         FROM chat_messages cm
         INNER JOIN chat_sessions cs ON cm.session_id = cs.id
         WHERE cs.user_id = ${userId}
         AND to_tsvector('simple', cm.content) @@ plainto_tsquery('simple', ${searchTerm})
-        ORDER BY cm.session_id
+        ORDER BY cm.session_id, cm.created_at DESC
       `;
-      
+
+      // Build snippet map: extract ~140 chars centred around the matched term
+      for (const row of matchingSessions) {
+        snippetMap.set(row.session_id, extractSearchSnippet(row.content, searchTerm));
+      }
+
       const sessionIds = matchingSessions.map(s => s.session_id);
-      
+
       // Also search in session titles
       const titleMatchingSessions = await prisma.chatSession.findMany({
-        where: {
-          userId,
-          title: { contains: searchTerm, mode: 'insensitive' },
-        },
+        where: { userId, title: { contains: searchTerm, mode: 'insensitive' } },
         select: { id: true },
       });
-      
-      const titleSessionIds = titleMatchingSessions.map(s => s.id);
-      
-      // Combine both sets
-      const allMatchingIds = [...new Set([...sessionIds, ...titleSessionIds])];
-      
+
+      const allMatchingIds = [...new Set([...sessionIds, ...titleMatchingSessions.map(s => s.id)])];
+
       if (allMatchingIds.length === 0) {
-        // No matches found
         res.json({
           success: true,
           data: {
             sessions: [],
-            pagination: {
-              page: Number(page),
-              limit: Number(limit),
-              total: 0,
-              hasMore: false,
-            },
+            pagination: { page: Number(page), limit: Number(limit), total: 0, hasMore: false },
             searchQuery: searchTerm,
           },
         });
         return;
       }
-      
+
       whereClause = { userId, id: { in: allMatchingIds } };
     }
 
@@ -605,10 +611,7 @@ export async function listSessions(req: Request, res: Response): Promise<void> {
       skip: (Number(page) - 1) * Number(limit),
       take: Number(limit),
       include: {
-        messages: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-        },
+        messages: { orderBy: { createdAt: 'desc' }, take: 1 },
         _count: { select: { messages: true } },
       },
     });
@@ -622,6 +625,7 @@ export async function listSessions(req: Request, res: Response): Promise<void> {
           id: s.id,
           title: s.title,
           lastMessage: s.messages[0]?.content?.substring(0, 100),
+          matchSnippet: snippetMap.get(s.id) ?? null,
           lastMessageAt: s.messages[0]?.createdAt || s.createdAt,
           messageCount: s._count.messages,
           createdAt: s.createdAt,
@@ -710,6 +714,30 @@ export async function getSession(req: Request, res: Response): Promise<void> {
   }
 }
 
+// ENH-09: Varied Oracle greeting pool (language-aware, randomly selected)
+const ORACLE_GREETINGS: Record<string, string[]> = {
+  bg: [
+    'Здравей! Аз съм AstroLogAI, твоят личен астролог. Какво те интересува днес?',
+    'Добре дошъл. Звездите слушат — какво искаш да разкриеш?',
+    'Небесната карта е отворена. Откъде да започнем?',
+    'Оракулът е тук. Попитай какво пазят звездите за теб.',
+    'Космосът говори на тези, които слушат. Какво те вълнува?',
+  ],
+  en: [
+    'Hello! I am AstroLogAI, your personal astrologer. What would you like to know today?',
+    'Welcome. The stars are listening — what do you wish to explore?',
+    'The celestial map is open. Where shall we begin?',
+    'The Oracle is here. Ask what the stars hold for you.',
+    'The cosmos speaks to those who listen. What is on your mind?',
+  ],
+};
+
+function getOracleGreeting(language: string): string {
+  const lang = language === 'bg' ? 'bg' : 'en';
+  const pool = ORACLE_GREETINGS[lang];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 /**
  * POST /api/v1/chat/sessions
  * Create a new chat session
@@ -718,6 +746,7 @@ export async function createSession(req: Request, res: Response): Promise<void> 
   try {
     const userId = req.user?.id;
     const { title, birthProfileId } = req.body;
+    const userLanguage = req.user?.language || 'en';
 
     if (!userId) {
       res.status(401).json({
@@ -735,6 +764,8 @@ export async function createSession(req: Request, res: Response): Promise<void> 
       },
     });
 
+    const welcomeMessage = getOracleGreeting(userLanguage);
+
     res.status(201).json({
       success: true,
       data: {
@@ -745,7 +776,7 @@ export async function createSession(req: Request, res: Response): Promise<void> 
         },
         welcomeMessage: {
           role: 'assistant',
-          content: 'Здравей! Аз съм AstroLogAI, твоят личен астролог. Какво те интересува днес?',
+          content: welcomeMessage,
         },
       },
     });
@@ -841,9 +872,7 @@ export async function startNewConversation(req: Request, res: Response): Promise
       undefined // No summary
     );
 
-    const welcomeMessage = userLanguage === 'bg'
-      ? 'Здравей! Аз съм AstroLogAI, твоят личен астролог. Какво те интересува днес?'
-      : 'Hello! I am AstroLogAI, your personal astrologer. What would you like to know today?';
+    const welcomeMessage = getOracleGreeting(userLanguage);
 
     res.status(201).json({
       success: true,

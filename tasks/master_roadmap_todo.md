@@ -1,5 +1,5 @@
 # AstroLogAI — Master Roadmap & Source of Truth
-> **Single source of truth.** Last updated: 2026-03-17 (birth_data removed, 12-area horoscope, b8f1f22).
+> **Single source of truth.** Last updated: 2026-03-17 (Section 6 chat + admin testing — BUG-21/22/23/24/25/26/27 + ENH-06/07/08/09 logged).
 > All bugs found during testing, all pending work, all future plans live here.
 > When testing resumes (Section 7+), new bugs get added to this file.
 
@@ -9,11 +9,15 @@
 
 | Action | Why | Unblocks |
 |--------|-----|---------|
-| Create Google Cloud project → enable Maps JS API + Places API + Geocoding API + Time Zone API | Location autocomplete + timezone accuracy | ENH-02, BUG-04 stopgap |
-| Add `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` to Vercel env vars | Frontend Places autocomplete | ENH-02 |
-| Add `GOOGLE_MAPS_API_KEY` to Railway env vars | Backend Time Zone API | ENH-02 |
-| Get Google OAuth client ID + secret from same Google Cloud project → add to Railway | Google login | FEAT-01 |
 | Create Facebook Developer App → get App ID + Secret → add to Railway | Facebook login replacing Magic Link | FEAT-02 |
+
+### ✅ Completed Manual Actions
+| Action | Done |
+|--------|------|
+| Google Cloud project created, 4 APIs enabled (Maps JS, Places, Geocoding, Time Zone) | 2026-03-17 |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` added to Vercel (all envs) | 2026-03-17 |
+| `GOOGLE_MAPS_API_KEY` added to Railway | 2026-03-17 |
+| Google OAuth client ID + secret already in Railway (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) | pre-existing |
 
 ---
 
@@ -37,9 +41,78 @@
 
 ## 🔴 Active Bugs (code fix needed)
 
-### BUG-04 — Location search hits 429 and silently breaks
-- **Priority:** SKIPPED — superseded by ENH-02 (Google Places replaces Nominatim entirely)
-- **⚠️ PENDING MANUAL ACTION:** Victor must create Google Cloud project + get API keys before ENH-02 can be implemented
+### BUG-24 — Admin users table shows wrong query count (2) vs usage tab (11)
+- **Priority:** MEDIUM — admin has wrong data visibility; makes user management unreliable
+- **Where:** `backend/src/routes/admin.ts` — `/admin/users` endpoint query count vs `/admin/usage` endpoint
+- **Symptom:** Users table shows 2 queries for admin account; Usage & Cost tab shows 11 requests for same account.
+- **Likely cause:** The two endpoints count from different sources. Users table likely reads from `subscription.queriesUsedThisMonth` (monthly counter, resets), while usage tab may read from `LlmUsage` table (cumulative all-time). They measure different things and it's not communicated clearly.
+- **Fix:** Clarify and align the two counters. Users table should show current month queries. Usage tab shows total/historical. Add column headers that make the distinction clear. Verify both counts are accurate.
+
+---
+
+### BUG-25 — Admin Prompts Editor crashes: `t.map is not a function`
+- **Priority:** HIGH — entire prompts management is broken; admin cannot edit Oracle prompts
+- **Root cause (confirmed):** Backend at `GET /admin/prompts` returns `{ success: true, data: { prompts: [...] } }`. The `adminGet` helper unwraps to `data.data` → returns `{ prompts: [...] }` (an object). Frontend expects an array and calls `.map()` directly → crash.
+- **Where:**
+  - Backend: `backend/src/routes/admin.ts` line 615 — `res.json({ success: true, data: { prompts } })`
+  - Frontend: `frontend/src/app/[locale]/(admin)/admin/prompts/page.tsx` line 45-46 — `const data = await adminGet<PromptSummary[]>('/prompts'); setPrompts(data);`
+- **Fix (simple):** Either change backend to `res.json({ success: true, data: prompts })` (return array directly), OR change frontend to `setPrompts((data as any).prompts ?? [])`.
+
+---
+
+### BUG-26 — Stale tier in auth context: locked features stay locked after upgrade/downgrade
+- **Priority:** CRITICAL — symptom of a deeper architecture problem. See **ARCH-02** for the proper fix.
+- **Symptoms:** Forecast locked for PRO users. Tier badge stuck on "Seeker (Free)". Cancelled user keeps PRO access. Admin tier change has no effect until logout.
+- **Workaround (now):** Log out → log back in.
+- **Real fix:** ARCH-02 — server-authoritative tier, short JWT expiry, remove tier from localStorage cache.
+
+---
+
+### BUG-27 — Pricing page shows same CTAs to logged-in users as to new visitors (no current plan shown)
+- **Priority:** HIGH — logged-in PRO users see "Upgrade to Pro" on their current plan; logged-in users have no upgrade/downgrade options, just re-purchase options
+- **Where:** `frontend/src/app/[locale]/pricing/page.tsx` lines 163–177
+- **Root cause (confirmed):** Page fetches current tier from `GET /subscription/plans` endpoint, looking for `result.data.currentSubscription?.tier`. But `/subscription/plans` is a public endpoint that returns plan definitions only — it does not return the current user's subscription. So `currentTier` is always `null`, all plan CTAs appear as if user is unauthenticated.
+- **Fix:** Fetch current tier from `GET /subscription/status` instead (authenticated endpoint that returns `{ tier, ... }`). With `currentTier` correctly set:
+  - Current plan → "Current Plan" (disabled button)
+  - Higher tier → "Upgrade to X"
+  - Lower tier → "Downgrade to X" (with warning)
+
+---
+
+### BUG-21 — Chat bubble disappears after Oracle reply + text returns to input field
+- **Priority:** HIGH — core UX defect, makes every conversation feel broken
+- **Where:** `frontend/src/components/chat/` — likely `chat-window.tsx` or `chat-input.tsx`
+- **Symptom:** User sends a message → bubble appears → Oracle streams reply → after stream completes, user's bubble vanishes and the typed text reappears in the input field.
+- **Likely cause:** Optimistic message state is being cleared/reset on stream completion event, and input state is not properly cleared after send (stale ref or state reset order issue).
+- **Fix:** On send, clear input immediately and keep it cleared. User bubble should be added to message list permanently on send — never removed. Audit stream `complete` event handler to ensure it only re-enables input, never touches message history.
+
+---
+
+### BUG-22 — Dashboard query counter not updating after queries are used
+- **Priority:** HIGH — users have no visibility into their usage; hitting a hard limit with no warning is a terrible UX and churn driver
+- **Where:** `frontend/src/app/[locale]/(app)/dashboard/page.tsx` — usage counter component
+- **Symptom:** User sends messages, hits rate limit, but dashboard still shows "10 queries remaining" in green.
+- **Likely cause:** Dashboard fetches subscription status once on mount and does not re-fetch after chat activity. No live sync between `/chat` and `/dashboard` usage state.
+- **Fix:** On every chat send (or on `/dashboard` mount), re-fetch `GET /api/v1/subscription/status` to get fresh `queriesUsed` count. Or lift usage state to auth context so it updates globally after each query.
+
+---
+
+### BUG-23 — Oracle initial greeting is hardcoded Bulgarian, not language-aware
+- **Priority:** HIGH — users in English mode see Bulgarian text on first open; breaks trust immediately
+- **Where:** `backend/src/controllers/chatController.ts` lines 748 and 845
+- **Symptom:** First message from Oracle is `"Здравей! Аз съм AstroLogAI, твоят личен астролог. Какво те интересува днес?"` regardless of user's language setting.
+- **Fix:** Replace hardcoded string with a language-aware greeting. Check user's language preference (from JWT/profile) and serve EN or BG version. Better yet: make the Oracle generate the opening message dynamically using the system prompt (avoids hardcoding altogether) — consistent with its character.
+
+---
+
+### ~~BUG-20~~ — ✅ RESOLVED (2026-03-17, 059b70d) — "Internal error" shown after every chat response
+- **Root cause:** `res.setHeader()` called at lines 498-499 of `chatController.ts` after `res.write()` had already sent SSE chunks. Node.js throws `ERR_HTTP_HEADERS_SENT`. Outer catch fires, sends `event: error` SSE. `complete` event never reached.
+- **Fix:** Removed the two `res.setHeader()` calls (latency/provider already in `complete` event body).
+
+---
+
+### ~~BUG-04~~ — ✅ RESOLVED by ENH-02 (2026-03-17, 3b3ad91) — Location search 429 errors
+- Nominatim replaced by Google Places API. No more rate limit issues.
 
 ---
 
@@ -53,18 +126,13 @@
 
 ---
 
-### BUG-07 — geo-tz returns Europe/Berlin for Norwegian coordinates
-- **Priority:** Low (Europe/Oslo and Europe/Berlin have identical UTC offsets since 1970s — no practical impact)
-- **Fix:** `npm update geo-tz` in backend, OR add country_code post-processing override
-- **Note:** Fully resolved by ENH-02 (Google Time Zone API replaces geo-tz entirely)
+### ~~BUG-07~~ — ✅ RESOLVED by ENH-02 (2026-03-17, 3b3ad91) — geo-tz wrong timezone
+- Google Time Zone API replaces geo-tz entirely.
 
 ---
 
-### BUG-08 — Location search returns administrative boundary before town center
-- **Priority:** Medium — affects coordinate accuracy for all city searches, impacts chart accuracy
-- **Where:** `backend/src/services/geocoding.ts` — `searchLocations()` result ordering
-- **Fix:** Sort results by type priority: `['city', 'town', 'village', 'suburb', 'hamlet']` before `administrative`
-- **Note:** Fully resolved by ENH-02 (Google Places replaces Nominatim)
+### ~~BUG-08~~ — ✅ RESOLVED by ENH-02 (2026-03-17, 3b3ad91) — Admin boundary before town center
+- Google Places Autocomplete with `types=(cities)` returns correct city-level results.
 
 ---
 
@@ -125,6 +193,170 @@
 ---
 
 ## 🟡 Enhancements
+
+### BUG-32 — Chat history sidebar not scrollable (mouse wheel + scrollbar missing)
+- **Priority:** HIGH — users with many conversations can't access older sessions; list is clipped with no scroll
+- **Where:** `frontend/src/components/shell/sidebar.tsx` line 69 + `frontend/src/components/shell/chat-history-list.tsx` line 117
+- **Root cause (confirmed):** Classic flexbox scroll trap — 3 issues combined:
+  1. `sidebar.tsx` line 69: `<div className="flex-1 overflow-hidden px-3 py-2">` is NOT a flex container, so the child's `flex-1` has no effect
+  2. `ChatHistoryList` root div uses `flex-1 overflow-y-auto` but has no defined height → expands to content size, never triggers scroll
+  3. Missing `min-h-0` on the parent — in flex columns, children default to `min-height: auto`, preventing shrinking and causing clip instead of scroll
+- **Fix:**
+  - `sidebar.tsx` line 69: add `flex flex-col min-h-0` → `<div className="flex-1 flex flex-col min-h-0 overflow-hidden px-3 py-2">`
+  - `chat-history-list.tsx` line 117: `flex-1` now works with flex parent, `overflow-y-auto` gets a bounded height → scrollbar appears
+  - Tailwind `scrollbar-thin` utility or custom CSS for the thin styled scrollbar track
+
+---
+
+### ENH-13 — Chat search: wire frontend input to existing backend full-text search
+- **Priority:** HIGH — backend already implements PostgreSQL full-text search across message content AND titles (`to_tsvector` + `plainto_tsquery`). Zero backend work needed. Frontend only.
+- **Where:** `frontend/src/components/shell/chat-history-list.tsx` — add search input above the history list
+- **What:** Input at top of chat history panel. Debounced (300ms). On type: call `GET /api/v1/chat/sessions?search=<term>`. Show matching sessions grouped as "Search Results" replacing the normal grouped list. Clear button to reset. Empty state: "No conversations match [term]".
+- **Note:** Search covers both session titles AND full message content — this is already how the backend works.
+
+---
+
+### BUG-30 — Chat history shows "No conversations yet" on all pages except /chat
+- **Priority:** HIGH — sidebar chat history is the primary navigation for returning to past Oracle conversations; it being invisible on every page except /chat means users can't access their history from anywhere else in the app
+- **Where:** `frontend/src/components/shell/chat-history-list.tsx` — `useEffect` at line 93
+- **Root cause (confirmed):** The fetch effect has `[pathname]` as its dependency. On `/dashboard`, if the access token isn't in localStorage yet when the component first mounts (auth context still initializing), the `if (!token) return` guard exits silently. Since pathname doesn't change after mount, the effect never retries — sessions stay empty forever on that page load.
+  On `/chat` it works because the chat context triggers additional re-renders that happen to cause a re-fetch.
+- **Fix:** Add `isAuthenticated` from `useAuth` as a dependency to the fetch effect:
+  ```ts
+  const { isAuthenticated } = useAuth();
+  useEffect(() => { ... }, [pathname, isAuthenticated]);
+  ```
+  When auth context finishes initializing and `isAuthenticated` flips to `true`, the effect re-runs, token is available, fetch succeeds. One-line fix.
+- **Also:** The `.catch(() => {})` silently swallows all fetch errors — should at minimum log them for debugging.
+
+---
+
+### BUG-29 — No Dashboard link in sidebar; users must manually type /dashboard URL
+- **Priority:** HIGH — Dashboard is the app's home/hub but is completely unreachable from the sidebar nav. Users are stuck manually correcting the URL to get back to it.
+- **Where:** `frontend/src/components/shell/sidebar-nav.tsx` — `NAV_ITEMS` array
+- **Fix:** Add Dashboard as the **first nav item** (top of list, above Chat). It is the conceptual home of the app.
+  ```
+  { href: '/dashboard', icon: '⌂', label: 'Dashboard', minTier: null }
+  ```
+- **Nav order after fix:**
+  1. Dashboard `/dashboard` — hub: chart wheel, daily card, usage counter, quick actions
+  2. Chat `/chat`
+  3. My Chart `/chart`
+  4. Forecast `/forecast` (PRO)
+  5. Partners `/partners` (PREMIUM)
+  6. Settings `/settings` (bottom, separated)
+- **Industry standard:** Notion (Home), Linear (workspace root), Slack (channel list) — the overview is always first and serves as the user's anchor. Dashboard ≠ My Chart: dashboard is the daily hub, chart is the deep-dive analysis page.
+
+---
+
+### BUG-28 — Public nav shows "Sign In / Begin" to logged-in users; no auth awareness
+- **Priority:** HIGH — logged-in users returning to astrologa.bg see the same nav as a stranger. No way to get back to the app from the homepage without knowing the `/dashboard` URL. Confusing and unprofessional.
+- **Where:** `frontend/src/components/home/public-nav.tsx` — currently a fully static component with no auth check
+- **Root cause:** `PublicNav` does not import `useAuth` or check authentication state at all. Always renders the same static nav.
+- **Fix:**
+  1. Add `useAuth` hook. Check `isAuthenticated`.
+  2. **Logged-out nav:**
+     - Left: Logo (links to `/`)
+     - Center: Home | Features | Pricing (absolute center)
+     - Right: `Sign In` (ghost) + `Start Free` (outline pill, primary color)
+  3. **Logged-in nav:**
+     - Left: Logo (links to `/`)
+     - Center: Home | Features | Pricing
+     - Right: `✦ Dashboard` — solid gradient button (`from-[#e41aff] to-violet-500`, white text, subtle glow on hover). No "Sign In" or "Begin" — irrelevant to authenticated users.
+  4. **Logo click (industry standard):**
+     - Logged-out → `/` (homepage). User is a prospect; homepage is their entry point.
+     - Logged-in → `/dashboard`. User is a customer; marketing homepage has nothing for them. Notion, Linear, Figma, Slack all do this.
+  5. **Mobile:** Logged-in → "Dashboard" button only. Logged-out → "Sign In" only (current behavior).
+- **Copy note:** Consider renaming "Begin" → "Start Free" for logged-out users — clearer value prop, lower perceived friction.
+
+---
+
+### ENH-11 — "New for you" badge on newly unlocked features after upgrade
+- **Priority:** MEDIUM — helps users discover what they just paid for; reduces "I upgraded but nothing changed" confusion; drives feature adoption
+- **Where:** Sidebar nav items, feature section headers (Forecast, Weekly Forecast, Partners)
+- **What:** After a user upgrades from FREE → PRO (or PRO → PREMIUM), show a pulsing "New" badge on newly unlocked nav items and feature headers. Badge persists for 7 days from upgrade date, then disappears automatically.
+- **Implementation:**
+  - Store `upgradedAt` timestamp on user profile (already exists or add it)
+  - On render: if `now - upgradedAt < 7 days` AND user is PRO, show "New" badge on PRO-gated items
+  - Same logic for PREMIUM
+  - Small pulsing dot or pill badge: accent color (`#e41aff`), label "New"
+- **Also:** On first visit to a newly-unlocked page after upgrade, show a brief welcome banner: *"Welcome to Pro — this page is now fully unlocked for you."*
+
+---
+
+### BUG-33 — Location autocomplete: no suggestions for small cities until full name typed
+- **Priority:** HIGH — onboarding is broken for users born in small towns/villages. No dropdown appears for partial queries like "sozop" — only when full "sozopol" is typed. Affects any city with population under ~50,000.
+- **Where:** `backend/src/services/geocoding.ts` line 175
+- **Root cause (confirmed):** `types: '(cities)'` maps to Google's `locality` + `administrative_area_level_3` index. For small/less common places, Google's city index only matches near-complete names. Major cities work with 2-3 chars; small towns need the full name.
+- **Fix:** Change `types: '(cities)'` → `types: 'geocode'` (one line). `geocode` matches any geocodable place, giving full coverage for small towns and villages. Our geocoding step already extracts `locality` from `address_components` on selection — data quality is unchanged.
+- **Alternative:** `types: '(regions)'` — middle ground, adds `sublocality` + `administrative_area_level_1/2` coverage but stays more constrained than `geocode`.
+- **Also add** `offset` parameter equal to `query.length` — tells Google the cursor position, improves partial matching across all city sizes.
+
+---
+
+### ENH-14 — Location autocomplete: faster suggestions + lazy coordinate resolution
+- **Priority:** HIGH — users are experiencing a 2-3 second delay before city suggestions appear, making autocomplete feel broken. Root cause is sequential API calls, not debounce.
+- **Where:** `backend/src/services/geocoding.ts` + `frontend/src/components/birth-data/birth-data-form.tsx`
+
+#### Root cause (confirmed)
+For every search on a cold cache, the backend makes up to **11 sequential API calls**:
+1. Google Places Autocomplete → 5 predictions (~200ms)
+2. `getPlaceDetails()` for each prediction — sequential, not parallel (~200ms × 5 = 1s)
+3. `getTimezoneFromCoordinates()` for each — sequential (~200ms × 5 = 1s)
+Total: ~2-3 seconds. By the time it returns, user has typed the full word. Only the final debounce fires because intermediate calls are cancelled.
+
+#### Fix (3 parts)
+1. **Two-phase response (biggest win):** Separate autocomplete (instant) from coordinate resolution (on selection):
+   - `GET /locations/search?q=sofi` → returns only prediction descriptions from Google (fast: 1 API call, ~200ms). Shows dropdown immediately.
+   - `POST /locations/resolve` with `placeId` → called only when user **selects** a city. Fetches lat/lng + timezone for that one city. User never waits for all 5 to resolve upfront.
+
+2. **Parallelize (interim improvement):** While above is implemented, replace sequential `for` loop in `geocoding.ts` with `Promise.all()` for `getPlaceDetails()` and `getTimezoneFromCoordinates()`. Reduces cold cache from ~2s to ~400ms.
+
+3. **Session tokens:** Add `sessiontoken` (UUID) to Google Places Autocomplete API calls. Groups autocomplete + place details into one billing session. Reduces cost and improves prediction quality.
+
+#### Language note
+`language: 'en'` is correct and intentional. Google accepts input in any language (typing "София" correctly matches "Sofia, Bulgaria"). English output ensures consistency for coordinate/timezone lookups. No change needed.
+
+---
+
+### ENH-06 — Query counter visible inside /chat page
+- **Priority:** HIGH — users need to see how many queries they have left *while chatting*, not just on dashboard
+- **Where:** `frontend/src/components/chat/` — chat header or input bar area
+- **What:** Display remaining query count inline in the chat UI (e.g. "7 queries remaining this month" near the input bar or in the header). Should update live after each message sent. When 0, show upgrade CTA instead.
+- **UX note:** Keep it subtle — small text, muted color. Only becomes prominent when low (≤3) or zero.
+
+---
+
+### ENH-07 — Rate limit error CTA → pricing/upgrade page (conversion trigger)
+- **Priority:** HIGH — hitting the limit is the highest-intent moment in the funnel; wasting it on a dead-end error is a missed conversion
+- **Where:** `frontend/src/components/chat/` — error display in chat + wherever 429 is surfaced
+- **What:** When rate limit is hit (monthly or daily), show a message like: *"You've used all 10 free queries this month. Upgrade to Pro for unlimited Oracle access."* with a button → `/pricing` or directly to checkout for PRO. Style it as an upgrade prompt, not just an error.
+- **Variants:**
+  - Monthly limit: "Upgrade to Pro — unlimited queries from €10/month"
+  - Daily limit (if applicable): "Come back tomorrow, or upgrade to remove daily limits"
+
+---
+
+### ENH-08 — Query policy transparency for users
+- **Priority:** MEDIUM — users are confused about how queries refresh; lack of clarity erodes trust and increases support load
+- **Where:** Multiple touchpoints: `/chat` query counter tooltip, `/settings/subscription`, rate limit error message
+- **What:** Clearly communicate:
+  1. FREE = 10 queries per month, resets on billing anniversary
+  2. If a "free bonus query" mechanic exists (e.g. earn a free query after X days), explain exactly how it works and when the next one is available
+  3. Show exact reset date: "Resets on April 1st"
+- **Action needed:** Clarify with Victor: what exactly is the "free query every X days" logic? Is it implemented? Where? Document the rule so it can be surfaced accurately in the UI.
+
+---
+
+### ENH-09 — Oracle opening message: engaging, dynamic, language-aware
+- **Priority:** HIGH — first impression of the Oracle sets the emotional tone for the entire product; currently it's a generic, broken (Bulgarian) opener
+- **Where:** `backend/src/controllers/chatController.ts` lines 748 + 845
+- **What:** Replace the hardcoded static greeting with either:
+  - **Option A (recommended):** Let the Oracle generate the opening message dynamically — a short, personalised, in-character opener based on the user's chart data if available. This matches the Oracle's depth and avoids any hardcoded text. Can be pre-generated and cached per session.
+  - **Option B (quick fix):** Two static strings (EN/BG), selected based on user language preference. More engaging copy — e.g.: *"The stars have been waiting. I have your chart. What would you like to explore?"*
+- **Language aware:** Must read user's language setting from JWT/profile, not default to BG.
+
+---
 
 ### ENH-01 — Page transition animation
 - **Priority:** Medium
@@ -191,6 +423,93 @@
 
 ## 🔵 Architecture
 
+### ARCH-03 — localStorage audit: remove everything that should be server-sourced
+- **Priority:** HIGH — full audit completed 2026-03-17. See below for verdict on all 13 keys.
+
+#### ✅ KEEP (legitimate use)
+- `astrologaai_access_token` — JWT token. Standard.
+- `astrologaai_refresh_token` — Standard. *(Future hardening: HttpOnly cookies are more XSS-resistant)*
+- `astrologaai_guest_birth_data/messages/session/oracle_count/user_count` — Pre-registration flow (exactly right)
+- `referral_slug` — Captured from `?ref=` URL param, cleared after registration. Correct.
+
+#### 🔴 REMOVE — replace with server source
+1. **`astrologaai_user`** (highest priority — root cause of all stale tier bugs)
+   - Entire user object including `tier` cached indefinitely in localStorage
+   - Fix: store tokens only. On mount, call `GET /api/v1/user/profile` for live state. `refreshUser()` already exists — make it the sole source of user state, replace the localStorage user blob.
+   - This is ARCH-02's prerequisite.
+
+2. **`astrologaai_pinned_chats`** — pinned chat IDs stored client-side only
+   - Invisible across devices/browsers. Pinning a session on laptop ≠ pinned on phone.
+   - Fix: add `is_pinned boolean DEFAULT false` to `ChatSession` DB table. `PATCH /api/v1/chat/sessions/:id/pin`. One column, one endpoint.
+
+3. **`locale`** — read directly from localStorage in `forecast-panel.tsx` + `forecast/weekly/page.tsx`, bypassing auth context
+   - Language preference is already in the DB on user profile. These components should read from auth context, not localStorage.
+   - Creates inconsistency: forecast could display in different language than the rest of the app.
+   - Fix: remove localStorage locale reads from those two components, use `user.language` from auth context.
+
+#### 🟡 ACCEPTABLE (tech debt, low priority)
+- `astrologaai_chat_session` — active session ID. Works but can conflict across tabs. Better via URL state.
+- `astrologaai_pending_notice` — one-shot cross-page flash message. Cleared immediately after display. Acceptable for now.
+
+---
+
+### ARCH-02 — Server-authoritative subscription tier (remove client-side tier caching) 🔴 CRITICAL SECURITY FIX
+- **Priority:** CRITICAL — current implementation stores `user.tier` in localStorage indefinitely. A cancelled subscriber retains PRO access forever if they don't log out. A free user who edits localStorage gets PRO features. This is a revenue leak and a security vulnerability.
+- **Industry standard:** Client is never the authority on entitlements. Server always is.
+
+#### What needs to change:
+
+**1. Shorten access token expiry to 15–30 minutes**
+- Currently unknown — check `JWT_EXPIRES_IN` env var on Railway
+- When the access token expires and the refresh token is used, the backend issues a **new token with the tier read fresh from DB**
+- This alone means any tier change propagates within 15-30 min with zero user action
+- **Where:** `backend/src/controllers/authController.ts` — token generation, and Railway `JWT_EXPIRES_IN` env var
+
+**2. Backend never trusts JWT tier for billing-critical operations**
+- All API endpoints that gate on tier (chat queries, forecast, partners) must read `user.tier` from DB, not from JWT payload
+- JWT is for identity authentication only. DB is the source of truth for entitlements.
+- Audit: `chatController.ts`, `forecastController.ts`, `partnersController.ts` — check if they read tier from `req.user.tier` (JWT) or from a fresh DB query
+- **Where:** All controllers that gate features by tier
+
+**3. Remove `tier` from the cached localStorage user object**
+- `localStorage` stores `astrologaai_access_token` (JWT), `astrologaai_refresh_token`, and a `user` JSON blob
+- The `user` blob contains `tier` — this is the stale cache causing all BUG-26 symptoms
+- On app mount: decode tier from the JWT payload (already trusted and signed) OR call `GET /subscription/status` once for the authoritative value. Do NOT read tier from the static user blob.
+- **Where:** `frontend/src/lib/auth-context.tsx` — remove `tier` from localStorage user object, derive it on mount from fresh API call
+
+**4. Upgrades: instant. Downgrades: grace period. These are different flows.**
+
+*Upgrades (user just paid — must be immediate):*
+- Stripe fires `checkout.session.completed` webhook → backend updates DB tier instantly (verify this is already synchronous in `subscription.ts`)
+- Stripe simultaneously redirects to `success_url` → `dashboard?checkout=success`
+- Dashboard detects `?checkout=success` query param on mount → calls `GET /subscription/status` immediately → gets PRO tier from DB → updates auth context in the same page load
+- User never waits. Webhook and redirect arrive within ~1-2 seconds of each other. DB is updated before the dashboard finishes loading.
+
+*Cancellations (cancel_at_period_end = true — always):*
+- User cancels → `cancel_at_period_end = true` set in Stripe → user keeps full access until billing period ends
+- At period end: Stripe fires `customer.subscription.deleted` webhook → backend sets tier → FREE in DB
+- Next JWT refresh (≤30 min) picks up the FREE tier — no user action needed
+- UI during the grace period: show "Your plan cancels on [date]" banner — user knows when access ends
+- No abrupt cutoffs, no prorating refunds, no angry users. This is the industry standard.
+
+**5. On app mount + window focus: call `GET /subscription/status`**
+- Single API call on mount (~10ms with Redis cache) gives real-time tier + usage counts
+- Covers: admin tier changes, mid-session Stripe events, returns from Stripe portal
+- **Where:** `frontend/src/lib/auth-context.tsx` — `useEffect` on mount + `visibilitychange` listener
+
+**5. Stripe webhook must update DB tier synchronously**
+- `customer.subscription.deleted` → tier → FREE immediately in DB
+- `customer.subscription.updated` → tier updated in DB before webhook returns 200
+- Verify this is already happening correctly in `backend/src/routes/subscription.ts`
+
+#### Result after fix:
+- **Upgrade:** Access granted instantly on dashboard load after Stripe redirect (`?checkout=success` handler)
+- **Cancellation:** User keeps full access until end of billing period (`cancel_at_period_end = true`). At period end, Stripe webhook updates DB → JWT refresh revokes access within 30 min
+- **Admin tier change:** Takes effect on next page load (on-mount status check)
+- **localStorage manipulation:** Cannot unlock paid features — backend validates tier from DB on every billing-critical operation
+
+---
+
 ### ARCH-01 — Migrate chat from WebSocket to HTTP POST + SSE streaming
 - **Status:** ✅ COMPLETE — implemented 2026-03-17, commit `0106139`, pushed to GitHub
 - **What was done:** Deleted `socket-client.ts`, `socket/`, `use-websocket.ts`. Rewrote `chat-context-ws.tsx` (SSE-only, AbortController cancel, fixed named-event parser). Inlined `ConnectionState` type in `connection-status.tsx`. Removed `socket.io` + `socket.io-client` packages. Backend uses `app.listen` directly.
@@ -222,6 +541,62 @@
 - Inject next 3 upcoming transits into Oracle context automatically
 - Push notifications: "Your Saturn return begins in 6 weeks"
 
+### ENH-12 — Chat session 3-dot context menu (Pin, Share, Rename, Delete, Archive) + Search
+- **Priority:** HIGH — replaces the current primitive 📌 hover toggle with a full session management system matching industry standard (ChatGPT UX)
+- **Menu order:** Pin · Share · Rename · Delete *(red)* · Archive
+- **Also add:** Search chats input at top of sidebar history list (backend already supports `?search=` on `GET /sessions`)
+
+#### DB migration needed
+```sql
+ALTER TABLE chat_sessions ADD COLUMN is_pinned BOOLEAN DEFAULT false;
+ALTER TABLE chat_sessions ADD COLUMN is_archived BOOLEAN DEFAULT false;
+ALTER TABLE chat_sessions ADD COLUMN shared_token VARCHAR(64) UNIQUE DEFAULT NULL;
+```
+*(This also resolves ARCH-03's `astrologaai_pinned_chats` localStorage removal — pin state moves to DB)*
+
+#### Backend changes
+| What | How |
+|------|-----|
+| **Pin** | Extend `PATCH /sessions/:id` to accept `{ isPinned: bool }` |
+| **Archive** | Extend `PATCH /sessions/:id` to accept `{ isArchived: bool }` |
+| **Rename** | Already works via `PATCH /sessions/:id` with `{ title }` |
+| **Delete** | Already exists: `DELETE /sessions/:id` |
+| **Share** | New: `POST /sessions/:id/share` → generates `sharedToken` (nanoid, 12 chars), returns `{ shareUrl }`. `DELETE /sessions/:id/share` revokes it. |
+| **List** | `GET /sessions` must exclude archived by default. Add `?archived=true` to fetch archived sessions separately. |
+
+#### Frontend changes
+- Replace 📌 hover button in `chat-history-list.tsx` with `···` button (visible on hover)
+- Dropdown menu: Pin · Share · Rename · Delete *(red)* · Archive
+- **Pin:** calls PATCH, moves session to "Pinned" section. Removes from localStorage (ARCH-03).
+- **Rename:** opens inline text input replacing the title in the sidebar. Enter to save, Esc to cancel. Calls PATCH.
+- **Delete:** confirmation prompt ("Delete this conversation? This cannot be undone.") → DELETE endpoint.
+- **Archive:** calls PATCH `isArchived: true`. Session disappears from main list. Collapsed "Archived" section at bottom of sidebar with a toggle to show/hide.
+- **Share:** opens modal with full share URL + one-click copy button. Shows "Link active" or "No link" state. Option to revoke.
+- **Search:** text input at top of chat history panel. Debounced, calls `GET /sessions?search=` on each keystroke. Clears on empty.
+
+---
+
+### ENH-10 — Oracle aspect rotation / anti-repetition system (Phase 1 of FUTURE-02)
+- **Priority:** HIGH — Oracle opens every new chat with the same dominant aspect regardless of history; feels robotic and shallow after the first session
+- **Root cause:** Natal chart summary injected on every new chat gives the Oracle identical context each time. With no cross-session memory, it naturally gravitates to the most prominent aspect (e.g. Sun square Saturn). Correct behavior given context; wrong product experience.
+
+#### Phase 1 — Cooldown Table (implement now, ~2-3 days)
+- New DB table: `aspect_cooldowns (user_id, aspect_key, session_id, depth_score int, last_discussed_at timestamp)`
+  - `aspect_key` = normalized string: `sun_square_saturn`, `moon_trine_venus`, etc.
+  - `depth_score`: 1 = mentioned briefly, 2 = discussed, 3 = deep-dived
+- **Post-session job:** After each chat session ends, Haiku processes the conversation and identifies which aspects were covered + scores depth. Writes to `aspect_cooldowns`.
+- **Cooldown rules:** depth 1 → 7 day cooldown | depth 2 → 21 days | depth 3 → 60 days
+- **On new chat start:** Query `aspect_cooldowns` for user → inject into system prompt:
+  > *"Aspects in cooldown (recently explored, do not lead with these): Sun square Saturn (depth 3, last: 2026-03-10), Moon trine Venus (depth 2, last: 2026-03-15). Find something the user hasn't encountered yet in their chart. When cooldown expires, bring the aspect back with the framing: 'How has this felt over the past few weeks?'"*
+
+#### Phase 2 — Absorbed into FUTURE-02 (PGVector + RAG)
+- The cooldown table becomes seed data for the vector memory system
+- Instead of rigid rules, pgvector similarity search detects if the Oracle's planned opening is too similar to past sessions
+- Enables: smart rotation, tracking user growth across time, "last time we talked about X you felt Y — how has that shifted?"
+- Phase 1 data feeds directly into Phase 2 — no throw-away work
+
+---
+
 ### FUTURE-02 — Long-term Personal Memory (PGVector + RAG)
 *(See `docs/oracle-engagement-strategy.md` for full spec)*
 - After-session Haiku job extracts structured memories → `user_memories` + `user_relationships` tables
@@ -229,6 +604,7 @@
 - Before each Oracle response: embed user message → similarity search → inject top-5 relevant memories
 - Enables: "This reminds me of what you told me about your father in January"
 - The competitive moat — no other astrology app has this
+- **Note:** ENH-10 (aspect cooldown table) is Phase 1 of this system — build it first, absorb into FUTURE-02 when this is implemented
 
 ### FUTURE-03 — Astrocartography Map
 - Relocation tool returns text only. Needs Leaflet/Mapbox with astro lines for full experience.

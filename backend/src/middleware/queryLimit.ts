@@ -158,7 +158,7 @@ export async function incrementQueryCount(userId: string, tier: Tier): Promise<{
       let nextDaily = currentDaily + 1;
       let nextBonus = user.bonusQueries;
 
-      if (nextDaily > 4 && nextBonus > 0) {
+      if (nextDaily > (getTierLimits(tier).dailyQueries ?? 4) && nextBonus > 0) {
         nextBonus -= 1; // Used a bonus query
       }
 
@@ -245,7 +245,7 @@ export async function checkQueryLimit(
       const currentDaily = isNewDay ? 0 : user.dailyQueryCount;
       const bonus = user.bonusQueries;
 
-      if (currentDaily >= 4 && bonus <= 0) {
+      if (currentDaily >= (getTierLimits(tier).dailyQueries ?? 4) && bonus <= 0) {
         const tomorrow = new Date(now);
         tomorrow.setDate(tomorrow.getDate() + 1);
         tomorrow.setHours(0, 0, 0, 0);
