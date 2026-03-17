@@ -126,6 +126,7 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
         isStreaming={isStreaming}
         disabled={isLoading || isLimitReached}
         placeholder={isLimitReached ? 'Daily limit reached — upgrade to continue' : 'Ask the Oracle...'}
+        sendError={error}
       />
     </div>
   );

@@ -8,11 +8,13 @@ interface ChatInputBarProps {
   isStreaming: boolean;
   disabled?: boolean;
   placeholder?: string;
+  sendError?: string | null;
 }
 
-export function ChatInputBar({ onSend, onCancel, isStreaming, disabled, placeholder }: ChatInputBarProps) {
+export function ChatInputBar({ onSend, onCancel, isStreaming, disabled, placeholder, sendError }: ChatInputBarProps) {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const lastSentRef = useRef('');
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -21,9 +23,18 @@ export function ChatInputBar({ onSend, onCancel, isStreaming, disabled, placehol
     }
   }, [message]);
 
+  // Restore message to input if send failed
+  useEffect(() => {
+    if (sendError && lastSentRef.current) {
+      setMessage(lastSentRef.current);
+      lastSentRef.current = '';
+    }
+  }, [sendError]);
+
   const handleSend = () => {
     const trimmed = message.trim();
     if (trimmed && !disabled && !isStreaming) {
+      lastSentRef.current = trimmed;
       onSend(trimmed);
       setMessage('');
       if (textareaRef.current) textareaRef.current.style.height = 'auto';

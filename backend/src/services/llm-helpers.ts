@@ -367,10 +367,22 @@ export function buildEnhancedContext(
 // ============================================
 
 import { getLanguageDirective } from './languageService';
+import { prisma } from '../utils/prisma';
 export { getLanguageDirective };
 
-export function buildSystemPrompt(context: ChatContext): string {
-  let prompt = ASTROLOGER_SYSTEM_PROMPT;
+export async function buildSystemPrompt(context: ChatContext): Promise<string> {
+  // Use DB master prompt if set and active — falls back to hardcoded constant
+  let basePrompt = ASTROLOGER_SYSTEM_PROMPT;
+  try {
+    const dbPrompt = await prisma.systemPrompt.findUnique({ where: { name: 'master' } });
+    if (dbPrompt?.isActive && dbPrompt.content?.trim()) {
+      basePrompt = dbPrompt.content;
+    }
+  } catch {
+    // DB unavailable — fall back to hardcoded constant
+  }
+
+  let prompt = basePrompt;
 
   if (context.chartSummary) {
     prompt += '\n\n' + context.chartSummary;

@@ -340,7 +340,7 @@ ${aspectLines || 'No major aspects within orb today.'}`;
       }
     }
 
-    const systemPrompt = buildSystemPrompt({
+    const systemPrompt = await buildSystemPrompt({
       chartSummary,
       transitsSummary,
       language: userLanguage,

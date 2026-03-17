@@ -166,7 +166,7 @@ router.post(
     }
 
     // Build messages array
-    const systemPrompt = buildSystemPrompt({ chartSummary, language: 'en' });
+    const systemPrompt = await buildSystemPrompt({ chartSummary, language: 'en' });
     const messages = [
       { role: 'system' as const, content: systemPrompt },
       ...history,
