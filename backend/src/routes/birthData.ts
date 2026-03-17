@@ -15,7 +15,6 @@ import {
   createBirthProfile,
   updateBirthProfile,
   deleteBirthProfile,
-  searchLocationsHandler,
   getRegenerationStatus,
   getChartHistory,
   getHistoricalChart,

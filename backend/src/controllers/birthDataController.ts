@@ -228,8 +228,8 @@ export async function createBirthProfile(req: Request, res: Response): Promise<v
     }
     
     // Get timezone from coordinates if not provided
-    const timezone = input.timezone || 
-                     getTimezoneFromCoordinates(input.latitude, input.longitude);
+    const timezone = input.timezone ||
+                     await getTimezoneFromCoordinates(input.latitude, input.longitude);
     
     // Create the profile
     const profile = await prisma.birthProfile.create({
@@ -377,7 +377,7 @@ export async function updateBirthProfile(req: Request, res: Response): Promise<v
     if ((input.latitude !== undefined || input.longitude !== undefined) && !input.timezone) {
       const lat = input.latitude ?? existing.latitude;
       const lon = input.longitude ?? existing.longitude;
-      timezone = getTimezoneFromCoordinates(lat, lon);
+      timezone = await getTimezoneFromCoordinates(lat, lon);
     }
     
     // Check if birth data actually changed (to determine if we need to regenerate chart)

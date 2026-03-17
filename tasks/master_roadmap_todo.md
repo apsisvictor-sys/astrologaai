@@ -136,17 +136,11 @@
 
 ---
 
-### ENH-02 — Replace Nominatim with Google Places API *(blocked on Google Maps API key)*
-- **Priority:** HIGH — directly impacts onboarding conversion
+### ENH-02 — Replace Nominatim with Google Places API ✅ CODE COMPLETE (2026-03-17)
 - **Resolves:** BUG-04, BUG-07, BUG-08, BUG-06 (coordinate precision contributor)
-- **Steps:**
-  1. Victor creates Google Cloud project → enables Maps JS API + Places API + Geocoding API + Time Zone API
-  2. Add `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` to Vercel + `GOOGLE_MAPS_API_KEY` to Railway
-  3. `npm install @googlemaps/js-api-loader` in frontend
-  4. Create `frontend/src/components/ui/google-places-input.tsx` — AutocompleteService + Geocoder
-  5. Replace location input in `birth-data-form.tsx` + `partner-form.tsx`
-  6. Backend `geocoding.ts`: replace `geo-tz` with Google Time Zone API call
-  7. Remove `routes/locations.ts` + Nominatim search from `geocoding.ts`
+- **What was done:** Rewrote `backend/src/services/geocoding.ts` — removed Nominatim + geo-tz, replaced with Google Places Autocomplete + Geocoding API + Time Zone API. Aggressive Redis caching (search 24h, place 7d, timezone 30d). Max 5 results. Graceful no-op if key missing.
+- **⚠️ PENDING:** Victor must add `GOOGLE_MAPS_API_KEY` to Railway env vars to activate. Frontend (`NEXT_PUBLIC_GOOGLE_MAPS_API_KEY`) not needed — location search runs backend-only.
+- **Cost:** Stays within free tier — popular city queries cached after first hit, timezone cached 30 days.
 
 ---
 
