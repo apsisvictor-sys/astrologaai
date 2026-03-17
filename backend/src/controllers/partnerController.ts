@@ -594,10 +594,11 @@ export const getSynastry = async (req: Request, res: Response) => {
     }
     
     // Get user's birth data
-    const userBirthData = await prisma.birthData.findUnique({
+    const userBirthData = await prisma.birthProfile.findFirst({
       where: { userId },
+      orderBy: { createdAt: 'desc' },
     });
-    
+
     if (!userBirthData) {
       return res.status(400).json({
         success: false,
@@ -644,13 +645,13 @@ export const getSynastry = async (req: Request, res: Response) => {
     }
     
     // Parse user birth data
-    const userBirthDate = new Date(userBirthData.date);
-    const [userHour = 12, userMinute = 0] = (userBirthData.time || '12:00').split(':').map(Number);
-    
+    const userBirthDate = new Date(userBirthData.birthDate);
+    const [userHour = 12, userMinute = 0] = (userBirthData.birthTime || '12:00').split(':').map(Number);
+
     // Parse partner birth data
     const partnerBirthDate = new Date(partner.birthDate);
     const [partnerHour = 12, partnerMinute = 0] = (partner.birthTime || '12:00').split(':').map(Number);
-    
+
     // Calculate synastry chart
     const synastryChart = await calculateSynastryChart(
       {
@@ -738,10 +739,11 @@ export const getCompatibilityReport = async (req: Request, res: Response) => {
     }
     
     // Get user's birth data
-    const userBirthData = await prisma.birthData.findUnique({
+    const userBirthData = await prisma.birthProfile.findFirst({
       where: { userId },
+      orderBy: { createdAt: 'desc' },
     });
-    
+
     if (!userBirthData) {
       return res.status(400).json({
         success: false,
@@ -787,13 +789,13 @@ export const getCompatibilityReport = async (req: Request, res: Response) => {
     }
     
     // Parse user birth data
-    const userBirthDate = new Date(userBirthData.date);
-    const [userHour = 12, userMinute = 0] = (userBirthData.time || '12:00').split(':').map(Number);
-    
+    const userBirthDate = new Date(userBirthData.birthDate);
+    const [userHour = 12, userMinute = 0] = (userBirthData.birthTime || '12:00').split(':').map(Number);
+
     // Parse partner birth data
     const partnerBirthDate = new Date(partner.birthDate);
     const [partnerHour = 12, partnerMinute = 0] = (partner.birthTime || '12:00').split(':').map(Number);
-    
+
     // Generate compatibility report
     const report = await generateCompatibilityReport(
       {

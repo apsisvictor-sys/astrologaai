@@ -93,15 +93,15 @@ export async function storeForecast(
 async function generateForUser(user: {
   id: string;
   language: string;
-  birthData: {
-    date: Date;
-    time: string;
+  birthProfile: {
+    birthDate: Date;
+    birthTime: string | null;
     latitude: number;
     longitude: number;
     timezone: string;
   } | null;
 }): Promise<void> {
-  if (!user.birthData) return;
+  if (!user.birthProfile) return;
 
   const date = todayString();
   const existing = await getStoredForecast(user.id, date);
@@ -110,17 +110,17 @@ async function generateForUser(user: {
     return;
   }
 
-  const birthDate = new Date(user.birthData.date);
-  const [hour, minute] = (user.birthData.time || '12:00').split(':').map(Number);
+  const birthDate = new Date(user.birthProfile.birthDate);
+  const [hour, minute] = (user.birthProfile.birthTime || '12:00').split(':').map(Number);
   const birthData = {
     year: birthDate.getFullYear(),
     month: birthDate.getMonth() + 1,
     day: birthDate.getDate(),
     hour: hour || 12,
     minute: minute || 0,
-    latitude: user.birthData.latitude,
-    longitude: user.birthData.longitude,
-    timezone: user.birthData.timezone || 'UTC',
+    latitude: user.birthProfile.latitude,
+    longitude: user.birthProfile.longitude,
+    timezone: user.birthProfile.timezone || 'UTC',
   };
 
   let horoscope: any = null;
@@ -161,9 +161,9 @@ export async function runNightlyForecastJob(): Promise<void> {
   let users: Array<{
     id: string;
     language: string;
-    birthData: {
-      date: Date;
-      time: string;
+    birthProfile: {
+      birthDate: Date;
+      birthTime: string | null;
       latitude: number;
       longitude: number;
       timezone: string;
@@ -171,20 +171,27 @@ export async function runNightlyForecastJob(): Promise<void> {
   }>;
 
   try {
-    users = await prisma.user.findMany({
+    const rawUsers = await prisma.user.findMany({
       where: {
         tier: { in: ['PRO', 'PREMIUM'] },
-        birthData: { isNot: null },
+        birthProfiles: { some: {} },
         isSuspended: false,
       },
       select: {
         id: true,
         language: true,
-        birthData: {
-          select: { date: true, time: true, latitude: true, longitude: true, timezone: true },
+        birthProfiles: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: { birthDate: true, birthTime: true, latitude: true, longitude: true, timezone: true },
         },
       },
     });
+    users = rawUsers.map(u => ({
+      id: u.id,
+      language: u.language,
+      birthProfile: u.birthProfiles[0] ?? null,
+    }));
   } catch (err) {
     console.error('[ForecastCron] Failed to fetch users:', err);
     lastRunDate = ''; // allow retry

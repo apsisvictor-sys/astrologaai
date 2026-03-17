@@ -126,8 +126,9 @@ export function createAstrologyTools(context: ToolContext) {
         inputSchema: z.object({}),
         execute: async () => {
             console.log(`[Agent Tool] get_natal_chart — reading from DB for userId ${userId}`);
-            const record = await prisma.birthData.findUnique({
+            const record = await prisma.birthProfile.findFirst({
                 where: { userId },
+                orderBy: { createdAt: 'desc' },
                 include: { birthChart: true },
             });
             if (!record?.birthChart?.chartData) {
@@ -160,8 +161,9 @@ export function createAstrologyTools(context: ToolContext) {
         execute: async () => {
             console.log(`[Agent Tool] get_transits`);
             const { getActiveTransitsForUser } = await import('../transits');
-            const record = await prisma.birthData.findUnique({
+            const record = await prisma.birthProfile.findFirst({
                 where: { userId },
+                orderBy: { createdAt: 'desc' },
                 include: { birthChart: true },
             });
             if (!record?.birthChart?.chartData) {
@@ -181,21 +183,21 @@ export function createAstrologyTools(context: ToolContext) {
         inputSchema: synastrySchema,
         execute: async (args: z.infer<typeof synastrySchema>) => {
             console.log(`[Agent Tool] get_synastry — partnerId ${args.partnerId}`);
-            const [userRecord, partner] = await Promise.all([
-                prisma.birthData.findUnique({ where: { userId } }),
+            const [userProfile, partner] = await Promise.all([
+                prisma.birthProfile.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }),
                 prisma.partner.findFirst({ where: { id: args.partnerId, userId } }),
             ]);
-            if (!userRecord) throw new Error('User birth data not found in database.');
+            if (!userProfile) throw new Error('User birth data not found in database.');
             if (!partner) throw new Error(`Partner with ID "${args.partnerId}" not found.`);
 
             const client = getClient();
-            const [userHour, userMin] = (userRecord.time || '12:00').split(':').map(Number);
+            const [userHour, userMin] = (userProfile.birthTime || '12:00').split(':').map(Number);
             const [partHour, partMin] = (partner.birthTime || '12:00').split(':').map(Number);
-            const userBirth = new Date(userRecord.date);
+            const userBirth = new Date(userProfile.birthDate);
             const partBirth = new Date(partner.birthDate);
 
             const result = await client.charts.getSynastryChart({
-                subject1: toSubject({ year: userBirth.getFullYear(), month: userBirth.getMonth() + 1, day: userBirth.getDate(), hour: userHour, minute: userMin, latitude: userRecord.latitude, longitude: userRecord.longitude, timezone: userRecord.timezone }),
+                subject1: toSubject({ year: userBirth.getFullYear(), month: userBirth.getMonth() + 1, day: userBirth.getDate(), hour: userHour, minute: userMin, latitude: userProfile.latitude, longitude: userProfile.longitude, timezone: userProfile.timezone }),
                 subject2: toSubject({ year: partBirth.getFullYear(), month: partBirth.getMonth() + 1, day: partBirth.getDate(), hour: partHour, minute: partMin, latitude: partner.latitude, longitude: partner.longitude, timezone: partner.timezone }),
                 options: CHART_OPTIONS,
             });
@@ -280,21 +282,21 @@ export function createAstrologyTools(context: ToolContext) {
         inputSchema: compositeSchema,
         execute: async (args: z.infer<typeof compositeSchema>) => {
             console.log(`[Agent Tool] get_composite — partnerId ${args.partnerId}`);
-            const [userRecord, partner] = await Promise.all([
-                prisma.birthData.findUnique({ where: { userId } }),
+            const [userProfile, partner] = await Promise.all([
+                prisma.birthProfile.findFirst({ where: { userId }, orderBy: { createdAt: 'desc' } }),
                 prisma.partner.findFirst({ where: { id: args.partnerId, userId } }),
             ]);
-            if (!userRecord) throw new Error('User birth data not found in database.');
+            if (!userProfile) throw new Error('User birth data not found in database.');
             if (!partner) throw new Error(`Partner with ID "${args.partnerId}" not found.`);
 
             const client = getClient();
-            const [userHour, userMin] = (userRecord.time || '12:00').split(':').map(Number);
+            const [userHour, userMin] = (userProfile.birthTime || '12:00').split(':').map(Number);
             const [partHour, partMin] = (partner.birthTime || '12:00').split(':').map(Number);
-            const userBirth = new Date(userRecord.date);
+            const userBirth = new Date(userProfile.birthDate);
             const partBirth = new Date(partner.birthDate);
 
             return await client.charts.getCompositeChart({
-                subject1: toSubject({ year: userBirth.getFullYear(), month: userBirth.getMonth() + 1, day: userBirth.getDate(), hour: userHour, minute: userMin, latitude: userRecord.latitude, longitude: userRecord.longitude, timezone: userRecord.timezone }),
+                subject1: toSubject({ year: userBirth.getFullYear(), month: userBirth.getMonth() + 1, day: userBirth.getDate(), hour: userHour, minute: userMin, latitude: userProfile.latitude, longitude: userProfile.longitude, timezone: userProfile.timezone }),
                 subject2: toSubject({ year: partBirth.getFullYear(), month: partBirth.getMonth() + 1, day: partBirth.getDate(), hour: partHour, minute: partMin, latitude: partner.latitude, longitude: partner.longitude, timezone: partner.timezone }),
                 options: CHART_OPTIONS,
             });

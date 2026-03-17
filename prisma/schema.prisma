@@ -50,7 +50,6 @@ model User {
 
   // Relations
   profile           Profile?
-  birthData         BirthData?
   birthProfiles     BirthProfile[] // US-05: Multi-profile support
   birthChart        BirthChart?
   chatSessions      ChatSession[] // US-07: Chat sessions
@@ -99,32 +98,10 @@ model BirthProfile {
   @@map("birth_profiles")
 }
 
-// Legacy BirthData model (deprecated - keeping for backward compatibility)
-model BirthData {
-  id                String    @id @default(uuid())
-  userId            String    @unique @map("user_id")
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date              DateTime
-  time              String    // "HH:MM" format
-  place             String
-  latitude          Float
-  longitude         Float
-  timezone          String
-  isUnknownTime     Boolean   @default(false) @map("is_unknown_time")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
-
-  birthChart        BirthChart?
-
-  @@map("birth_data")
-}
-
 model BirthChart {
   id                String    @id @default(uuid())
   userId            String    @unique @map("user_id")
   user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  birthDataId       String?   @unique @map("birth_data_id") // Legacy field, nullable
-  birthData         BirthData? @relation(fields: [birthDataId], references: [id])
   birthProfileId    String?   @unique @map("birth_profile_id") // US-05: Link to BirthProfile
   birthProfile      BirthProfile? @relation(fields: [birthProfileId], references: [id])
   chartData         Json      @map("chart_data") // Full chart calculation result

@@ -35,15 +35,13 @@ router.get('/daily', queryLimitMiddleware, async (req: Request, res: Response) =
     // US-25: Use user's language preference
     const lang = (req.query.lang as string) || req.user?.language || 'bg';
     
-    // Get user's birth data
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        birthData: true,
-      },
+    // Get user's primary birth profile
+    const profile = await prisma.birthProfile.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
     });
-    
-    if (!user || !user.birthData) {
+
+    if (!profile) {
       return res.status(400).json({
         success: false,
         error: {
@@ -52,21 +50,18 @@ router.get('/daily', queryLimitMiddleware, async (req: Request, res: Response) =
         },
       });
     }
-    
-    // Extract birth data from the stored DateTime
-    const birthDate = new Date(user.birthData.date);
-    const birthTimeParts = user.birthData.time.split(':');
-    
-    // Get birth data for chart calculation
+
+    const birthDate = new Date(profile.birthDate);
+    const [bHour, bMin] = (profile.birthTime || '12:00').split(':').map(Number);
     const birthData = {
       year: birthDate.getFullYear(),
       month: birthDate.getMonth() + 1,
       day: birthDate.getDate(),
-      hour: parseInt(birthTimeParts[0]) || 12,
-      minute: parseInt(birthTimeParts[1]) || 0,
-      latitude: user.birthData.latitude,
-      longitude: user.birthData.longitude,
-      timezone: user.birthData.timezone || 'Europe/Sofia',
+      hour: bHour || 12,
+      minute: bMin || 0,
+      latitude: profile.latitude,
+      longitude: profile.longitude,
+      timezone: profile.timezone || 'UTC',
     };
 
     // Read precomputed natal chart from DB (avoids redundant API call)
@@ -117,15 +112,13 @@ router.get('/weekly', queryLimitMiddleware, async (req: Request, res: Response) 
     // US-25: Use user's language preference
     const lang = (req.query.lang as string) || req.user?.language || 'bg';
     
-    // Get user's birth data
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        birthData: true,
-      },
+    // Get user's primary birth profile
+    const profile = await prisma.birthProfile.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
     });
-    
-    if (!user || !user.birthData) {
+
+    if (!profile) {
       return res.status(400).json({
         success: false,
         error: {
@@ -134,20 +127,18 @@ router.get('/weekly', queryLimitMiddleware, async (req: Request, res: Response) 
         },
       });
     }
-    
-    // Extract birth data from the stored DateTime
-    const birthDate = new Date(user.birthData.date);
-    const birthTimeParts = user.birthData.time.split(':');
-    
+
+    const birthDate = new Date(profile.birthDate);
+    const [bHour, bMin] = (profile.birthTime || '12:00').split(':').map(Number);
     const birthData = {
       year: birthDate.getFullYear(),
       month: birthDate.getMonth() + 1,
       day: birthDate.getDate(),
-      hour: parseInt(birthTimeParts[0]) || 12,
-      minute: parseInt(birthTimeParts[1]) || 0,
-      latitude: user.birthData.latitude,
-      longitude: user.birthData.longitude,
-      timezone: user.birthData.timezone || 'Europe/Sofia',
+      hour: bHour || 12,
+      minute: bMin || 0,
+      latitude: profile.latitude,
+      longitude: profile.longitude,
+      timezone: profile.timezone || 'UTC',
     };
 
     // Read precomputed natal chart from DB (avoids redundant API call)
@@ -247,9 +238,9 @@ router.get('/horoscope', async (req: Request, res: Response) => {
       return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } });
     }
 
-    const profile = await prisma.birthData.findUnique({
+    const profile = await prisma.birthProfile.findFirst({
       where: { userId },
-      select: { date: true, time: true, latitude: true, longitude: true, timezone: true },
+      orderBy: { createdAt: 'desc' },
     });
 
     if (!profile) {
@@ -259,8 +250,8 @@ router.get('/horoscope', async (req: Request, res: Response) => {
       });
     }
 
-    const birthDate = new Date(profile.date);
-    const [hour, minute] = (profile.time || '12:00').split(':').map(Number);
+    const birthDate = new Date(profile.birthDate);
+    const [hour, minute] = (profile.birthTime || '12:00').split(':').map(Number);
     const birthData = {
       year: birthDate.getFullYear(), month: birthDate.getMonth() + 1, day: birthDate.getDate(),
       hour: hour || 12, minute: minute || 0,

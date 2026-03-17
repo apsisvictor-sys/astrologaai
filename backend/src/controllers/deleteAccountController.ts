@@ -188,12 +188,7 @@ export async function deleteAccount(req: Request, res: Response, next: NextFunct
         where: { userId: user.id },
       });
 
-      // 9. Delete legacy birth data
-      await prisma.birthData.deleteMany({
-        where: { userId: user.id },
-      });
-
-      // 10. Delete profile
+      // 9. Delete profile
       await prisma.profile.deleteMany({
         where: { userId: user.id },
       });

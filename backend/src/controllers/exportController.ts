@@ -459,7 +459,6 @@ async function fetchUserData(userId: string): Promise<UserExportData> {
     where: { id: userId },
     include: {
       profile: true,
-      birthData: true,
       birthProfiles: {
         include: {
           birthChart: {
@@ -512,15 +511,6 @@ async function fetchUserData(userId: string): Promise<UserExportData> {
       avatarUrl: user.avatarUrl,
       createdAt: user.createdAt.toISOString(),
     },
-    birthData: user.birthData ? {
-      date: user.birthData.date.toISOString(),
-      time: user.birthData.time,
-      place: user.birthData.place,
-      latitude: user.birthData.latitude,
-      longitude: user.birthData.longitude,
-      timezone: user.birthData.timezone,
-      isUnknownTime: user.birthData.isUnknownTime,
-    } : null,
     birthProfiles: user.birthProfiles.map(profile => ({
       id: profile.id,
       name: profile.name,
@@ -764,15 +754,6 @@ interface UserExportData {
     avatarUrl: string | null;
     createdAt: string;
   };
-  birthData: {
-    date: string;
-    time: string;
-    place: string;
-    latitude: number;
-    longitude: number;
-    timezone: string;
-    isUnknownTime: boolean;
-  } | null;
   birthProfiles: Array<{
     id: string;
     name: string;

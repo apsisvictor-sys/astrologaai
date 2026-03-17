@@ -23,12 +23,17 @@ interface PersonalDailyHoroscope {
   cached: boolean;
 }
 
-// Which areas FREE users can see
-const FREE_AREAS = ['identity', 'communication'];
-// Display order
-const AREA_ORDER = ['identity', 'communication', 'love', 'career', 'health', 'finance'];
+// Tier area access (12 total areas from API)
+const FREE_AREAS = ['identity', 'communication', 'relationships', 'travel'];
+const PRO_AREAS = [...FREE_AREAS, 'career', 'health', 'finance', 'home'];
+// PREMIUM sees all 12
+
+// Display order — all 12 API areas
+const AREA_ORDER = ['identity', 'communication', 'relationships', 'travel', 'career', 'health', 'finance', 'home', 'love', 'creativity', 'spirituality', 'learning'];
 const AREA_ICONS: Record<string, string> = {
-  love: '♀', career: '♄', health: '☽', finance: '☿', identity: '☀', communication: '☊',
+  identity: '☀', communication: '☊', relationships: '♂', travel: '✈',
+  career: '♄', health: '☽', finance: '☿', home: '⌂',
+  love: '♀', creativity: '✦', spirituality: '☯', learning: '☿',
 };
 
 function RatingOrbs({ rating, max = 5 }: { rating: number; max?: number }) {
@@ -55,7 +60,7 @@ interface DailyHoroscopeCardProps {
 }
 
 export function DailyHoroscopeCard({ tier }: DailyHoroscopeCardProps) {
-  const isPro = tier === 'PRO' || tier === 'PREMIUM';
+  const allowedAreas = tier === 'PREMIUM' ? null : tier === 'PRO' ? PRO_AREAS : FREE_AREAS;
   const [horoscope, setHoroscope] = useState<PersonalDailyHoroscope | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,8 +99,8 @@ export function DailyHoroscopeCard({ tier }: DailyHoroscopeCardProps) {
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
   });
 
-  const visibleAreas = isPro ? sortedAreas : sortedAreas.filter(a => FREE_AREAS.includes(a.area));
-  const lockedAreas = isPro ? [] : sortedAreas.filter(a => !FREE_AREAS.includes(a.area));
+  const visibleAreas = allowedAreas === null ? sortedAreas : sortedAreas.filter(a => allowedAreas.includes(a.area));
+  const lockedAreas = allowedAreas === null ? [] : sortedAreas.filter(a => !allowedAreas.includes(a.area));
 
   return (
     <div
@@ -166,8 +171,8 @@ export function DailyHoroscopeCard({ tier }: DailyHoroscopeCardProps) {
         ))}
       </div>
 
-      {/* Upgrade CTA (FREE) or Tips link (PRO) */}
-      {!isPro ? (
+      {/* Upgrade CTA or full reading link */}
+      {tier === 'FREE' ? (
         <Link
           href="/pricing"
           className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold text-white transition-opacity hover:opacity-80"
@@ -175,6 +180,15 @@ export function DailyHoroscopeCard({ tier }: DailyHoroscopeCardProps) {
         >
           <Sparkles className="w-3.5 h-3.5" />
           Unlock full reading — upgrade to PRO
+        </Link>
+      ) : tier === 'PRO' ? (
+        <Link
+          href="/pricing"
+          className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold text-white transition-opacity hover:opacity-80"
+          style={{ background: 'linear-gradient(135deg, rgba(228,26,255,0.25), rgba(228,26,255,0.10))', border: '1px solid rgba(228,26,255,0.30)' }}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          Unlock all 12 areas — upgrade to PREMIUM
         </Link>
       ) : (
         <Link href="/forecast" className="text-center text-xs text-primary hover:text-primary/80 transition-colors">
