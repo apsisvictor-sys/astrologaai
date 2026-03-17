@@ -493,11 +493,7 @@ ${aspectLines || 'No major aspects within orb today.'}`;
     // Send completion event
     const latencyMs = Date.now() - startTime;
     const finalStatus = getOrchestratorStatus();
-    
-    // US-34: Add latency header
-    res.setHeader('X-Latency', `${latencyMs}ms`);
-    res.setHeader('X-Provider', finalStatus.activeProvider);
-    
+
     res.write(`event: complete\ndata: ${JSON.stringify({
       messageId: assistantMessageId,
       content: fullResponse,
