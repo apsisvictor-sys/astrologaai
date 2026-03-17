@@ -113,6 +113,12 @@
 
 ---
 
+### ~~BUG-19~~ — ✅ RESOLVED (2026-03-17) — OracleWelcome shown incorrectly to users with birth data
+- **Root cause:** `hasBirthData` check in `chat-window.tsx` treated any non-success API response (401 expired token, 500) as 0 profiles → showed birth data form instead of chat.
+- **Fix:** Only set `hasBirthData = false` when `data.success === true && profiles.length === 0`. All errors fall safe to `true`.
+
+---
+
 ### ~~BUG-17~~ — ✅ RESOLVED (2026-03-17, f239670)
 - `buildSystemPrompt()` now reads 'master' prompt from `system_prompts` DB. Falls back to hardcoded constant.
 
@@ -237,8 +243,13 @@
 - After BG translation is complete: evaluate RO, RS, GR markets
 - next-intl i18n infrastructure already in place
 
-### FUTURE-05 — Wire Admin Prompts UI to Live Oracle (BUG-17 Option A)
-- Makes system prompt editable from admin panel without requiring code deploy
+### FUTURE-05 — ~~Wire Admin Prompts UI to Live Oracle (BUG-17 Option A)~~ ✅ DONE (f239670)
+
+### FUTURE-06 — Dynamic Chat Suggested Prompts
+- **Where:** `frontend/src/components/chat/empty-state.tsx`
+- **What:** Currently shows 3 static hardcoded prompts. Replace with context-aware suggestions that change based on: user's chart (sun/moon/rising signs), their recent chat history topics, current transits, and time of day.
+- **How:** Backend endpoint `GET /api/v1/chat/suggested-prompts` — reads user's birth profile + last 3 chat session titles + current day's transit → Claude Haiku generates 3 personalized prompt ideas (cached per user per day in Redis).
+- **UX:** Prompts rotate on each new conversation. First-time users see generic prompts. Returning users see chart-tailored prompts like "Your Venus in Scorpio intensifies today — how does this affect relationships?"
 
 ---
 

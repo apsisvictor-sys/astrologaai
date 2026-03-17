@@ -51,8 +51,16 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
-      .then(data => setHasBirthData((data.data?.profiles?.length || 0) > 0))
-      .catch(() => setHasBirthData(true)); // fail safe — don't block chat on error
+      .then(data => {
+        // Only show OracleWelcome if API explicitly confirms 0 profiles.
+        // Auth errors (401), server errors (500) must not trigger it — fall safe to true.
+        if (data.success === true) {
+          setHasBirthData((data.data?.profiles?.length || 0) > 0);
+        } else {
+          setHasBirthData(true);
+        }
+      })
+      .catch(() => setHasBirthData(true)); // network error — fail safe
   }, [isAuthenticated]);
 
   // Session init
