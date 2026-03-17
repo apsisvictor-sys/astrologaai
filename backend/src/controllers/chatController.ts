@@ -227,7 +227,7 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
     const userId = req.user?.id;
     const userTier = (req.user?.tier as Tier) || 'FREE';
     // US-25: Get from user preferences, ensure valid type
-    const userLanguage: 'bg' | 'en' = (req.user?.language === 'en' ? 'en' : 'bg');
+    const userLanguage: 'bg' | 'en' = (req.user?.language === 'bg' ? 'bg' : 'en');
 
     if (!userId) {
       res.status(401).json({
@@ -381,7 +381,11 @@ ${aspectLines || 'No major aspects within orb today.'}`;
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
-    
+
+    // Handle client disconnect — abort the stream
+    let aborted = false;
+    req.on('close', () => { aborted = true; });
+
     // US-34: Get initial provider info for headers
     const orchestratorStatus = getOrchestratorStatus();
     res.setHeader('X-Provider', orchestratorStatus.activeProvider);
@@ -403,6 +407,7 @@ ${aspectLines || 'No major aspects within orb today.'}`;
 
     try {
       for await (const chunk of streamChatCompletion(messages)) {
+        if (aborted) break;
         if (chunk.error) {
           hasError = true;
           res.write(`event: error\ndata: ${JSON.stringify({ 
@@ -533,7 +538,7 @@ export async function listSessions(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.id;
     const { page = 1, limit = 20, search } = req.query;
-    const userLanguage = req.user?.language || 'bg';
+    const userLanguage = req.user?.language || 'en';
 
     if (!userId) {
       res.status(401).json({
@@ -813,7 +818,7 @@ export async function startNewConversation(req: Request, res: Response): Promise
   try {
     const userId = req.user?.id;
     const { title, birthProfileId } = req.body;
-    const userLanguage = req.user?.language || 'bg';
+    const userLanguage = req.user?.language || 'en';
 
     if (!userId) {
       res.status(401).json({
@@ -875,7 +880,7 @@ export async function startNewConversation(req: Request, res: Response): Promise
 export async function clearAllSessions(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.id;
-    const userLanguage = req.user?.language || 'bg';
+    const userLanguage = req.user?.language || 'en';
 
     if (!userId) {
       res.status(401).json({

@@ -9,7 +9,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { ConnectionState } from '@/lib/socket-client';
+type ConnectionState = 'connected' | 'connecting' | 'disconnected' | 'reconnecting' | 'error';
 
 interface ConnectionStatusProps {
   state: ConnectionState;
@@ -112,6 +112,18 @@ export function ConnectionStatus({
       ),
       text: `${t.reconnecting}${retryCountdown > 0 ? ` ${t.inSeconds.replace('{seconds}', String(retryCountdown))}` : '...'}`,
       pulse: true,
+    },
+    error: {
+      color: 'bg-[#EF4444]',
+      textColor: 'text-[#EF4444]',
+      icon: (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      ),
+      text: t.disconnected,
+      pulse: false,
     },
   };
 

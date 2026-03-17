@@ -10,7 +10,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { config } from 'dotenv';
-import { createServer } from 'http';
 import { runtimeConfig, isOriginAllowed } from './config/runtime';
 import { getEnvValidationReport } from './config/envValidation';
 import { prisma } from './utils/prisma';
@@ -36,10 +35,6 @@ import guestChatRoutes from './routes/guestChat';
 // US-37: Rate limit headers middleware
 import { rateLimitHeadersMiddleware, fetchRateLimitStatus } from './middleware/rateLimitHeaders';
 
-// Import Socket.io
-import { initializeSocketServer, registerChatHandlers } from './socket';
-import type { AuthenticatedSocket } from './socket';
-
 // US-30: Chart regeneration processor
 import { startRegenerationProcessor } from './services/chart-regeneration';
 import { seedAdminDefaults } from './services/admin-defaults';
@@ -52,9 +47,6 @@ const PORT = runtimeConfig.port;
 
 // Trust Railway's proxy (required for express-rate-limit to work correctly behind Railway)
 app.set('trust proxy', 1);
-
-// Create HTTP server for Socket.io
-const httpServer = createServer(app);
 
 // ============================================
 // MIDDLEWARE
@@ -120,10 +112,9 @@ app.get('/r/:slug', async (req: Request, res: Response) => {
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
   res.json({ 
-    status: 'ok', 
+    status: 'ok',
     timestamp: new Date().toISOString(),
     version: '1.0.0',
-    websocket: 'enabled',
   });
 });
 
@@ -172,8 +163,6 @@ app.get('/health/astrology', async (req: Request, res: Response) => {
       status: isHealthy ? 'ok' : 'degraded',
       astrology: {
         activeProvider: status.activeProvider,
-        healthyProviders: status.healthyProviders,
-        totalProviders: status.totalProviders,
       },
     });
   } catch (error) {
@@ -265,28 +254,16 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 });
 
 // ============================================
-// INITIALIZE SOCKET.IO
-// ============================================
-
-const io = initializeSocketServer(httpServer);
-
-// Register chat handlers on connection
-io.on('connection', (socket: AuthenticatedSocket) => {
-  registerChatHandlers(socket);
-});
-
-// ============================================
 // START SERVER
 // ============================================
 
-httpServer.listen(PORT, () => {
+app.listen(PORT, () => {
   const envReport = getEnvValidationReport();
 
   console.log(`🚀 AstroLogAI API running on port ${PORT}`);
   console.log(`📚 Health check: http://localhost:${PORT}/health`);
   console.log(`🧪 Env validation: http://localhost:${PORT}/health/env (${envReport.ok ? 'ok' : 'degraded'})`);
   console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/v1/auth`);
-  console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
   console.log(`🌐 Allowed origins: ${runtimeConfig.allowedOrigins.join(', ') || '(none configured)'}`);
   if (!envReport.ok) {
     console.warn(`⚠️ Missing required env vars: ${envReport.missingRequired.join(', ')}`);
@@ -307,4 +284,3 @@ httpServer.listen(PORT, () => {
 });
 
 export default app;
-export { httpServer, io };

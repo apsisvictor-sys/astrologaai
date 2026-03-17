@@ -1,22 +1,16 @@
 /**
- * Chat Context Provider with WebSocket Support
+ * Chat Context Provider — HTTP POST + SSE
  * US-07: Send Message to AI Astrologer
  * US-08: Chat History
  * US-09: Chat Context Persistence
- * US-10: Streaming Responses (WebSocket)
- * 
- * Manages chat state with WebSocket streaming and SSE fallback
+ * US-10: Streaming Responses (SSE)
+ *
+ * WebSocket removed — all chat goes through POST /api/v1/chat/message (SSE stream)
  */
 
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect, useRef } from 'react';
-import { 
-  getSocketClient, 
-  initializeSocketClient, 
-  disconnectSocketClient,
-  ConnectionState 
-} from '@/lib/socket-client';
 
 // Types
 export interface ChatMessage {
@@ -55,10 +49,8 @@ export interface ChatContextType {
   usage: UsageInfo | null;
   hasMoreMessages: boolean;
   isLoadingMore: boolean;
-  connectionState: ConnectionState;
-  useWebSocket: boolean;
-  queuedMessagesCount: number;
-  
+  connectionState: 'connected' | 'error';
+
   // Actions
   createSession: (birthProfileId?: string) => Promise<ChatSession>;
   loadSession: (sessionId: string) => Promise<void>;
@@ -68,8 +60,6 @@ export interface ChatContextType {
   resetChat: () => void;
   startNewConversation: () => Promise<ChatSession>;
   cancelGeneration: () => void;
-  reconnect: () => Promise<void>;
-  toggleWebSocket: (enabled: boolean) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -79,7 +69,6 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-
 // Storage keys
 const ACCESS_TOKEN_KEY = 'astrologaai_access_token';
 const SESSION_ID_KEY = 'astrologaai_chat_session';
-const USE_WEBSOCKET_KEY = 'astrologaai_use_websocket';
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [currentSession, setCurrentSession] = useState<ChatSession | null>(null);
@@ -91,12 +80,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [usage, setUsage] = useState<UsageInfo | null>(null);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
-  const [useWebSocket, setUseWebSocket] = useState(true);
-  const [queuedMessagesCount, setQueuedMessagesCount] = useState(0);
 
-  const streamingContentRef = useRef('');
-  const socketInitialized = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   /**
    * Get access token from storage
@@ -107,159 +92,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * Initialize WebSocket connection
-   */
-  const initializeWebSocket = useCallback(async () => {
-    if (socketInitialized.current) return;
-
-    const token = getAccessToken();
-    if (!token) return;
-
-    try {
-      const client = initializeSocketClient({
-        onStateChange: (state) => {
-          setConnectionState(state);
-        },
-        onConnected: (data) => {
-          console.log('[Chat] WebSocket connected:', data);
-          setConnectionState('connected');
-        },
-        onDisconnected: (reason) => {
-          console.log('[Chat] WebSocket disconnected:', reason);
-          setConnectionState('disconnected');
-        },
-        onReconnecting: (attempt) => {
-          console.log('[Chat] WebSocket reconnecting, attempt:', attempt);
-          setConnectionState('reconnecting');
-        },
-        onReconnected: (hadQueuedMessages) => {
-          console.log('[Chat] WebSocket reconnected, had queued messages:', hadQueuedMessages);
-          setConnectionState('connected');
-          
-          // Resubscribe to current session if any
-          if (currentSession) {
-            getSocketClient().subscribeToConversation(currentSession.id);
-          }
-          
-          // If there were queued messages, notify user
-          if (hadQueuedMessages) {
-            console.log('[Chat] Processing previously queued messages...');
-          }
-        },
-        onStreamState: (data) => {
-          console.log('[Chat] Received stream state for resumption:', data);
-          
-          // If there's partial content from a disconnected stream, restore it
-          if (data.lastContent && data.lastTokenIndex !== undefined) {
-            streamingContentRef.current = data.lastContent;
-            setStreamingContent(data.lastContent);
-            // TODO: The UI should show that we're resuming a stream
-          }
-        },
-        onGenerationStarted: (data) => {
-          setIsStreaming(true);
-          streamingContentRef.current = '';
-          setStreamingContent('');
-        },
-        onMessageChunk: (data) => {
-          streamingContentRef.current += data.chunk;
-          setStreamingContent(streamingContentRef.current);
-        },
-        onMessageComplete: (data) => {
-          setIsStreaming(false);
-          setStreamingContent('');
-          
-          // Add assistant message to list
-          const assistantMessage: ChatMessage = {
-            id: data.messageId,
-            role: 'assistant',
-            content: data.content,
-            metadata: data.metadata,
-            createdAt: new Date().toISOString(),
-          };
-          setMessages((prev) => [...prev, assistantMessage]);
-        },
-        onError: (data) => {
-          console.error('[Chat] WebSocket error:', data);
-          setError(data.message);
-          setIsStreaming(false);
-          setStreamingContent('');
-        },
-        onGenerationCancelled: (data) => {
-          setIsStreaming(false);
-          setStreamingContent('');
-        },
-      });
-
-      await client.connect();
-      socketInitialized.current = true;
-    } catch (err) {
-      console.error('[Chat] Failed to initialize WebSocket:', err);
-      // Fall back to SSE
-      setUseWebSocket(false);
-    }
-  }, [getAccessToken, currentSession]);
-
-  /**
-   * Update queued messages count periodically and on connection state change
-   */
-  useEffect(() => {
-    const updateQueuedCount = () => {
-      const client = getSocketClient();
-      setQueuedMessagesCount(client.getQueuedMessageCount());
-    };
-    
-    // Update immediately
-    updateQueuedCount();
-    
-    // Update every 5 seconds while disconnected
-    const interval = setInterval(updateQueuedCount, 5000);
-    return () => clearInterval(interval);
-  }, [connectionState]);
-
-  /**
-   * Load WebSocket preference and initialize
-   */
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedPref = localStorage.getItem(USE_WEBSOCKET_KEY);
-      if (savedPref !== null) {
-        setUseWebSocket(savedPref === 'true');
-      }
-    }
-  }, []);
-
-  /**
-   * Initialize WebSocket when enabled
-   */
-  useEffect(() => {
-    if (useWebSocket && getAccessToken()) {
-      initializeWebSocket();
-    }
-
-    return () => {
-      if (!useWebSocket) {
-        disconnectSocketClient();
-        socketInitialized.current = false;
-      }
-    };
-  }, [useWebSocket, initializeWebSocket, getAccessToken]);
-
-  /**
-   * Subscribe to conversation when session changes
-   */
-  useEffect(() => {
-    if (useWebSocket && currentSession && connectionState === 'connected') {
-      getSocketClient().subscribeToConversation(currentSession.id);
-    }
-  }, [useWebSocket, currentSession, connectionState]);
-
-  /**
    * Create a new chat session
    */
   const createSession = useCallback(async (birthProfileId?: string): Promise<ChatSession> => {
     const token = getAccessToken();
-    
+
     if (!token) {
       throw new Error('Not authenticated');
     }
@@ -281,7 +118,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     const session = data.data.session;
     setCurrentSession(session);
-    
+
     if (data.data.welcomeMessage) {
       setMessages([{
         id: 'welcome',
@@ -290,9 +127,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       }]);
     }
-    
+
     localStorage.setItem(SESSION_ID_KEY, session.id);
-    
+
     return session;
   }, [getAccessToken]);
 
@@ -301,7 +138,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
    */
   const loadSession = useCallback(async (sessionId: string): Promise<void> => {
     const token = getAccessToken();
-    
+
     if (!token) {
       throw new Error('Not authenticated');
     }
@@ -325,7 +162,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setCurrentSession(data.data.session);
       setMessages(data.data.messages);
       setHasMoreMessages(data.data.hasMore || false);
-      
+
       await loadUsage();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load session';
@@ -341,7 +178,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
    */
   const loadMoreMessages = useCallback(async (): Promise<void> => {
     if (!currentSession || !hasMoreMessages || isLoadingMore) return;
-    
+
     const token = getAccessToken();
     if (!token) return;
 
@@ -349,7 +186,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     try {
       const oldestMessageId = messages[0]?.id;
-      
+
       const response = await fetch(
         `${API_URL}/api/v1/chat/sessions/${currentSession.id}?before=${oldestMessageId}&limit=50`,
         {
@@ -379,7 +216,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
    */
   const loadUsage = useCallback(async (): Promise<void> => {
     const token = getAccessToken();
-    
+
     if (!token) return;
 
     try {
@@ -400,44 +237,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [getAccessToken]);
 
   /**
-   * Send message via WebSocket
-   */
-  const sendMessageWebSocket = useCallback(async (content: string, sessionId: string): Promise<void> => {
-    const client = getSocketClient();
-    
-    if (!client.isConnected()) {
-      throw new Error('WebSocket not connected');
-    }
-
-    // Add user message optimistically
-    const userMessage: ChatMessage = {
-      id: `temp-${Date.now()}`,
-      role: 'user',
-      content,
-      createdAt: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, userMessage]);
-
-    // Send via WebSocket
-    client.sendMessage(sessionId, content, {
-      messageId: userMessage.id,
-    });
-
-    // Update usage
-    setUsage((prev) => prev ? {
-      ...prev,
-      remaining: prev.remaining === 'unlimited' ? 'unlimited' : 
-        (typeof prev.remaining === 'number' ? prev.remaining - 1 : prev.remaining),
-      used: typeof prev.used === 'number' ? prev.used + 1 : prev.used,
-    } : null);
-  }, []);
-
-  /**
-   * Send message via SSE (fallback)
+   * Send message via SSE stream
    */
   const sendMessageSSE = useCallback(async (content: string, sessionId: string): Promise<void> => {
     const token = getAccessToken();
-    
+
     if (!token) {
       setError('Not authenticated');
       return;
@@ -451,10 +255,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMessage]);
-    
+
     setIsStreaming(true);
     setStreamingContent('');
     setError(null);
+
+    // Create AbortController for this request
+    abortControllerRef.current = new AbortController();
+
+    let assistantContent = '';
+    let assistantMessageId: string | undefined;
 
     try {
       const response = await fetch(`${API_URL}/api/v1/chat/message`, {
@@ -463,10 +273,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          content,
-          sessionId,
-        }),
+        body: JSON.stringify({ content, sessionId }),
+        signal: abortControllerRef.current.signal,
       });
 
       if (response.status === 429) {
@@ -482,8 +290,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
-      let assistantContent = '';
-      let assistantMessageId: string | undefined;
 
       if (!reader) {
         throw new Error('No response stream');
@@ -491,38 +297,42 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       while (true) {
         const { done, value } = await reader.read();
-        
+
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
         const lines = chunk.split('\n');
 
+        let currentEvent = '';
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
             const dataStr = line.slice(6);
-            
             try {
               const data = JSON.parse(dataStr);
-              
-              if (data.content && !data.done) {
+
+              if (currentEvent === 'metadata' || data.rateLimit) {
+                if (data.rateLimit) {
+                  setUsage((prev) => prev ? {
+                    ...prev,
+                    remaining: data.rateLimit.remaining,
+                    used: typeof prev.used === 'number' ? prev.used + 1 : prev.used,
+                  } : null);
+                }
+              } else if (currentEvent === 'chunk' || (data.content && !data.done)) {
                 assistantContent += data.content;
                 setStreamingContent(assistantContent);
-              }
-              
-              if (data.rateLimit) {
-                setUsage((prev) => prev ? {
-                  ...prev,
-                  remaining: data.rateLimit.remaining,
-                  used: prev.limit === 'unlimited' ? prev.used : prev.used + 1,
-                } : null);
-              }
-              
-              if (data.done || data.messageId) {
-                assistantMessageId = data.messageId;
+              } else if (currentEvent === 'error') {
+                setError(data.message || 'Stream error');
+                setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
+              } else if (currentEvent === 'complete' || data.messageId) {
+                assistantMessageId = data.messageId || assistantMessageId;
               }
             } catch {
               // Skip invalid JSON
             }
+            currentEvent = '';
           }
         }
       }
@@ -539,19 +349,34 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       setStreamingContent('');
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to send message';
-      setError(message);
-      setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
+      if (err instanceof Error && err.name === 'AbortError') {
+        // User cancelled — keep partial content if any
+        if (assistantContent) {
+          setMessages((prev) => [...prev, {
+            id: `assistant-${Date.now()}`,
+            role: 'assistant',
+            content: assistantContent + ' [cancelled]',
+            createdAt: new Date().toISOString(),
+          }]);
+        } else {
+          setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
+        }
+      } else {
+        const message = err instanceof Error ? err.message : 'Failed to send message';
+        setError(message);
+        setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
+      }
     } finally {
       setIsStreaming(false);
+      setStreamingContent('');
+      abortControllerRef.current = null;
     }
   }, [getAccessToken]);
 
   /**
-   * Send a message (WebSocket or SSE fallback)
+   * Send a message
    */
   const sendMessage = useCallback(async (content: string): Promise<void> => {
-    // Create session if needed
     let sessionId = currentSession?.id;
     if (!sessionId) {
       const storedSessionId = localStorage.getItem(SESSION_ID_KEY);
@@ -561,62 +386,22 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         try {
           const newSession = await createSession();
           sessionId = newSession.id;
-        } catch (err) {
+        } catch {
           setError('Failed to create chat session');
           return;
         }
       }
     }
-
-    // Try WebSocket first, fall back to SSE
-    if (useWebSocket && connectionState === 'connected') {
-      try {
-        await sendMessageWebSocket(content, sessionId);
-        return;
-      } catch (err) {
-        console.warn('[Chat] WebSocket send failed, falling back to SSE:', err);
-      }
-    }
-
-    // Fall back to SSE
     await sendMessageSSE(content, sessionId);
-  }, [currentSession, createSession, useWebSocket, connectionState, sendMessageWebSocket, sendMessageSSE]);
+  }, [currentSession, createSession, sendMessageSSE]);
 
   /**
    * Cancel ongoing generation
    */
   const cancelGeneration = useCallback(() => {
-    if (useWebSocket && currentSession && connectionState === 'connected') {
-      getSocketClient().cancelGeneration(currentSession.id);
-    }
+    abortControllerRef.current?.abort();
     setIsStreaming(false);
     setStreamingContent('');
-  }, [useWebSocket, currentSession, connectionState]);
-
-  /**
-   * Reconnect WebSocket
-   */
-  const reconnect = useCallback(async () => {
-    if (useWebSocket) {
-      disconnectSocketClient();
-      socketInitialized.current = false;
-      await initializeWebSocket();
-    }
-  }, [useWebSocket, initializeWebSocket]);
-
-  /**
-   * Toggle WebSocket usage
-   */
-  const toggleWebSocket = useCallback((enabled: boolean) => {
-    setUseWebSocket(enabled);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem(USE_WEBSOCKET_KEY, String(enabled));
-    }
-    if (!enabled) {
-      disconnectSocketClient();
-      socketInitialized.current = false;
-      setConnectionState('disconnected');
-    }
   }, []);
 
   /**
@@ -642,7 +427,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
    */
   const startNewConversation = useCallback(async (birthProfileId?: string): Promise<ChatSession> => {
     const token = getAccessToken();
-    
+
     if (!token) {
       throw new Error('Not authenticated');
     }
@@ -664,7 +449,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     const session = data.data.session;
     setCurrentSession(session);
-    
+
     if (data.data.welcomeMessage) {
       setMessages([{
         id: 'welcome',
@@ -675,14 +460,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } else {
       setMessages([]);
     }
-    
+
     setStreamingContent('');
     setError(null);
-    
+
     localStorage.setItem(SESSION_ID_KEY, session.id);
-    
+
     await loadUsage();
-    
+
     return session;
   }, [getAccessToken, loadUsage]);
 
@@ -696,9 +481,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     usage,
     hasMoreMessages,
     isLoadingMore,
-    connectionState,
-    useWebSocket,
-    queuedMessagesCount,
+    connectionState: 'connected',
     createSession,
     loadSession,
     loadMoreMessages,
@@ -707,8 +490,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     resetChat,
     startNewConversation,
     cancelGeneration,
-    reconnect,
-    toggleWebSocket,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
