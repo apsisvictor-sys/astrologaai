@@ -1,5 +1,5 @@
 # AstroLogAI — Master Roadmap & Source of Truth
-> **Single source of truth.** Last updated: 2026-03-17 (SSE migration complete).
+> **Single source of truth.** Last updated: 2026-03-17 (birth_data removed, 12-area horoscope, b8f1f22).
 > All bugs found during testing, all pending work, all future plans live here.
 > When testing resumes (Section 7+), new bugs get added to this file.
 
@@ -75,11 +75,8 @@
 
 ---
 
-### BUG-10 — DailyHoroscopeCard entirely locked for FREE tier
-- **Priority:** HIGH — conversion impact (free users see zero value)
-- **Where:** `frontend/src/components/chart/` — DailyHoroscopeCard component
-- **What should happen:** FREE users see Love + Career sections with content. Other 4 areas (Health, Finances, Family, Personal Growth) locked with upgrade prompt.
-- **Fix:** Add tier check — fetch and display 2 sections for FREE, show lock wall only on remaining 4
+### ~~BUG-10~~ — ✅ RESOLVED (2026-03-17, b8f1f22)
+- DailyHoroscopeCard 3-tier gating: FREE=4, PRO=8, PREMIUM=12 life areas. All 12 API areas in AREA_ORDER.
 
 ---
 
@@ -103,12 +100,8 @@
 
 ---
 
-### BUG-14 — Typed message cleared from input on failed send (message lost)
-- **Priority:** HIGH — users lose work, causes real frustration
-- **Where:** `frontend/src/components/chat/chat-input-bar.tsx` — send handler
-- **Fix:** Only clear input AFTER confirmed successful send. On failure: keep text in input, show red error banner "Message failed to send — your text is preserved above".
-- **Also:** Add `localStorage.setItem('astrologaai_draft_' + conversationId, inputValue)` with 1s debounce autosave. Restore on page load.
-- **Note:** WebSocket failure mode removed by ARCH-01. Input-clearing issue still applies to SSE path.
+### ~~BUG-14~~ — ✅ RESOLVED (2026-03-17, f239670)
+- `lastSentRef` saves message before clearing. Restored to input if `sendError` prop fires.
 
 ---
 
@@ -120,12 +113,8 @@
 
 ---
 
-### BUG-17 — Admin Prompts UI is disconnected from the live Oracle
-- **Priority:** Medium
-- **Where:** `backend/src/routes/admin.ts` (prompts endpoints) + `backend/src/services/llm-helpers.ts`
-- **What:** `/admin/prompts` saves to `system_prompts` DB table. Chat controller never reads from that table — uses hardcoded `ASTROLOGER_SYSTEM_PROMPT` constant directly. Editing admin does nothing to the Oracle.
-- **Fix (Option A — recommended):** In `buildSystemPrompt()`, do a DB lookup for the 'master' prompt; use DB content if non-empty, fall back to hardcoded constant. Makes the admin UI live.
-- **Fix (Option B):** Remove the admin prompt editor and document that system prompt changes require code deploy.
+### ~~BUG-17~~ — ✅ RESOLVED (2026-03-17, f239670)
+- `buildSystemPrompt()` now reads 'master' prompt from `system_prompts` DB. Falls back to hardcoded constant.
 
 ---
 
@@ -324,6 +313,12 @@
 - Forecast pages (`/forecast`, `/forecast/weekly`), Partners panel, Settings (6 pages)
 - Admin Dashboard: 9 pages at `/admin/*` (overview, users, usage, revenue, prompts, config, discounts, referrals)
 - Void Prism design system: `#e41aff` primary, `#0D0010` bg, glass panels, Inter font
+
+### DB Consolidation (2026-03-17, commit b8f1f22)
+- Legacy `birth_data` table removed — all 8 backend files migrated to `birth_profiles`
+- `BirthData` model removed from schema.prisma; `birth_data_id` column dropped from `birth_charts`
+- Root cause of "Daily horoscope unavailable" for all users fixed
+- Daily horoscope card: 3-tier gating with all 12 API areas (FREE=4, PRO=8, PREMIUM=12)
 
 ### Infrastructure Hardening (March 2026)
 - Redis Proxy bind bug fixed (private class field Proxy issue)
