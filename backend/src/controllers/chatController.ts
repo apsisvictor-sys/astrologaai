@@ -27,13 +27,9 @@ import {
 } from '../services/llm';
 import { getActiveTransitsForUser } from '../services/transits';
 import {
-  getEffectiveMonthlyLimit,
-  getBurstLimit,
-  isUnlimitedTier,
-  isUnlimitedBurst,
   getTierLimits,
-  getMonthlyResetDay,
 } from '../config/subscription-tiers';
+import { getUserUsageStats } from '../middleware/queryLimit';
 import type { ChatMessage } from '../services/llm';
 
 const prisma = new PrismaClient();
@@ -45,8 +41,6 @@ const prisma = new PrismaClient();
 // FREE: 10 queries/month, 10/min burst
 // PRO: unlimited, 60/min burst
 // PREMIUM: unlimited, no burst limit
-
-const RATE_LIMIT_WINDOW = 60; // 1 minute for burst
 
 /**
  * Extract a ~140-char snippet from content centred around the search term.
@@ -68,93 +62,6 @@ const SUMMARY_THRESHOLD = 20; // Generate summary after 20 messages
 // ============================================
 // Helper Functions
 // ============================================
-
-function getCurrentMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-}
-
-function getMonthResetDate(): Date {
-  const now = new Date();
-  const resetDay = getMonthlyResetDay();
-  const nextMonth = now.getMonth() === 11 ? 0 : now.getMonth() + 1;
-  const nextYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
-  return new Date(nextYear, nextMonth, resetDay);
-}
-
-async function checkRateLimit(userId: string, tier: Tier): Promise<{ 
-  allowed: boolean; 
-  remaining: number; 
-  resetAt?: Date;
-  limit: number | 'unlimited';
-}> {
-  // Get burst limit from centralized config
-  const burstLimit = getBurstLimit(tier);
-  const isUnlimitedBurstTier = isUnlimitedBurst(tier);
-  
-  // Burst rate limiting (per minute) - skip for unlimited tiers
-  if (!isUnlimitedBurstTier) {
-    const burstKey = `ratelimit:burst:${userId}`;
-    const burstCount = parseInt(await redisClient.get(burstKey) || '0', 10);
-    
-    if (burstCount >= burstLimit) {
-      return { 
-        allowed: false, 
-        remaining: 0, 
-        limit: burstLimit,
-        resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW * 1000) 
-      };
-    }
-  }
-  
-  // Monthly rate limiting (for FREE tier)
-  if (!isUnlimitedTier(tier)) {
-    const monthlyLimit = getEffectiveMonthlyLimit(tier);
-    const month = getCurrentMonth();
-    const monthKey = `ratelimit:monthly:${userId}:${month}`;
-    const monthCount = parseInt(await redisClient.get(monthKey) || '0', 10);
-    
-    if (monthCount >= monthlyLimit) {
-      return { 
-        allowed: false, 
-        remaining: 0, 
-        limit: monthlyLimit,
-        resetAt: getMonthResetDate() 
-      };
-    }
-    
-    return { 
-      allowed: true, 
-      remaining: monthlyLimit - monthCount,
-      limit: monthlyLimit
-    };
-  }
-  
-  return { 
-    allowed: true, 
-    remaining: Infinity,
-    limit: 'unlimited'
-  };
-}
-
-async function incrementRateLimit(userId: string): Promise<void> {
-  // Increment burst counter
-  const burstKey = `ratelimit:burst:${userId}`;
-  const burstCount = await redisClient.incr(burstKey);
-  if (burstCount === 1) {
-    await redisClient.expire(burstKey, RATE_LIMIT_WINDOW);
-  }
-  
-  // Increment monthly counter
-  const month = getCurrentMonth();
-  const monthKey = `ratelimit:monthly:${userId}:${month}`;
-  const monthCount = await redisClient.incr(monthKey);
-  if (monthCount === 1) {
-    // Set expiry to end of month
-    const ttl = Math.floor((getMonthResetDate().getTime() - Date.now()) / 1000);
-    await redisClient.expire(monthKey, ttl);
-  }
-}
 
 async function getOrCreateSession(userId: string, sessionId?: string, birthProfileId?: string) {
   if (sessionId) {
@@ -260,25 +167,6 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Check rate limit
-    const rateLimit = await checkRateLimit(userId, userTier);
-    
-    if (!rateLimit.allowed) {
-      res.status(429).json({
-        success: false,
-        error: {
-          code: 'RATE_LIMIT_EXCEEDED',
-          message: userLanguage === 'bg' 
-            ? 'Достигнахте лимита на заявките. Моля, опитайте по-късно или надградете плана си.'
-            : 'Rate limit exceeded. Please try again later or upgrade your plan.',
-          limit: rateLimit.limit,
-          remaining: rateLimit.remaining,
-          resetAt: rateLimit.resetAt,
-          upgradeUrl: '/subscription',
-        },
-      });
-      return;
-    }
 
     // Get or create session
     const session = await getOrCreateSession(userId, sessionId, birthProfileId);
@@ -387,9 +275,6 @@ ${aspectLines || 'No major aspects within orb today.'}`;
         data: { title },
       });
     }
-
-    // Increment rate limit counter
-    await incrementRateLimit(userId);
 
     // Set headers for Server-Sent Events
     res.setHeader('Content-Type', 'text/event-stream');
@@ -921,11 +806,6 @@ export async function clearAllSessions(req: Request, res: Response): Promise<voi
     // Delete all sessions (cascade will delete messages)
     await prisma.chatSession.deleteMany({ where: { userId } });
 
-    // Clear rate limit counters for the month
-    const month = getCurrentMonth();
-    const monthKey = `ratelimit:monthly:${userId}:${month}`;
-    await redisClient.del(monthKey);
-
     // US-09: Clear Redis session contexts
     await clearUserSessionContexts(userId);
 
@@ -1029,23 +909,13 @@ export async function getUsage(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const limits = getTierLimits(userTier);
-    const month = getCurrentMonth();
-    const monthKey = `ratelimit:monthly:${userId}:${month}`;
-    
-    const used = parseInt(await redisClient.get(monthKey) || '0', 10);
-    const remaining = limits.monthlyQueries === Infinity ? Infinity : limits.monthlyQueries - used;
+    const stats = await getUserUsageStats(userId, userTier);
 
     res.json({
       success: true,
       data: {
         tier: userTier,
-        usage: {
-          used,
-          limit: limits.monthlyQueries === Infinity ? 'unlimited' : limits.monthlyQueries,
-          remaining: remaining === Infinity ? 'unlimited' : remaining,
-          resetAt: getMonthResetDate(),
-        },
+        usage: stats,
       },
     });
   } catch (error) {
