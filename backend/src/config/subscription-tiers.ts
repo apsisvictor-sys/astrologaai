@@ -60,8 +60,8 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
       'tool:get_lunar_return',   // Monthly lunar return cycle
     ],
     price: {
-      monthly: 10,
-      yearly: 96,
+      monthly: 9.99,
+      yearly: 95.88,
       currency: 'EUR',
     },
   },
@@ -85,8 +85,8 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
       'priority_support',
     ],
     price: {
-      monthly: 20,
-      yearly: 192,
+      monthly: 19.99,
+      yearly: 191.88,
       currency: 'EUR',
     },
   },
