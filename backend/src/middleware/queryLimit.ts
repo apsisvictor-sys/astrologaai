@@ -397,10 +397,14 @@ export async function queryLimitMiddleware(
   } catch (error) {
     console.error('[Query Limit Middleware] Error:', error);
 
-    // On error, allow request through (fail open)
-    // This prevents blocking users if there's a database issue
-    console.warn('[Query Limit Middleware] Failing open due to error');
-    next();
+    res.status(503).json({
+      success: false,
+      error: {
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'The Oracle is temporarily unavailable. Please try again shortly.',
+        messageBg: 'Оракулът е временно недостъпен. Моля, опитайте отново.',
+      },
+    });
   }
 }
 
