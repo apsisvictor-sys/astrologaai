@@ -89,7 +89,8 @@ router.post(
   '/message',
   rateLimiter(30, 3600),
   async (req: Request, res: Response) => {
-    const { token, sessionId, content, birthData } = req.body as GuestMessageBody;
+    const { token, sessionId, content, birthData, language } = req.body as GuestMessageBody & { language?: string };
+    const guestLanguage = language === 'bg' ? 'bg' : 'en';
 
     // Validate required fields
     if (!token || !sessionId || !content) {
@@ -166,7 +167,7 @@ router.post(
     }
 
     // Build messages array
-    const systemPrompt = await buildSystemPrompt({ chartSummary, language: 'en' });
+    const systemPrompt = await buildSystemPrompt({ chartSummary, language: guestLanguage });
     const messages = [
       { role: 'system' as const, content: systemPrompt },
       ...history,
