@@ -47,7 +47,7 @@ export function isOriginAllowed(origin?: string): boolean {
     return true;
   }
 
-  if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/i.test(normalizedOrigin)) {
+  if (/^https:\/\/astrologaai(-[a-z0-9]+)?\.vercel\.app$/i.test(normalizedOrigin)) {
     return true;
   }
 
