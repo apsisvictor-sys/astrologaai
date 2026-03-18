@@ -8,6 +8,7 @@
 import { Router, Request, Response } from 'express';
 import { resetMonthlyQueryCounters, isResetDay, archiveOldUsageRecords } from '../services/monthly-reset';
 import { getCronSecret } from '../utils/cron';
+import { adminAuthMiddleware } from '../middleware/adminAuth';
 
 const router = Router();
 
@@ -137,7 +138,7 @@ router.post('/archive-old-records', async (req: Request, res: Response) => {
  * GET /api/v1/cron/status
  * Check cron job status
  */
-router.get('/status', (req: Request, res: Response) => {
+router.get('/status', adminAuthMiddleware, (req: Request, res: Response) => {
   res.json({
     success: true,
     data: {
