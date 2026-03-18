@@ -63,7 +63,7 @@ const SUMMARY_THRESHOLD = 20; // Generate summary after 20 messages
 // Helper Functions
 // ============================================
 
-async function getOrCreateSession(userId: string, sessionId?: string, birthProfileId?: string) {
+async function getOrCreateSession(userId: string, sessionId?: string, birthProfileId?: string, language = 'en') {
   if (sessionId) {
     // Try to get from Redis first for faster context
     const cachedContext = await getSessionContext(sessionId);
@@ -98,7 +98,7 @@ async function getOrCreateSession(userId: string, sessionId?: string, birthProfi
     data: {
       userId,
       birthProfileId,
-      title: 'Нов разговор', // Will be updated after first message
+      title: language === 'bg' ? 'Нов разговор' : 'New Conversation',
     },
     include: { 
       messages: true 
@@ -169,7 +169,7 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
 
 
     // Get or create session
-    const session = await getOrCreateSession(userId, sessionId, birthProfileId);
+    const session = await getOrCreateSession(userId, sessionId, birthProfileId, userLanguage);
 
     // Get user's birth chart for context
     let chartSummary: string | undefined;
@@ -644,7 +644,7 @@ export async function createSession(req: Request, res: Response): Promise<void> 
     const session = await prisma.chatSession.create({
       data: {
         userId,
-        title: title || 'Нов разговор',
+        title: title || (userLanguage === 'bg' ? 'Нов разговор' : 'New Conversation'),
         birthProfileId,
       },
     });
@@ -744,7 +744,7 @@ export async function startNewConversation(req: Request, res: Response): Promise
     const session = await prisma.chatSession.create({
       data: {
         userId,
-        title: title || 'Нов разговор',
+        title: title || (userLanguage === 'bg' ? 'Нов разговор' : 'New Conversation'),
         birthProfileId,
       },
     });
