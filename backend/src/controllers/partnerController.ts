@@ -284,7 +284,7 @@ export const createPartner = async (req: Request, res: Response) => {
     
     const partnerLimits: Record<string, number> = {
       FREE: 0,
-      PRO: 3,
+      PRO: 0,     // Partners is a PREMIUM-only feature
       PREMIUM: 10,
     };
 
