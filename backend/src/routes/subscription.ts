@@ -900,7 +900,12 @@ router.post('/webhook', async (req: Request, res: Response) => {
             where: { id: userId },
             select: { email: true, language: true },
           });
-          
+
+          // Use actual Stripe subscription period dates (not hardcoded 30 days)
+          const stripeSubscription = await stripe!.subscriptions.retrieve(session.subscription as string);
+          const periodStart = new Date(stripeSubscription.current_period_start * 1000);
+          const periodEnd = new Date(stripeSubscription.current_period_end * 1000);
+
           await prisma.subscription.upsert({
             where: { userId },
             create: {
@@ -909,16 +914,16 @@ router.post('/webhook', async (req: Request, res: Response) => {
               stripeSubscriptionId: session.subscription as string,
               tier: tier as any,
               status: 'ACTIVE',
-              currentPeriodStart: new Date(),
-              currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
+              currentPeriodStart: periodStart,
+              currentPeriodEnd: periodEnd,
             },
             update: {
               stripeCustomerId: session.customer as string,
               stripeSubscriptionId: session.subscription as string,
               tier: tier as any,
               status: 'ACTIVE',
-              currentPeriodStart: new Date(),
-              currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+              currentPeriodStart: periodStart,
+              currentPeriodEnd: periodEnd,
               cancelAtPeriodEnd: false,
             },
           });
