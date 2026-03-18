@@ -118,13 +118,6 @@ app.get('/health', (req: Request, res: Response) => {
   });
 });
 
-app.get('/health/env', (_req: Request, res: Response) => {
-  const report = getEnvValidationReport();
-  res.status(report.ok ? 200 : 503).json({
-    status: report.ok ? 'ok' : 'degraded',
-    env: report,
-  });
-});
 
 // Health check for database
 app.get('/health/db', async (req: Request, res: Response) => {
@@ -262,7 +255,6 @@ app.listen(PORT, () => {
 
   console.log(`🚀 AstroLogAI API running on port ${PORT}`);
   console.log(`📚 Health check: http://localhost:${PORT}/health`);
-  console.log(`🧪 Env validation: http://localhost:${PORT}/health/env (${envReport.ok ? 'ok' : 'degraded'})`);
   console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/v1/auth`);
   console.log(`🌐 Allowed origins: ${runtimeConfig.allowedOrigins.join(', ') || '(none configured)'}`);
   if (!envReport.ok) {
