@@ -12,9 +12,7 @@
  *   alert_threshold_premium_eur_cents
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 // In-memory price cache (5 min TTL) — avoids a DB query on every message
 let priceCache: Record<string, number> = {};

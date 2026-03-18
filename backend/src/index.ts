@@ -122,8 +122,6 @@ app.get('/health', (req: Request, res: Response) => {
 // Health check for database
 app.get('/health/db', async (req: Request, res: Response) => {
   try {
-    const { PrismaClient } = await import('@prisma/client');
-    const prisma = new PrismaClient();
     await prisma.$queryRaw`SELECT 1`;
     res.json({ status: 'ok', database: 'connected' });
   } catch (error) {

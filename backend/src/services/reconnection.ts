@@ -5,10 +5,8 @@
  * Handles heartbeat, connection state management, and stream resumption
  */
 
-import { PrismaClient } from '@prisma/client';
 import { redisClient } from '../utils/redis';
-
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 // Configuration
 export const HEARTBEAT_INTERVAL_MS = 30000; // 30 seconds

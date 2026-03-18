@@ -7,10 +7,8 @@
  */
 
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { calculateNatalChart, BirthDataInput, NatalChart, HouseCusp } from '../services/astrology';
-
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 // ============================================
 // Types
