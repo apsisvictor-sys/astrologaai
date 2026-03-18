@@ -240,7 +240,7 @@ export async function oauthCallback(req: Request, res: Response, next: NextFunct
     // If user doesn't exist, create one
     if (!user) {
       // Generate a random password for OAuth users (they won't use it)
-      const randomPassword = bcrypt.genSaltSync(32);
+      const randomPassword = require('crypto').randomBytes(32).toString('hex');
       const passwordHash = await bcrypt.hash(randomPassword, 12);
 
       user = await prisma.user.create({
@@ -251,7 +251,7 @@ export async function oauthCallback(req: Request, res: Response, next: NextFunct
                     supabaseUser.user_metadata?.name || 
                     null,
           tier: Tier.FREE,
-          language: 'bg',
+          language: (req.headers['accept-language']?.split(',')[0]?.split('-')[0] || 'en') === 'bg' ? 'bg' : 'en',
           emailVerified: !!supabaseUser.email_confirmed_at,
           oauthProvider: provider || supabaseUser.app_metadata?.provider || 'unknown',
           oauthId: supabaseUser.id,
