@@ -6,6 +6,10 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from './auth';
 
+if (!process.env.ADMIN_EMAILS) {
+  console.warn('[STARTUP] WARNING: ADMIN_EMAILS is not set — admin panel will be inaccessible to all users');
+}
+
 /**
  * Check if user has admin privileges
  * SECURITY FIX: Protects admin-only endpoints
