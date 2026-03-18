@@ -127,15 +127,10 @@
 
 ---
 
-### BUG-40 — HIGH: PRO tier partner limit hardcoded to 0 — paying PRO users cannot add any partners
-- **Priority:** HIGH — functional regression; PRO users paying ~€10/month are immediately blocked from a core feature
-- **Where:** `backend/src/controllers/partnerController.ts` lines ~285-303 — `partnerLimits` object
-- **Symptom:** `const partnerLimits = { FREE: 0, PRO: 0, PREMIUM: 10 }`. When a PRO user attempts to add a partner, they immediately hit the limit (0) and get an error. They cannot add even one partner despite paying for PRO.
-- **Root cause:** Configuration mistake — likely PRO should be 3 or 5, not 0.
-- **Fix:**
-  1. Decide on PRO partner limit (suggested: 3–5).
-  2. Update `partnerLimits` in `partnerController.ts`.
-  3. Move this limit definition into `backend/src/config/subscription-tiers.ts` alongside all other tier limits so it cannot drift independently again.
+### ~~BUG-40~~ — ✅ NOT A BUG — Partners is PREMIUM-only by design
+- `PRO: 0` is intentional. Partners (synastry) is a PREMIUM-exclusive feature.
+- Frontend correctly gates `/partners` with `minTier: 'PREMIUM'` — PRO users see upgrade CTA.
+- Backend limit stays `PRO: 0, PREMIUM: 10`. No change needed.
 
 ---
 
