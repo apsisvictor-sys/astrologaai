@@ -69,7 +69,7 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
     tier: 'PREMIUM',
     name: { bg: 'Премиум', en: 'Premium' },
     monthlyQueries: -1, // unlimited
-    burstLimit: 60,
+    burstLimit: -1, // no burst limits for PREMIUM
     features: [
       'everything_in_pro',
       'tool:get_natal_chart',
