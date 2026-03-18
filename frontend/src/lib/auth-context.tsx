@@ -55,7 +55,6 @@ const API_URL = getApiBaseUrl();
 
 // Storage keys
 const ACCESS_TOKEN_KEY = 'astrologaai_access_token';
-const REFRESH_TOKEN_KEY = 'astrologaai_refresh_token';
 
 function friendlyAuthError(error: unknown, response?: Response | null): string {
   // Handle fetch/Type errors (network issues)
@@ -291,7 +290,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { user: userData, tokens } = data.data;
 
       localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-      localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
 
       // Clear referral slug after successful registration
       if (typeof window !== 'undefined') {
@@ -345,7 +343,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { user: userData, tokens } = data.data;
 
       localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-      localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
 
       setUser(userData);
 
@@ -433,7 +430,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { user: userData, tokens } = data.data;
 
       localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
-      localStorage.setItem(REFRESH_TOKEN_KEY, tokens.refreshToken);
 
       setUser(userData);
 
@@ -464,20 +460,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * Refresh the access token
    */
   const refreshSession = async (): Promise<void> => {
-    const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
-
-    if (!refreshToken) {
-      signOut();
-      return;
-    }
-
     try {
       const response = await fetch(`${API_URL}/api/v1/auth/refresh`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ refreshToken }),
       });
 
       const data = await parseApiResponse(response);

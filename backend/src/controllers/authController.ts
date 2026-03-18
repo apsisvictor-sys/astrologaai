@@ -182,7 +182,6 @@ export async function register(req: Request, res: Response, next: NextFunction):
         },
         tokens: {
           accessToken,
-          refreshToken,
           expiresIn: JWT_CONFIG.expiresIn,
         },
         message: 'Registration successful. Please check your email for verification.',
@@ -321,7 +320,6 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
         },
         tokens: {
           accessToken,
-          refreshToken,
           expiresIn: JWT_CONFIG.expiresIn,
         },
       },
@@ -343,8 +341,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
  */
 export async function refresh(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    // SECURITY FIX: Read refresh token from cookie first, fallback to body for backward compatibility
-    const refreshToken = req.cookies?.refreshToken || req.body.refreshToken;
+    const refreshToken = req.cookies?.refreshToken;
 
     if (!refreshToken) {
       res.status(401).json({

@@ -337,7 +337,6 @@ export async function oauthCallback(req: Request, res: Response, next: NextFunct
         },
         tokens: {
           accessToken,
-          refreshToken,
           expiresIn: JWT_CONFIG.expiresIn,
         },
         message: 'Login successful',
