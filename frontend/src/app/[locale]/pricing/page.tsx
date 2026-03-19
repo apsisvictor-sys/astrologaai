@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from '@/i18n/navigation';
 import { useRouter } from '@/i18n/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import { useAuth } from '@/lib/auth-context';
 import { getApiBaseUrl, getFrontendBaseUrl } from '@/lib/runtime-config';
@@ -144,7 +145,7 @@ const FAQ_ITEMS = [
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
-export default function PricingPage() {
+function PricingPage() {
   const locale = useLocale();
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
@@ -157,6 +158,16 @@ export default function PricingPage() {
   const [promoCode, setPromoCode] = useState('');
   const [promoOpen, setPromoOpen] = useState(false);
   const [promoError, setPromoError] = useState('');
+
+  // Seed promo code from ?promo= query parameter (used by lifecycle Day 30 email)
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const promo = searchParams.get('promo');
+    if (promo) {
+      setPromoCode(promo.toUpperCase());
+      setPromoOpen(true);
+    }
+  }, [searchParams]);
 
   // Fetch live subscription status
   useEffect(() => {
@@ -595,5 +606,13 @@ export default function PricingPage() {
 
       <PublicFooter />
     </div>
+  );
+}
+
+export default function PricingPageWrapper() {
+  return (
+    <Suspense fallback={null}>
+      <PricingPage />
+    </Suspense>
   );
 }
