@@ -9,6 +9,8 @@
 import { Request, Response, NextFunction } from 'express';
 import prisma from '../utils/prisma';
 import { SUPPORTED_LANGUAGES, SupportedLanguage, detectLanguageFromHeader } from '../middleware/languageDetection';
+import { render } from '@react-email/render';
+import { VerificationEmail } from '../emails/VerificationEmail';
 
 /**
  * Default notification settings
@@ -345,26 +347,17 @@ export async function updateProfile(req: Request, res: Response, next: NextFunct
 
           const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}&userId=${req.user.id}`;
 
+          const userLanguage = req.user?.language || 'bg';
+          // Function-call form — no JSX needed in a .ts file
+          const html = await render(VerificationEmail({ verifyUrl: verificationUrl, language: userLanguage }));
+
           await resend.emails.send({
             from: process.env.RESEND_FROM_EMAIL || 'noreply@astrologaai.com',
             to: newEmail,
-            subject: 'Потвърдете новия си имейл адрес / Confirm your new email address',
-            html: `
-              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-                <h1 style="color: #7C3AED;">AstroLogAI</h1>
-                <p>Получихме заявка за промяна на имейл адреса ви.</p>
-                <p>За да потвърдите новия си имейл, моля, кликнете върху бутона по-долу:</p>
-                <a href="${verificationUrl}" style="display: inline-block; background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 12px; margin: 20px 0;">
-                  Потвърди имейл
-                </a>
-                <p>Ако не сте направили тази заявка, можете да игнорирате този имейл.</p>
-                <hr style="border: none; border-top: 1px solid #252532; margin: 20px 0;">
-                <p style="color: #71717A; font-size: 12px;">
-                  We received a request to change your email address.<br>
-                  To confirm your new email, please click the button above.
-                </p>
-              </div>
-            `,
+            subject: userLanguage === 'bg'
+              ? 'Потвърдете имейл адреса си - AstroLogAI'
+              : 'Verify your email address - AstroLogAI',
+            html,
           });
           emailVerificationSent = true;
         } catch (emailError) {

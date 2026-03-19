@@ -12,6 +12,9 @@ import { registerSchema, loginSchema, formatZodErrors, RegisterInput } from '../
 import { detectLanguageFromHeader, SupportedLanguage } from '../middleware/languageDetection';
 // SECURITY FIX: Import validated JWT secret (no insecure fallbacks)
 import { JWT_SECRET, JWT_CONFIG } from '../utils/jwt';
+import { render } from '@react-email/render';
+import { PasswordResetEmail } from '../emails/PasswordResetEmail';
+import { PasswordChangedEmail } from '../emails/PasswordChangedEmail';
 
 /**
  * Generate access token
@@ -498,41 +501,8 @@ export async function forgotPassword(req: Request, res: Response): Promise<void>
         ? 'Нулиране на паролата - AstroLogAI'
         : 'Password Reset - AstroLogAI';
 
-      const emailHtml = language === 'bg'
-        ? `
-          <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0A0A0F; padding: 40px;">
-            <h1 style="color: #FAFAFA; font-size: 28px; margin-bottom: 20px;">Нулиране на паролата</h1>
-            <p style="color: #A1A1AA; font-size: 16px; line-height: 1.6; margin-bottom: 30px;">
-              Получихме заявка за нулиране на вашата парола. Кликнете бутона по-долу, за да създадете нова парола:
-            </p>
-            <a href="${resetUrl}" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%); color: white; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px;">
-              Нулиране на паролата
-            </a>
-            <p style="color: #71717A; font-size: 14px; margin-top: 30px;">
-              Тази връзка ще изтече след 24 часа. Ако не сте поискали нулиране на паролата, можете да игнорирате този имейл.
-            </p>
-            <p style="color: #52525B; font-size: 12px; margin-top: 40px;">
-              © 2026 AstroLogAI. Всички права запазени.
-            </p>
-          </div>
-        `
-        : `
-          <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0A0A0F; padding: 40px;">
-            <h1 style="color: #FAFAFA; font-size: 28px; margin-bottom: 20px;">Password Reset</h1>
-            <p style="color: #A1A1AA; font-size: 16px; line-height: 1.6; margin-bottom: 30px;">
-              We received a request to reset your password. Click the button below to create a new password:
-            </p>
-            <a href="${resetUrl}" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%); color: white; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px;">
-              Reset Password
-            </a>
-            <p style="color: #71717A; font-size: 14px; margin-top: 30px;">
-              This link will expire in 24 hours. If you didn't request a password reset, you can ignore this email.
-            </p>
-            <p style="color: #52525B; font-size: 12px; margin-top: 40px;">
-              © 2026 AstroLogAI. All rights reserved.
-            </p>
-          </div>
-        `;
+      // Function-call form — no JSX needed in a .ts file
+      const emailHtml = await render(PasswordResetEmail({ resetUrl, language }));
 
       await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL || 'noreply@astrologaai.com',
@@ -692,35 +662,8 @@ export async function resetPassword(req: Request, res: Response, next: NextFunct
         ? 'Паролата е променена успешно - AstroLogAI'
         : 'Password Changed Successfully - AstroLogAI';
 
-      const emailHtml = language === 'bg'
-        ? `
-          <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0A0A0F; padding: 40px;">
-            <h1 style="color: #FAFAFA; font-size: 28px; margin-bottom: 20px;">Паролата е променена успешно</h1>
-            <p style="color: #A1A1AA; font-size: 16px; line-height: 1.6; margin-bottom: 30px;">
-              Вашата парола беше успешно променена. Всички активни сесии бяха прекратени за ваша сигурност.
-            </p>
-            <p style="color: #71717A; font-size: 14px; margin-top: 30px;">
-              Ако не сте направили тази промяна, моля свържете се с нас незабавно.
-            </p>
-            <p style="color: #52525B; font-size: 12px; margin-top: 40px;">
-              © 2026 AstroLogAI. Всички права запазени.
-            </p>
-          </div>
-        `
-        : `
-          <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0A0A0F; padding: 40px;">
-            <h1 style="color: #FAFAFA; font-size: 28px; margin-bottom: 20px;">Password Changed Successfully</h1>
-            <p style="color: #A1A1AA; font-size: 16px; line-height: 1.6; margin-bottom: 30px;">
-              Your password has been successfully changed. All active sessions have been terminated for your security.
-            </p>
-            <p style="color: #71717A; font-size: 14px; margin-top: 30px;">
-              If you didn't make this change, please contact us immediately.
-            </p>
-            <p style="color: #52525B; font-size: 12px; margin-top: 40px;">
-              © 2026 AstroLogAI. All rights reserved.
-            </p>
-          </div>
-        `;
+      // Function-call form — no JSX needed in a .ts file
+      const emailHtml = await render(PasswordChangedEmail({ language }));
 
       await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL || 'noreply@astrologaai.com',

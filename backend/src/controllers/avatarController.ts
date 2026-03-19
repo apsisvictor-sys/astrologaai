@@ -10,6 +10,8 @@ import path from 'path';
 import fs from 'fs';
 import prisma from '../utils/prisma';
 import { randomBytes } from 'crypto';
+import { render } from '@react-email/render';
+import { VerificationEmail } from '../emails/VerificationEmail';
 
 // Avatar upload directory
 const AVATAR_DIR = path.join(process.cwd(), 'public', 'avatars');
@@ -272,7 +274,7 @@ export async function sendEmailVerification(req: Request, res: Response, next: N
       return;
     }
 
-    const { email } = req.body;
+    const { email, language = 'bg' } = req.body;
 
     if (!email) {
       res.status(400).json({
@@ -337,29 +339,16 @@ export async function sendEmailVerification(req: Request, res: Response, next: N
 
       const verificationUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/verify-email?token=${verificationToken}&userId=${req.user.id}`;
 
+      // Function-call form — no JSX needed in a .ts file
+      const html = await render(VerificationEmail({ verifyUrl: verificationUrl, language }));
+
       await resend.emails.send({
         from: process.env.RESEND_FROM_EMAIL || 'noreply@astrologaai.com',
         to: email,
-        subject: 'Потвърдете новия си имейл адрес / Confirm your new email address',
-        html: `
-          <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-            <h1 style="color: #7C3AED;">AstroLogAI</h1>
-            <p>Получихме заявка за промяна на имейл адреса ви.</p>
-            <p>За да потвърдите новия си имейл, моля, кликнете върху бутона по-долу:</p>
-            <a href="${verificationUrl}" style="display: inline-block; background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%); color: white; padding: 14px 28px; text-decoration: none; border-radius: 12px; margin: 20px 0;">
-              Потвърди имейл
-            </a>
-            <p>Ако не сте направили тази заявка, можете да игнорирате този имейл.</p>
-            <hr style="border: none; border-top: 1px solid #252532; margin: 20px 0;">
-            <p style="color: #71717A; font-size: 12px;">
-              ---
-            </p>
-            <p style="color: #71717A; font-size: 12px;">
-              We received a request to change your email address.<br>
-              To confirm your new email, please click the button above.
-            </p>
-          </div>
-        `,
+        subject: language === 'bg'
+          ? 'Потвърдете имейл адреса си - AstroLogAI'
+          : 'Verify your email address - AstroLogAI',
+        html,
       });
     } catch (emailError) {
       console.error('[Email Verification] Failed to send email:', emailError);
