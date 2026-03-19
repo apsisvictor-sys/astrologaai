@@ -15,6 +15,7 @@ import { JWT_SECRET, JWT_CONFIG } from '../utils/jwt';
 import { render } from '@react-email/render';
 import { PasswordResetEmail } from '../emails/PasswordResetEmail';
 import { PasswordChangedEmail } from '../emails/PasswordChangedEmail';
+import { sendWelcomeEmail } from '../services/email/lifecycle';
 
 /**
  * Generate access token
@@ -169,6 +170,11 @@ export async function register(req: Request, res: Response, next: NextFunction):
     // TODO: Send confirmation email via Resend
     // For now, we'll simulate this with a log message
     console.log(`[Auth] Confirmation email should be sent to: ${email}`);
+
+    // Fire Day 0 welcome email — fire-and-forget, never block registration
+    sendWelcomeEmail(user.id, user.email, user.fullName, detectedLanguage).catch((e) => {
+      console.error('[Auth] Failed to send welcome email:', e);
+    });
 
     // Return success response
     res.status(201).json({

@@ -9,6 +9,7 @@ import { Router, Request, Response } from 'express';
 import { resetMonthlyQueryCounters, isResetDay, archiveOldUsageRecords } from '../services/monthly-reset';
 import { getCronSecret } from '../utils/cron';
 import { adminAuthMiddleware } from '../middleware/adminAuth';
+import { runLifecycleCron } from '../services/email/lifecycle';
 
 const router = Router();
 
@@ -129,6 +130,51 @@ router.post('/archive-old-records', async (req: Request, res: Response) => {
       error: {
         code: 'INTERNAL_ERROR',
         message: 'Failed to archive old records',
+      },
+    });
+  }
+});
+
+/**
+ * POST /api/v1/cron/email-lifecycle
+ * Run lifecycle email sequence (Day 1–30)
+ *
+ * Call daily. Each run processes all users who registered ~N hours ago.
+ * Security: Requires CRON_SECRET header for authentication.
+ */
+router.post('/email-lifecycle', async (req: Request, res: Response) => {
+  try {
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: 'CRON_NOT_CONFIGURED',
+          message: 'Cron secret is not configured on this environment',
+        },
+      });
+    }
+
+    const cronSecret = req.headers['x-cron-secret'];
+    if (cronSecret !== configuredSecret) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Invalid or missing cron secret',
+        },
+      });
+    }
+
+    const result = await runLifecycleCron();
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[Cron] email-lifecycle error:', error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'CRON_ERROR',
+        message: 'Lifecycle cron failed',
       },
     });
   }
