@@ -13,6 +13,7 @@ import { Sparkles, MessageSquare, Compass, Settings, Users, ArrowRight } from 'l
 import { apiGet } from '@/lib/api-client';
 import { DailyHoroscopeCard } from '@/components/forecast/daily-horoscope-card';
 import { OracleWelcome } from '@/components/chat/oracle-welcome';
+import { CosmicEventBanner } from '@/components/dashboard/CosmicEventBanner';
 
 interface BirthProfile {
   id: string;
@@ -202,6 +203,9 @@ export default function DashboardPage({
             <button onClick={() => setPendingNotice(null)} className="text-white/30 hover:text-white/60 shrink-0 text-lg leading-none">×</button>
           </div>
         )}
+
+        {/* Cosmic event banners (retrograde / eclipse alerts) */}
+        <CosmicEventBanner locale={locale} />
 
         {/* Page header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6 animate-fade-in-up">
