@@ -28,6 +28,9 @@ yarn-error.log*
 # Vercel
 .vercel
 
+# Worktrees
+.worktrees/
+
 # IDE
 .idea/
 .vscode/
