@@ -11,6 +11,7 @@ import { ElementsCard }        from './elements-card';
 import { AspectsSummary }      from './aspects-summary';
 import { ChartLoadingAnimation } from './chart-loading-animation';
 import { adaptNatalChart, type BackendNatalChart } from './natal-chart-adapter';
+import { ShareCardModal } from './ShareCardModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
 
@@ -24,13 +25,14 @@ interface BirthProfile {
 }
 
 export function ChartPanel() {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
   const [phase, setPhase] = useState<'loading' | 'no-birth-data' | 'ready' | 'error'>('loading');
   const [profile, setProfile] = useState<BirthProfile | null>(null);
   const [rawChart, setRawChart] = useState<BackendNatalChart | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.push('/login');
@@ -150,14 +152,34 @@ export function ChartPanel() {
           </p>
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold text-white">Your Cosmic Blueprint</h1>
-            {profile && (
-              <span className="text-xs text-text-muted">{profile.name}</span>
-            )}
+            <div className="flex items-center gap-3">
+              {user && (
+                <button
+                  onClick={() => setShowShareModal(true)}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    padding: '8px 16px', background: 'transparent',
+                    border: '1px solid #e41aff', color: '#e41aff',
+                    borderRadius: '8px', fontSize: '13px', fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Share my chart ✦
+                </button>
+              )}
+              {profile && (
+                <span className="text-xs text-text-muted">{profile.name}</span>
+              )}
+            </div>
           </div>
           {profile?.isUnknownTime && (
             <p className="text-[11px] text-pro-gold mt-1">⚠ Birth time unknown — house cusps approximate</p>
           )}
         </div>
+
+        {showShareModal && user && (
+          <ShareCardModal userId={user.id} onClose={() => setShowShareModal(false)} />
+        )}
 
         {/* ── Two-column on desktop, single on mobile ─────────────────── */}
         <div className="flex-1 flex flex-col md:flex-row gap-5 px-5 pb-8">
