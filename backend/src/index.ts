@@ -31,6 +31,7 @@ import cronRoutes from './routes/cron'; // US-36: Monthly Reset Cron
 import astrologyRoutes from './routes/astrology'; // US-33: Astrology API Fallback
 import adminRoutes from './routes/admin'; // Step 11: Admin Dashboard
 import guestChatRoutes from './routes/guestChat';
+import transitsRouter from './routes/transits';
 
 // US-37: Rate limit headers middleware
 import { rateLimitHeadersMiddleware, fetchRateLimitStatus } from './middleware/rateLimitHeaders';
@@ -179,6 +180,7 @@ app.use('/api/v1/compatibility', compatibilityRoutes); // US-20: Compatibility A
 app.use('/api/v1/cron', cronRoutes); // US-36: Monthly Reset Cron
 app.use('/api/v1/astrology', astrologyRoutes); // US-33: Astrology API Fallback
 app.use('/api/v1/admin', adminRoutes); // Step 11: Admin Dashboard
+app.use('/api/v1/transits', transitsRouter); // ENH-20: Retrograde/Eclipse banners
 
 // ============================================
 // ERROR HANDLING
