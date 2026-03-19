@@ -105,7 +105,10 @@ async function getUsersInWindow(hoursAgo: number): Promise<UserForLifecycle[]> {
   return prisma.user.findMany({
     where: {
       createdAt: { gte: windowStart, lte: windowEnd },
-      notificationPreference: { emailEnabled: true },
+      OR: [
+        { notificationPreference: { is: null } },
+        { notificationPreference: { emailEnabled: true } },
+      ],
     },
     include: {
       notificationPreference: { select: { emailEnabled: true } },
