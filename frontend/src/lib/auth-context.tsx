@@ -149,12 +149,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else {
           // Token invalid or profile missing — clear tokens
           localStorage.removeItem(ACCESS_TOKEN_KEY);
-          localStorage.removeItem(REFRESH_TOKEN_KEY);
         }
       })
       .catch(() => {
         localStorage.removeItem(ACCESS_TOKEN_KEY);
-        localStorage.removeItem(REFRESH_TOKEN_KEY);
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -451,7 +449,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    */
   const signOut = () => {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
     setUser(null);
     router.push(localePath('/login'));
   };
