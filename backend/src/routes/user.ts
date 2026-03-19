@@ -7,10 +7,12 @@
  * US-29: Notification Preferences
  */
 
-import { Router } from 'express';
+import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import path from 'path';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
+import { prisma } from '../utils/prisma';
+import { redisClient } from '../utils/redis';
 import {
   getProfile,
   updateProfile,
@@ -244,5 +246,87 @@ router.get('/notifications/sms-status', authMiddleware, getSmsStatus);
  * @body    { password: string }
  */
 router.delete('/', authMiddleware, deleteAccount);
+
+// ============================================
+// ENH-18: Shareable Big 3 Card
+// ============================================
+
+const ZODIAC_GLYPHS: Record<string, string> = {
+  Aries: '♈', Taurus: '♉', Gemini: '♊', Cancer: '♋',
+  Leo: '♌', Virgo: '♍', Libra: '♎', Scorpio: '♏',
+  Sagittarius: '♐', Capricorn: '♑', Aquarius: '♒', Pisces: '♓',
+};
+
+// GET /api/v1/user/share-card — auth required
+router.get('/share-card', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const cacheKey = `share_card:${userId}`;
+    const cached = await redisClient.get(cacheKey);
+    if (cached) return res.json({ success: true, data: JSON.parse(cached) });
+
+    const profile = await prisma.birthProfile.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: { birthChart: { select: { chartData: true } } },
+    });
+
+    if (!profile?.birthChart?.chartData) {
+      return res.status(404).json({ success: false, error: { code: 'NO_CHART', message: 'No birth chart found' } });
+    }
+
+    const cd = profile.birthChart.chartData as any;
+    const data = {
+      userId,
+      sunSign: cd?.sun?.sign ?? null,
+      moonSign: cd?.moon?.sign ?? null,
+      risingSign: cd?.rising?.sign ?? null,
+      sunGlyph: ZODIAC_GLYPHS[cd?.sun?.sign] ?? '☉',
+      moonGlyph: ZODIAC_GLYPHS[cd?.moon?.sign] ?? '☽',
+      risingGlyph: cd?.rising?.sign ? (ZODIAC_GLYPHS[cd.rising.sign] ?? '↑') : null,
+    };
+
+    await redisClient.setEx(cacheKey, 60 * 60 * 24, JSON.stringify(data));
+    return res.json({ success: true, data });
+  } catch (err) {
+    console.error('[User] share-card error:', err);
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed to get share card data' } });
+  }
+});
+
+// GET /api/v1/user/share-card/public/:userId — no auth
+router.get('/share-card/public/:userId', async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const cacheKey = `share_card_pub:${userId}`;
+    const cached = await redisClient.get(cacheKey);
+    if (cached) return res.json({ success: true, data: JSON.parse(cached) });
+
+    const profile = await prisma.birthProfile.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      include: { birthChart: { select: { chartData: true } } },
+    });
+
+    if (!profile?.birthChart?.chartData) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Chart not found' } });
+    }
+
+    const cd = profile.birthChart.chartData as any;
+    const data = {
+      sunSign: cd?.sun?.sign ?? null,
+      moonSign: cd?.moon?.sign ?? null,
+      risingSign: cd?.rising?.sign ?? null,
+      sunGlyph: ZODIAC_GLYPHS[cd?.sun?.sign] ?? '☉',
+      moonGlyph: ZODIAC_GLYPHS[cd?.moon?.sign] ?? '☽',
+      risingGlyph: cd?.rising?.sign ? (ZODIAC_GLYPHS[cd.rising.sign] ?? '↑') : null,
+    };
+
+    await redisClient.setEx(cacheKey, 60 * 60 * 24, JSON.stringify(data));
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed' } });
+  }
+});
 
 export default router;
