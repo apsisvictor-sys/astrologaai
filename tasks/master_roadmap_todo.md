@@ -572,7 +572,7 @@
 
 > Ordered HIGH → MEDIUM impact on user retention, conversion, and revenue. These are near-term improvements to existing flows.
 
-### ENH-18 — HIGH IMPACT: Shareable "Big 3" card — organic viral growth at zero ad spend
+### ENH-18 — HIGH IMPACT: Shareable "Big 3" card — organic viral growth at zero ad spend ✅ CODE COMPLETE (2026-03-19)
 - **Impact:** HIGH — the single highest-ROI growth feature in this category. Every Co-Star and Sanctuary user has shared their Big 3 card on Instagram. Drives organic signups by putting the brand in front of non-users. Zero infrastructure cost if built on Vercel OG.
 - **Where:** New backend route + new frontend component, linked from `chart-panel.tsx`
 - **What:** A shareable image card showing the user's Sun ☉ / Moon ☽ / Rising ↑ signs in the Void Prism design system (`#0D0010` background, `#e41aff` accents, Inter Bold). One-click download or share. A public page shows the card with a "Discover your cosmic blueprint → astrologa.bg" CTA below.
@@ -596,7 +596,7 @@
 
 ---
 
-### ENH-20 — HIGH IMPACT: Mercury Retrograde + Eclipse season banners — drives daily opens at peak astrological moments
+### ENH-20 — HIGH IMPACT: Mercury Retrograde + Eclipse season banners — drives daily opens at peak astrological moments ✅ CODE COMPLETE (2026-03-19)
 - **Impact:** HIGH — Mercury retrograde is the most culturally recognised astrological event. Even non-astrology people know about it. Contextual banners during these windows make the app feel alive, drive daily opens, and generate social sharing organically.
 - **Where:** Dashboard hero area + chat page top bar. New component `<CosmicEventBanner>` + new backend config/route.
 - **What:** A persistent banner active during retrograde and eclipse periods. Personalised: states which house is affected in the user's chart. Pre-loads an Oracle session with a contextual prompt.
@@ -730,7 +730,7 @@
 
 > Ordered HIGH → MEDIUM impact. Each feature includes enough implementation detail to build from scratch.
 
-### FEAT-05 — HIGH IMPACT: Email lifecycle sequence (Day 0 → 30) — the biggest LTV lever available right now
+### FEAT-05 — HIGH IMPACT: Email lifecycle sequence (Day 0 → 30) — the biggest LTV lever available right now ✅ CODE COMPLETE (2026-03-19)
 - **Impact:** HIGH — Resend and the schema are already integrated. The sequences just don't exist. A proper lifecycle sequence is the single highest-return investment for a SaaS at this stage. Converts registered-but-inactive users into paying customers. Prevents churn before it starts.
 - **Where:** New `backend/src/services/email/lifecycle.ts` + cron jobs in `backend/src/routes/cron.ts` + Resend email templates
 - **Sequence design:**
