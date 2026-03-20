@@ -211,7 +211,7 @@ function UserDetailModal({ userId, onClose }: UserDetailModalProps) {
               <h3 className="text-sm font-semibold text-text-secondary mb-2">Usage</h3>
               <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
                 <p className="text-white">
-                  Queries this month:{' '}
+                  Queries this month (legacy):{' '}
                   <span className="text-accent-cyan font-semibold">
                     {detail.usage?.queryCount ?? detail.queryCount}
                   </span>
@@ -497,7 +497,7 @@ export default function UsersPage() {
                   <th className="px-4 py-3 font-medium">Tier</th>
                   <th className="px-4 py-3 font-medium">Joined</th>
                   <th className="px-4 py-3 font-medium">Last Active</th>
-                  <th className="px-4 py-3 font-medium">Queries</th>
+                  <th className="px-4 py-3 font-medium">Queries (legacy)</th>
                   <th className="px-4 py-3 font-medium">Cost (mo)</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Actions</th>

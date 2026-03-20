@@ -1,319 +1,109 @@
 /**
- * Query Limit Middleware
- * US-36: Free-tier Query Limit Enforcement
- * US-37: API Rate-Limit Burst/Retry Behavior
- * 
- * Middleware that checks if user has remaining queries before allowing access
- * Works with both HTTP and WebSocket connections
- * 
- * Features:
- * - Monthly query limits per tier
- * - Burst rate limiting (requests per minute)
- * - 429 responses with Retry-After header
- * - Bulgarian & English error messages
+ * Rate Limit Middleware
+ * - FREE tier: token-based daily limit (output tokens tracked in Redis, limit from AdminConfig)
+ * - Admin accounts: unlimited always
+ * - PRO/PREMIUM: burst rate limit only (requests per minute)
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { prisma } from '../utils/prisma';
 import { Tier } from '@prisma/client';
+import { prisma } from '../utils/prisma';
 import {
-  getEffectiveMonthlyLimit,
   isUnlimitedTier,
   getBurstLimit,
   isUnlimitedBurst,
-  getMonthlyResetDay,
-  getTierLimits,
 } from '../config/subscription-tiers';
 import { redisClient } from '../utils/redis';
 import { RATE_LIMIT_HEADERS } from './rateLimitHeaders';
 
-/**
- * Get current month string in YYYY-MM format
- */
-function getCurrentMonth(): string {
+// ── Helpers ────────────────────────────────────────────────────────────────
+
+function getTodayKey(): string {
   const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+function isAdminEmail(email: string): boolean {
+  const adminEmails = process.env.ADMIN_EMAILS?.split(',').map(e => e.trim()) || [];
+  return adminEmails.includes(email);
+}
+
+export function getDailyTokenRedisKey(userId: string): string {
+  return `tokens:daily:${userId}:${getTodayKey()}`;
 }
 
 /**
- * Get next reset date (first day of next month)
+ * Read the FREE tier daily token limit from AdminConfig.
+ * Falls back to 1500 if not set.
  */
-function getNextResetDate(): Date {
-  const now = new Date();
-  const resetDay = getMonthlyResetDay();
-
-  // If we're past the reset day this month, next reset is next month
-  if (now.getDate() >= resetDay) {
-    return new Date(now.getFullYear(), now.getMonth() + 1, resetDay);
+export async function getFreeTierDailyTokenLimit(): Promise<number> {
+  try {
+    const config = await (prisma.adminConfig as any).findUnique({
+      where: { key: 'free_tier_daily_token_limit' },
+    });
+    if (config?.value) {
+      const n = parseInt(config.value, 10);
+      if (!isNaN(n) && n > 0) return n;
+    }
+  } catch {
+    // fallback
   }
-
-  // Otherwise, reset is this month
-  return new Date(now.getFullYear(), now.getMonth(), resetDay);
+  return 1500;
 }
 
 /**
- * Check burst rate limit (requests per minute)
- * US-37: PREMIUM tier has unlimited burst
+ * Get today's token usage for a FREE user from Redis.
  */
+export async function getDailyTokensUsed(userId: string): Promise<number> {
+  const val = await redisClient.get(getDailyTokenRedisKey(userId));
+  return parseInt(val || '0', 10);
+}
+
+/**
+ * Increment daily token counter for a FREE user.
+ * Sets a 26h TTL on first write so the key always expires after the day.
+ */
+export async function incrementDailyTokens(userId: string, tokens: number): Promise<number> {
+  const key = getDailyTokenRedisKey(userId);
+  const newTotal = await redisClient.incrby(key, tokens);
+  if (newTotal === tokens) {
+    // First write today — set TTL
+    await redisClient.expire(key, 26 * 3600);
+  }
+  return newTotal;
+}
+
+// ── Burst limit (PRO/PREMIUM) ──────────────────────────────────────────────
+
 async function checkBurstLimit(
   userId: string,
   tier: Tier
-): Promise<{ allowed: boolean; remaining: number | 'unlimited'; resetAt: Date; retryAfter: number }> {
-  // US-37: PREMIUM tier has unlimited burst
+): Promise<{ allowed: boolean; remaining: number | 'unlimited'; retryAfter: number }> {
   if (isUnlimitedBurst(tier)) {
-    return {
-      allowed: true,
-      remaining: 'unlimited',
-      resetAt: new Date(Date.now() + 60000),
-      retryAfter: 0,
-    };
+    return { allowed: true, remaining: 'unlimited', retryAfter: 0 };
   }
 
   const burstLimit = getBurstLimit(tier);
   const burstKey = `ratelimit:burst:${userId}`;
-  const windowSeconds = 60;
-
   const currentCount = parseInt(await redisClient.get(burstKey) || '0', 10);
 
   if (currentCount >= burstLimit) {
     const ttl = await redisClient.ttl(burstKey);
-    const retryAfter = ttl > 0 ? ttl : windowSeconds;
-    const resetAt = new Date(Date.now() + retryAfter * 1000);
-    return { allowed: false, remaining: 0, resetAt, retryAfter };
+    return { allowed: false, remaining: 0, retryAfter: ttl > 0 ? ttl : 60 };
   }
 
-  return {
-    allowed: true,
-    remaining: burstLimit - currentCount - 1,
-    resetAt: new Date(Date.now() + windowSeconds * 1000),
-    retryAfter: 0,
-  };
+  return { allowed: true, remaining: burstLimit - currentCount - 1, retryAfter: 0 };
 }
 
-/**
- * Increment burst counter
- */
 async function incrementBurstCounter(userId: string, tier: Tier): Promise<void> {
-  // Don't increment for unlimited burst tiers
-  if (isUnlimitedBurst(tier)) {
-    return;
-  }
-
+  if (isUnlimitedBurst(tier)) return;
   const burstKey = `ratelimit:burst:${userId}`;
   const count = await redisClient.incr(burstKey);
-
-  // Set expiry on first increment
-  if (count === 1) {
-    await redisClient.expire(burstKey, 60); // 60 seconds window
-  }
+  if (count === 1) await redisClient.expire(burstKey, 60);
 }
 
-/**
- * Get or create usage record for current month
- */
-async function getOrCreateUsageRecord(userId: string): Promise<{ queryCount: number; month: string }> {
-  const month = getCurrentMonth();
+// ── Main middleware ────────────────────────────────────────────────────────
 
-  const record = await prisma.usageRecord.findUnique({
-    where: {
-      userId_month: { userId, month },
-    },
-  });
-
-  return {
-    queryCount: record?.queryCount ?? 0,
-    month,
-  };
-}
-
-/**
- * Increment query count in database
- */
-export async function incrementQueryCount(userId: string, tier: Tier): Promise<{ newCount: number; month: string }> {
-  const month = getCurrentMonth();
-
-  const record = await prisma.usageRecord.upsert({
-    where: {
-      userId_month: { userId, month },
-    },
-    create: {
-      userId,
-      month,
-      queryCount: 1,
-    },
-    update: {
-      queryCount: { increment: 1 },
-    },
-  });
-
-  // Custom logic for daily limits and bonus queries on Free tier
-  if (tier === 'FREE') {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user) {
-      const now = new Date();
-      const last = user.lastQueryDate;
-      const isNewDay = !last || (last.getDate() !== now.getDate() || last.getMonth() !== now.getMonth() || last.getFullYear() !== now.getFullYear());
-      const currentDaily = isNewDay ? 0 : user.dailyQueryCount;
-
-      let nextDaily = currentDaily + 1;
-      let nextBonus = user.bonusQueries;
-
-      if (nextDaily > (getTierLimits(tier).dailyQueries ?? 4) && nextBonus > 0) {
-        nextBonus -= 1; // Used a bonus query
-      }
-
-      await prisma.user.update({
-        where: { id: userId },
-        data: {
-          dailyQueryCount: isNewDay ? 1 : { increment: 1 },
-          lastQueryDate: now,
-          bonusQueries: nextBonus
-        }
-      });
-    }
-  }
-
-  // Also increment burst counter
-  await incrementBurstCounter(userId, tier);
-
-  return { newCount: record.queryCount, month };
-}
-
-/**
- * Check if user has remaining queries for this month
- * Returns full status info for both monthly and burst limits
- * US-37: Includes retryAfter for 429 responses
- */
-export async function checkQueryLimit(
-  userId: string,
-  tier: Tier
-): Promise<{
-  allowed: boolean;
-  monthlyUsed: number;
-  monthlyLimit: number | 'unlimited';
-  monthlyRemaining: number | 'unlimited';
-  burstRemaining: number | 'unlimited';
-  resetAt: Date;
-  retryAfter: number;
-  limitType?: 'monthly' | 'burst' | 'daily';
-  warningAt80Percent?: boolean; // US-36: Warning at 80% of limit
-}> {
-  // Unlimited tiers always allowed (but still check burst if not unlimited)
-  if (isUnlimitedTier(tier)) {
-    const burst = await checkBurstLimit(userId, tier);
-
-    return {
-      allowed: burst.allowed,
-      monthlyUsed: 0,
-      monthlyLimit: 'unlimited',
-      monthlyRemaining: 'unlimited',
-      burstRemaining: burst.remaining,
-      resetAt: burst.resetAt,
-      retryAfter: burst.retryAfter,
-      limitType: burst.allowed ? undefined : 'burst',
-      warningAt80Percent: false, // No warning for unlimited tiers
-    };
-  }
-
-  // Check monthly limit
-  const { queryCount } = await getOrCreateUsageRecord(userId);
-  const monthlyLimit = getEffectiveMonthlyLimit(tier);
-  const resetAt = getNextResetDate();
-
-  // Check burst limit first
-  const burst = await checkBurstLimit(userId, tier);
-  if (!burst.allowed) {
-    return {
-      allowed: false,
-      monthlyUsed: queryCount,
-      monthlyLimit,
-      monthlyRemaining: Math.max(0, monthlyLimit - queryCount),
-      burstRemaining: 0,
-      resetAt: burst.resetAt,
-      retryAfter: burst.retryAfter,
-      limitType: 'burst',
-    };
-  }
-
-  // Check daily limit and bonus for FREE tier
-  if (tier === 'FREE') {
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (user) {
-      const now = new Date();
-      const last = user.lastQueryDate;
-      const isNewDay = !last || (last.getDate() !== now.getDate() || last.getMonth() !== now.getMonth() || last.getFullYear() !== now.getFullYear());
-      const currentDaily = isNewDay ? 0 : user.dailyQueryCount;
-      const bonus = user.bonusQueries;
-
-      if (currentDaily >= (getTierLimits(tier).dailyQueries ?? 4) && bonus <= 0) {
-        const tomorrow = new Date(now);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(0, 0, 0, 0);
-        return {
-          allowed: false,
-          monthlyUsed: queryCount,
-          monthlyLimit,
-          monthlyRemaining: Math.max(0, monthlyLimit - queryCount),
-          burstRemaining: burst.remaining,
-          resetAt: tomorrow,
-          retryAfter: Math.ceil((tomorrow.getTime() - now.getTime()) / 1000),
-          limitType: 'daily'
-        };
-      }
-    }
-  }
-
-  // Check monthly limit
-  if (queryCount >= monthlyLimit) {
-    // Calculate retry after for monthly reset
-    const retryAfter = Math.ceil((resetAt.getTime() - Date.now()) / 1000);
-    return {
-      allowed: false,
-      monthlyUsed: queryCount,
-      monthlyLimit,
-      monthlyRemaining: 0,
-      burstRemaining: burst.remaining,
-      resetAt,
-      retryAfter,
-      limitType: 'monthly',
-    };
-  }
-
-  return {
-    allowed: true,
-    monthlyUsed: queryCount,
-    monthlyLimit,
-    monthlyRemaining: monthlyLimit - queryCount,
-    burstRemaining: burst.remaining,
-    resetAt,
-    retryAfter: 0,
-    warningAt80Percent: queryCount >= Math.floor(monthlyLimit * 0.8), // US-36: Warning at 80% (40 of 50)
-  };
-}
-
-/**
- * Error messages in Bulgarian and English
- * US-37: Localized rate limit messages
- */
-const RATE_LIMIT_MESSAGES = {
-  burst: {
-    bg: 'Твърде много заявки за кратко време. Моля, изчакайте малко преди да продължите.',
-    en: 'Too many requests in a short time. Please wait a moment before continuing.',
-  },
-  daily: {
-    bg: 'Звездите имат нужда от време, за да се подредят. Достигнахте дневния си космически лимит. Опитайте утре.',
-    en: 'The stars need time to align. You\'ve reached your daily cosmic limit. Check back tomorrow.',
-  },
-  monthly: {
-    bg: 'Достигнахте лимита от {limit} въпроса за този месец. Надградете до Pro за неограничени въпроси.',
-    en: 'You\'ve reached your monthly limit of {limit} queries. Upgrade to Pro for unlimited queries.',
-  },
-};
-
-/**
- * Express middleware for query limit checking
- * Use this before routes that consume queries (chat, forecasts, etc.)
- */
 export async function queryLimitMiddleware(
   req: Request,
   res: Response,
@@ -321,130 +111,125 @@ export async function queryLimitMiddleware(
 ): Promise<void> {
   try {
     const userId = req.user?.id;
+    const userEmail = req.user?.email || '';
     const userTier = (req.user?.tier as Tier) || 'FREE';
     const userLanguage = req.user?.language || 'bg';
 
     if (!userId) {
-      res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required',
-        },
-      });
+      res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Authentication required' } });
       return;
     }
 
-    const status = await checkQueryLimit(userId, userTier);
-
-    // Add limit info to request for downstream use
-    (req as any).queryLimit = status;
-
-    // US-36: Add warning header when approaching limit (80% = 40 of 50 queries)
-    if (status.warningAt80Percent && typeof status.monthlyLimit === 'number') {
-      const lang = userLanguage === 'en' ? 'en' : 'bg';
-      const warningMessage = lang === 'bg'
-        ? `Предупреждение: Използвали сте ${status.monthlyUsed} от ${status.monthlyLimit} въпроса този месец.`
-        : `Warning: You have used ${status.monthlyUsed} of ${status.monthlyLimit} queries this month.`;
-      res.setHeader('X-Query-Warning', warningMessage);
+    // Admin accounts: unlimited always
+    if (isAdminEmail(userEmail)) {
+      (req as any).queryLimit = { allowed: true, unlimited: true };
+      next();
+      return;
     }
 
-    if (!status.allowed) {
-      const tierConfig = getTierLimits(userTier);
-      const isMonthlyLimit = status.limitType === 'monthly';
-      const lang = userLanguage === 'en' ? 'en' : 'bg';
+    // PRO/PREMIUM: burst limit only
+    if (isUnlimitedTier(userTier)) {
+      const burst = await checkBurstLimit(userId, userTier);
+      if (!burst.allowed) {
+        res.setHeader(RATE_LIMIT_HEADERS.RETRY_AFTER, burst.retryAfter);
+        res.setHeader(RATE_LIMIT_HEADERS.TIER, userTier);
+        res.status(429).json({
+          success: false,
+          error: {
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: userLanguage === 'en'
+              ? 'Too many requests. Please wait a moment before continuing.'
+              : 'Твърде много заявки. Моля, изчакайте малко.',
+            limitType: 'burst',
+            retryAfter: burst.retryAfter,
+          },
+        });
+        return;
+      }
+      await incrementBurstCounter(userId, userTier);
+      (req as any).queryLimit = { allowed: true, unlimited: true };
+      next();
+      return;
+    }
 
-      // US-37: Calculate retryAfter based on limit type
-      const retryAfter = status.retryAfter ??
-        (isMonthlyLimit
-          ? Math.ceil((status.resetAt.getTime() - Date.now()) / 1000)
-          : 60);
+    // FREE tier: check daily token limit
+    const [tokensUsed, tokenLimit] = await Promise.all([
+      getDailyTokensUsed(userId),
+      getFreeTierDailyTokenLimit(),
+    ]);
 
-      // US-37: Add rate limit headers
-      res.setHeader(RATE_LIMIT_HEADERS.LIMIT, status.monthlyLimit);
-      res.setHeader(RATE_LIMIT_HEADERS.REMAINING, status.monthlyRemaining);
-      res.setHeader(RATE_LIMIT_HEADERS.RESET, Math.floor(status.resetAt.getTime() / 1000));
+    if (tokensUsed >= tokenLimit) {
+      // Already over — block this new message
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(0, 0, 0, 0);
+      const retryAfter = Math.ceil((tomorrow.getTime() - Date.now()) / 1000);
+
       res.setHeader(RATE_LIMIT_HEADERS.RETRY_AFTER, retryAfter);
       res.setHeader(RATE_LIMIT_HEADERS.TIER, userTier);
-
-      // US-37: Use localized messages
-      const message = status.limitType === 'monthly'
-        ? RATE_LIMIT_MESSAGES.monthly[lang].replace('{limit}', String(status.monthlyLimit))
-        : status.limitType === 'daily'
-          ? RATE_LIMIT_MESSAGES.daily[lang]
-          : RATE_LIMIT_MESSAGES.burst[lang];
-
       res.status(429).json({
         success: false,
         error: {
-          code: 'RATE_LIMIT_EXCEEDED',
-          message,
-          limitType: status.limitType,
+          code: 'DAILY_LIMIT_REACHED',
+          message: userLanguage === 'en'
+            ? 'You\'ve reached your daily cosmic limit. Upgrade to Pro for unlimited access.'
+            : 'Достигнахте дневния си лимит. Надградете до Pro за неограничен достъп.',
+          limitType: 'daily_tokens',
           retryAfter,
-          monthlyUsed: status.monthlyUsed,
-          monthlyLimit: status.monthlyLimit,
-          monthlyRemaining: status.monthlyRemaining,
-          burstRemaining: status.burstRemaining,
-          resetAt: status.resetAt.toISOString(),
-          upgradeUrl: '/subscription/plans',
-          tierName: tierConfig.name[lang as 'bg' | 'en'],
+          upgradeUrl: '/pricing',
         },
       });
       return;
     }
 
+    // Also check burst for FREE
+    await checkBurstLimit(userId, userTier); // non-blocking, ignore result for FREE
+
+    (req as any).queryLimit = { allowed: true, tokensUsed, tokenLimit };
     next();
   } catch (error) {
-    console.error('[Query Limit Middleware] Error:', error);
-
+    console.error('[RateLimit] Error:', error);
     res.status(503).json({
       success: false,
-      error: {
-        code: 'SERVICE_UNAVAILABLE',
-        message: 'The Oracle is temporarily unavailable. Please try again shortly.',
-        messageBg: 'Оракулът е временно недостъпен. Моля, опитайте отново.',
-      },
+      error: { code: 'SERVICE_UNAVAILABLE', message: 'Service temporarily unavailable. Please try again.' },
     });
   }
 }
 
 /**
- * Helper to get usage stats for a user
+ * Legacy export — kept for subscription status route compatibility
  */
-export async function getUserUsageStats(userId: string, tier: Tier): Promise<{
+export async function getUserUsageStats(_userId: string, tier: Tier): Promise<{
   used: number;
   limit: number | 'unlimited';
   remaining: number | 'unlimited';
   resetAt: string;
   percentage: number | null;
 }> {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+
   if (isUnlimitedTier(tier)) {
-    return {
-      used: 0,
-      limit: 'unlimited',
-      remaining: 'unlimited',
-      resetAt: getNextResetDate().toISOString(),
-      percentage: null,
-    };
+    return { used: 0, limit: 'unlimited', remaining: 'unlimited', resetAt: tomorrow.toISOString(), percentage: null };
   }
 
-  const { queryCount } = await getOrCreateUsageRecord(userId);
-  const limit = getEffectiveMonthlyLimit(tier);
-  const remaining = Math.max(0, limit - queryCount);
-  const percentage = limit > 0 ? Math.round((queryCount / limit) * 100) : 0;
-
-  return {
-    used: queryCount,
-    limit,
-    remaining,
-    resetAt: getNextResetDate().toISOString(),
-    percentage,
-  };
+  return { used: 0, limit: 'unlimited', remaining: 'unlimited', resetAt: tomorrow.toISOString(), percentage: null };
 }
 
-export default {
-  queryLimitMiddleware,
-  checkQueryLimit,
-  incrementQueryCount,
-  getUserUsageStats,
-};
+export async function checkQueryLimit(
+  userId: string,
+  tier: Tier
+): Promise<{ allowed: boolean; monthlyUsed: number; monthlyLimit: number | 'unlimited'; monthlyRemaining: number | 'unlimited'; burstRemaining: number | 'unlimited'; resetAt: Date; retryAfter: number }> {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  tomorrow.setHours(0, 0, 0, 0);
+  return { allowed: true, monthlyUsed: 0, monthlyLimit: 'unlimited', monthlyRemaining: 'unlimited', burstRemaining: 'unlimited', resetAt: tomorrow, retryAfter: 0 };
+}
+
+export async function incrementQueryCount(_userId: string, _tier: Tier): Promise<{ newCount: number; month: string }> {
+  // No-op — query counting replaced by token counting
+  return { newCount: 0, month: '' };
+}
+
+export default { queryLimitMiddleware, getUserUsageStats, checkQueryLimit, incrementQueryCount };

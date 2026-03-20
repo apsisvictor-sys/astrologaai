@@ -130,12 +130,8 @@
 
 ## 🔴 Active Bugs (code fix needed)
 
-### BUG-24 — Admin users table shows wrong query count (2) vs usage tab (11)
-- **Priority:** MEDIUM — admin has wrong data visibility; makes user management unreliable
-- **Where:** `backend/src/routes/admin.ts` — `/admin/users` endpoint query count vs `/admin/usage` endpoint
-- **Symptom:** Users table shows 2 queries for admin account; Usage & Cost tab shows 11 requests for same account.
-- **Likely cause:** The two endpoints count from different sources. Users table likely reads from `subscription.queriesUsedThisMonth` (monthly counter, resets), while usage tab may read from `LlmUsage` table (cumulative all-time). They measure different things and it's not communicated clearly.
-- **Fix:** Clarify and align the two counters. Users table should show current month queries. Usage tab shows total/historical. Add column headers that make the distinction clear. Verify both counts are accurate.
+### ~~BUG-24~~ — RESOLVED (Sprint 5)
+Query-based limits replaced by token-based daily limits. Admin users table now shows "Queries (legacy)" — the concept is superseded. LlmUsage tab continues to show token/cost data which is the correct metric going forward.
 
 ---
 
@@ -633,7 +629,10 @@
 
 ---
 
-### ENH-22 — MEDIUM IMPACT: Redesign birth data onboarding as a ceremony — increases completion and sets emotional tone
+### ~~ENH-22~~ — DEFERRED: Redesign birth data onboarding as a ceremony
+**Decision (Sprint 5):** Victor decided against this — current approach (form in chat) is correct for the ChatGPT/Claude-style UX. Not needed.
+
+### ENH-22-ORIGINAL — MEDIUM IMPACT: Redesign birth data onboarding as a ceremony — increases completion and sets emotional tone
 - **Impact:** MEDIUM — the birth data form is a cold admin barrier. Making it feel like a sacred ritual dramatically increases completion rates and creates an emotional investment in the product from the very first interaction.
 - **Where:** The birth data input flow (first time only) — wrap existing form in a stepped ceremony UI
 - **What:** Three-step animated flow with a cosmic transition between steps. Ends with a "Your cosmic blueprint has been cast" reveal showing the Big 3.
@@ -647,7 +646,7 @@
 
 ---
 
-### ENH-23 — MEDIUM IMPACT: Daily session streak + check-in gamification — converts weekly users to daily users
+### ✅ ENH-23 — COMPLETE (Sprint 5): Daily Oracle streak + rewards
 - **Impact:** MEDIUM — streak mechanics are proven habit formation tools. Low engineering cost, meaningful daily active user (DAU) lift.
 - **Where:** New `user_streaks` table + sidebar component + auth/chat middleware
 - **What:** Track consecutive days with at least one Oracle session. Display in sidebar. Celebrate milestones. Trigger re-engagement email on streak break.
@@ -660,7 +659,10 @@
 
 ---
 
-### ENH-24 — MEDIUM IMPACT: "Last session topic" Oracle context injection — makes the Oracle feel like it remembers you
+### ENH-24 — DEFERRED: "Last session topic" Oracle context injection
+**Decision (Sprint 5):** Deferred in favour of a full pg-vector RAG memory system where Haiku extracts conversation fragments per user. ENH-24's lightweight approach is superseded by the planned FUTURE memory system.
+
+### ENH-24-ORIGINAL — MEDIUM IMPACT: "Last session topic" Oracle context injection — makes the Oracle feel like it remembers you
 - **Impact:** MEDIUM — the Oracle currently starts from zero every session. A single sentence referencing the last conversation makes it feel deeply personalised. Dramatically improves perceived intelligence. Precursor to FUTURE-02 (full memory).
 - **Where:** `backend/src/controllers/chatController.ts` — `buildSystemPrompt()` function + new `summary` column on `ChatSession`
 - **What:** After each session ends, Haiku summarises the conversation in 1-2 sentences. That summary is injected into the next session's system prompt as a soft memory cue.

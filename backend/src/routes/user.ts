@@ -13,6 +13,7 @@ import path from 'path';
 import { authMiddleware, optionalAuthMiddleware } from '../middleware/auth';
 import { prisma } from '../utils/prisma';
 import { redisClient } from '../utils/redis';
+import { getStreakInfo } from '../services/streakService';
 import {
   getProfile,
   updateProfile,
@@ -326,6 +327,21 @@ router.get('/share-card/public/:userId', async (req: Request, res: Response) => 
     return res.json({ success: true, data });
   } catch (err) {
     return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR', message: 'Failed' } });
+  }
+});
+
+// ── GET /api/v1/user/streak ───────────────────────────────────────────────────
+// ENH-23: Returns current Oracle streak for the authenticated user
+
+router.get('/streak', authMiddleware, async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  try {
+    const info = await getStreakInfo(userId);
+    return res.json({ success: true, data: info });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR' } });
   }
 });
 

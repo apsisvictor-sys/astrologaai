@@ -5,6 +5,7 @@ import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { ChatHistoryList } from './chat-history-list';
 import { SidebarNav } from './sidebar-nav';
+import { StreakIndicator } from './streak-indicator';
 import { TierBadge } from './tier-badge';
 
 interface SidebarProps {
@@ -73,6 +74,9 @@ export function Sidebar({ onLockedFeatureClick }: SidebarProps) {
       {/* Bottom: nav + user */}
       <div className="px-3 pt-3 pb-5 shrink-0" style={{ borderTop: '1px solid rgba(228,26,255,0.08)' }}>
         <SidebarNav userTier={tier} onLockedClick={onLockedFeatureClick} />
+
+        {/* ENH-23: Oracle streak indicator */}
+        <StreakIndicator />
 
         {/* User card wrapper — relative so popover can position above it */}
         <div ref={containerRef} className="mt-3 mx-1 relative">

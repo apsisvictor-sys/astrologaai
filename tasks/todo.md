@@ -1,52 +1,64 @@
-# AstroLogAI Fix Sprint — 2026-03-17
+# Sprint 5 — Token Limits + Streaks
 
-## Batch 1 — Architecture Foundation (do first, everything depends on it)
-- [x] **ARCH-02 + ARCH-03** — Remove `astrologaai_user` from localStorage; make tier server-authoritative; short JWT expiry (15-30min); on-mount `/subscription/status` check. Fixes BUG-26 as side effect.
+## System 1: Token-Based Daily Limit (FREE tier)
 
-## Batch 2 — Quick Wins (1-3 lines each)
-- [x] **BUG-25** — Admin Prompts Editor crash: change backend response to `res.json({ success: true, data: prompts })` (return array directly)
-- [x] **BUG-33** — Location autocomplete small cities: change `types: '(cities)'` → `types: 'geocode'` in `geocoding.ts` line ~175
-- [x] **BUG-29** — Add Dashboard as first nav item in `sidebar-nav.tsx`
-- [x] **BUG-30** — Chat history empty on non-chat pages: add `isAuthenticated` to useEffect deps in `chat-history-list.tsx`
-- [x] **BUG-32** — Chat history not scrollable: add `flex flex-col min-h-0` to parent wrapper in `sidebar.tsx`
-- [x] **BUG-28** — Public nav auth awareness: add `useAuth` to `public-nav.tsx`, show Dashboard button for logged-in users, logo → /dashboard when authenticated
+### Architecture summary
+- Pre-stream: check Redis `tokens:daily:{userId}:{YYYY-MM-DD}` — if >= limit → 429 (block new messages)
+- Post-stream: INCR Redis key by approxOutput tokens, set 26h TTL on first write
+- If new total > limit → include `dailyLimitReached: true` in `complete` SSE event
+- Frontend: on `complete` with `dailyLimitReached: true` → show inline upgrade banner after message
+- Admin accounts (`ADMIN_EMAILS` env var) → bypass all limits
+- Limit value stored in AdminConfig table: key `free_tier_daily_token_limit`, default 1500
 
-## Batch 3 — Core Chat Fixes
-- [x] **BUG-21** — Chat bubble disappears after Oracle reply + text returns to input
-- [x] **BUG-22** — Dashboard query counter not updating after queries used
-- [x] **BUG-23** — Oracle greeting hardcoded Bulgarian (not language-aware)
+### Backend tasks
 
-## Batch 4 — Navigation + Subscription UX
-- [x] **BUG-27** — Pricing page: fetch tier from `/subscription/status` instead of `/subscription/plans`
-- [x] **ENH-06** — Add query counter to /chat page
-- [x] **ENH-07** — Rate limit error → upgrade CTA
+- [x] **B1** `admin-defaults.ts` — add seed `free_tier_daily_token_limit: '1500'`
+- [x] **B2** `queryLimit.ts` — rewritten: token-based Redis check for FREE, admin bypass, burst for PRO/PREMIUM
+- [x] **B3** `chatController.ts` — post-stream INCR + `dailyLimitReached` in complete SSE event
+- [x] **B4** `routes/admin.ts` — GET/PUT `/admin/config/free-tier-limits`
+- [x] **B5** `routes/subscription.ts` — query count fields stripped from status response
 
-## Batch 5 — Enhancements
-- [x] **ENH-09** — Oracle opening message dynamic + language-aware
-- [x] **ENH-13** — Chat search: floating popover with match snippets + term highlighting
-- [x] **ENH-14** — Location search lazy coordinate resolution (faster suggestions)
+### Frontend tasks
+
+- [x] **F1** `chat-context-ws.tsx` — `dailyLimitReached` state, SSE handler, 429 handler
+- [x] **F2** `chat-window.tsx` — query counter removed, DailyLimitBanner added, input disabled on limit
+- [x] **F3** `dashboard/page.tsx` — `queriesRemaining` removed, replaced with Oracle access copy
+- [x] **F4** `settings/subscription/page.tsx` — query display replaced with Oracle access text
+- [x] **F5** `pricing/page.tsx` — "Limited/Unlimited cosmic intelligence from the Oracle"
+- [x] **F6** `admin/config/page.tsx` — "Free Tier Limits" section with token limit field + save
+- [x] **F7** `admin/users/page.tsx` — "Queries (legacy)" column label
 
 ---
 
-## Deploy Plan
-- Accumulate all fixes → single batch deploy (Railway + Vercel)
+## System 2: Daily Streak + Rewards (ENH-23)
+
+### Architecture summary
+- Any Oracle message sent = streak day counted
+- 7-day streak → 48h PRO trial (set subscription tier = PRO, trialExpiresAt = now + 48h)
+- On login: check + revert expired trials
+- Existing tier gating handles feature access automatically
+
+### Backend tasks
+
+- [x] **B6** `prisma/schema.prisma` — `UserStreak` model added + `db:sync` run (deployed to Railway DB)
+- [x] **B7** `services/streakService.ts` — new service: updateStreak, grantProTrial, checkTrialExpiry, revertExpiredTrials, getStreakInfo
+- [x] **B8** `chatController.ts` — `updateStreak(userId)` called in background block after Oracle message
+- [x] **B9** `routes/user.ts` — `GET /api/v1/user/streak` endpoint added
+- [x] **B10** `authController.ts` — `checkTrialExpiry(userId)` called on login
+- [x] **B11** `routes/cron.ts` — `POST /api/v1/cron/streak-maintenance` for daily trial reversion
+
+### Frontend tasks
+
+- [x] **F8** `components/shell/streak-indicator.tsx` — new component: shows streak badge + milestone toast
+- [x] **F9** `components/shell/sidebar.tsx` — `<StreakIndicator />` added between nav and user card
 
 ---
 
 ## Review
 
-### Session summary (2026-03-18)
-All 22 items completed across 5 batches. Key changes:
+All Sprint 5 tasks complete. Ready to commit and deploy.
 
-**ARCH**: Removed `astrologaai_user` localStorage blob — auth is now server-authoritative via on-mount `/user/profile` fetch. JWT already 15min. BUG-26 fixed as side effect.
+### Changes summary
+**System 1 (Token Limits):** FREE users now limited by daily output tokens (default 1500, configurable from admin /config page). Messages stream fully before limit check fires — user gets their response then sees upgrade CTA. Admin emails bypass all limits. All "queries remaining" UI removed across dashboard, settings, pricing, and chat. Pricing copy updated to "Limited/Unlimited cosmic intelligence from the Oracle".
 
-**Quick wins**: Admin Prompts Editor crash fixed (BUG-25), location autocomplete now finds small cities (BUG-33), Dashboard added to sidebar nav (BUG-29), chat history loads on all pages (BUG-30), chat history scroll fixed (BUG-32), public nav is auth-aware (BUG-28).
-
-**Chat**: Oracle reply no longer causes text to re-appear in input (BUG-21 — respond-first, persist-after pattern). Dashboard query counter updates live (BUG-22). Oracle greeting is now language-aware and dynamic — 5 random variants per language (BUG-23 + ENH-09).
-
-**Subscription**: Pricing page now fetches real tier from `/subscription/status` (BUG-27). FREE tier changed to 3 queries/day (no monthly cap). PRO/PREMIUM remain unlimited. Query counter in /chat (ENH-06). Rate limit 429 now shows upgrade banner (ENH-07). Pricing page shows "3/day" for FREE, "Unlimited" for PRO.
-
-**Enhancements**: Chat search with floating popover — 360px wide, opens to the right of sidebar, content snippets with matched term bolded (ENH-13). Location autocomplete now resolves all 5 predictions in parallel (~5× faster on cold cache) (ENH-14).
-
-### Deploy
-- All changes accumulated — ready for single batch deploy to Railway (backend) + Vercel (frontend)
+**System 2 (Streaks):** New `user_streaks` table live in Railway DB. Oracle streak tracked per user. 7-day streak (and every 7-day multiple) triggers 48h PRO trial via existing tier gating. Streak badge shows in sidebar. Milestone toast fires on reward. Expired trials auto-reverted on login and via daily cron.

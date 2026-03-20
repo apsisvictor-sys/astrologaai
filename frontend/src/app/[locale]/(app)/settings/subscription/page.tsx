@@ -67,7 +67,7 @@ interface SubscriptionStatus {
     queriesLimit: number | 'unlimited';
     queriesRemaining: number | 'unlimited';
     percentage: number | null;
-    resetDate: string;
+    resetDate: string | null;
   };
   limits: {
     monthly: number | 'unlimited';
@@ -486,31 +486,13 @@ export default function SubscriptionManagementPage() {
             <h3 className="text-sm font-medium mb-3" style={{ color: COLORS.textSecondary }}>
               {t('management.usage')}
             </h3>
-            
-            <div className="flex items-center justify-between mb-2">
-              <span style={{ color: COLORS.textPrimary }}>
-                {t('management.queriesThisMonth')}
-              </span>
+
+            <div className="flex items-center justify-between">
+              <span style={{ color: COLORS.textPrimary }}>Oracle access</span>
               <span style={{ color: COLORS.textSecondary }}>
-                {subscription?.usage.queriesThisMonth} / {typeof subscription?.usage.queriesLimit === 'number' ? subscription.usage.queriesLimit : t('unlimited')}
+                {subscription?.tier === 'FREE' ? 'Limited cosmic intelligence' : 'Unlimited cosmic intelligence'}
               </span>
             </div>
-            
-            {/* Progress bar for limited tiers */}
-            {typeof subscription?.usage.queriesLimit === 'number' && (
-              <div
-                className="h-2 rounded-full overflow-hidden"
-                style={{ background: 'rgba(255,255,255,0.06)' }}
-              >
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{
-                    width: `${subscription.usage.percentage || 0}%`,
-                    background: subscription.limits.limitReached ? COLORS.error : COLORS.gradient,
-                  }}
-                />
-              </div>
-            )}
             
             {subscription?.usage.resetDate && (
               <p className="text-xs mt-2" style={{ color: COLORS.textMuted }}>

@@ -29,7 +29,8 @@ import { getActiveTransitsForUser } from '../services/transits';
 import {
   getTierLimits,
 } from '../config/subscription-tiers';
-import { getUserUsageStats } from '../middleware/queryLimit';
+import { getUserUsageStats, incrementDailyTokens, getFreeTierDailyTokenLimit } from '../middleware/queryLimit';
+import { updateStreak } from '../services/streakService';
 import type { ChatMessage } from '../services/llm';
 
 const prisma = new PrismaClient();
@@ -156,9 +157,11 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
     
     const { content, sessionId, birthProfileId } = req.body;
     const userId = req.user?.id;
+    const userEmail = req.user?.email || '';
     const userTier = (req.user?.tier as Tier) || 'FREE';
     // US-25: Get from user preferences, ensure valid type
     const userLanguage: 'bg' | 'en' = (req.user?.language === 'bg' ? 'bg' : 'en');
+    const isAdmin = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim()).includes(userEmail);
 
     if (!userId) {
       res.status(401).json({
@@ -349,12 +352,30 @@ ${aspectLines || 'No major aspects within orb today.'}`;
     const latencyMs = Date.now() - startTime;
     const finalStatus = getOrchestratorStatus();
 
+    // Token-based daily limit: track usage for FREE users and flag if limit exceeded
+    let dailyLimitReached = false;
+    if (!hasError && fullResponse && userTier === 'FREE' && !isAdmin && userId) {
+      try {
+        const approxOutputTokens = Math.ceil(fullResponse.length / 4);
+        const [newTotal, tokenLimit] = await Promise.all([
+          incrementDailyTokens(userId, approxOutputTokens),
+          getFreeTierDailyTokenLimit(),
+        ]);
+        if (newTotal > tokenLimit) {
+          dailyLimitReached = true;
+        }
+      } catch (err) {
+        console.error('[Chat] Failed to update daily token counter (non-fatal):', err);
+      }
+    }
+
     res.write(`event: complete\ndata: ${JSON.stringify({
       messageId: assistantMessageId,
       content: fullResponse,
       hasError,
       provider: finalStatus.activeProvider,
       latencyMs,
+      dailyLimitReached,
     })}\n\n`);
 
     res.end();
@@ -429,6 +450,13 @@ ${aspectLines || 'No major aspects within orb today.'}`;
               costUsdCents: { increment: estimateCostCents(modelUsed, Number(approxInput), Number(approxOutput)) },
             },
           });
+
+          // ENH-23: Update Oracle streak
+          if (userId) {
+            updateStreak(userId).catch(err =>
+              console.error('[Chat] Failed to update streak (non-fatal):', err)
+            );
+          }
         } catch (err) {
           console.error('[Chat] Failed to persist assistant message (non-fatal):', err);
         }

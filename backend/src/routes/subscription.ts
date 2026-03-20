@@ -11,8 +11,8 @@ import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { prisma } from '../utils/prisma';
 import Stripe from 'stripe';
-import { getUserUsageStats, checkQueryLimit } from '../middleware/queryLimit';
-import { TIER_CONFIG, getEffectiveMonthlyLimit, getTierLimits } from '../config/subscription-tiers';
+import { getUserUsageStats } from '../middleware/queryLimit';
+import { TIER_CONFIG, getEffectiveMonthlyLimit } from '../config/subscription-tiers';
 
 const router = Router();
 
@@ -228,59 +228,27 @@ router.get('/status', authMiddleware, async (req: Request, res: Response) => {
     const effectiveTier = subscription?.tier || user?.tier || 'FREE';
     const effectiveStatus = subscription?.status || 'ACTIVE';
     
-    // US-36: Get detailed usage stats
-    const usageStats = await getUserUsageStats(userId, effectiveTier);
-    
-    // Check current query limit status
-    const limitStatus = await checkQueryLimit(userId, effectiveTier);
-    
-    // For FREE tier (daily-limited), compute daily usage directly from user record
-    const tierCfg = getTierLimits(effectiveTier);
-    let usageBlock: Record<string, unknown>;
-    if (tierCfg.dailyQueries) {
-      const now = new Date();
-      const last = user?.lastQueryDate;
-      const isNewDay = !last || (
-        last.getDate() !== now.getDate() ||
-        last.getMonth() !== now.getMonth() ||
-        last.getFullYear() !== now.getFullYear()
-      );
-      const dailyUsed = isNewDay ? 0 : (user?.dailyQueryCount ?? 0);
-      const dailyLimit = tierCfg.dailyQueries;
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      tomorrow.setHours(0, 0, 0, 0);
-      usageBlock = {
-        queriesThisMonth: dailyUsed,
-        queriesLimit: dailyLimit,
-        queriesRemaining: Math.max(0, dailyLimit - dailyUsed),
-        percentage: Math.round((dailyUsed / dailyLimit) * 100),
-        resetDate: tomorrow.toISOString(),
-        resetType: 'daily',
-      };
-    } else {
-      usageBlock = {
-        queriesThisMonth: usageStats.used,
-        queriesLimit: usageStats.limit,
-        queriesRemaining: usageStats.remaining,
-        percentage: usageStats.percentage,
-        resetDate: usageStats.resetAt,
-        resetType: 'monthly',
-      };
-    }
+    // Usage block — query counting removed, limits are hidden from users
+    const usageBlock: Record<string, unknown> = {
+      queriesThisMonth: 0,
+      queriesLimit: 'unlimited',
+      queriesRemaining: 'unlimited',
+      percentage: null,
+      resetDate: null,
+      resetType: null,
+    };
 
     // Build response
     const response: any = {
       tier: effectiveTier,
       status: effectiveStatus,
       usage: usageBlock,
-      // US-36: Additional limit details for UI
       limits: {
-        monthly: usageStats.limit,
-        burst: limitStatus.burstRemaining,
-        canMakeQuery: limitStatus.allowed,
-        limitReached: !limitStatus.allowed && limitStatus.limitType === 'monthly',
-        nearLimit: usageStats.percentage !== null && usageStats.percentage >= 80,
+        monthly: 'unlimited',
+        burst: 10,
+        canMakeQuery: true,
+        limitReached: false,
+        nearLimit: false,
       },
       features: getFeaturesForTier(effectiveTier),
       tierConfig: TIER_CONFIG[effectiveTier],

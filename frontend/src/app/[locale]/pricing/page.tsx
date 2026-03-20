@@ -55,7 +55,7 @@ const PLANS = [
     tagline: 'Begin your cosmic journey',
     monthlyPrice: 0,
     yearlyPrice: 0,
-    consultations: '3 / day',
+    consultations: 'Limited',
     popular: false,
     cta: 'Get Started Free',
     accentColor: 'rgba(255,255,255,0.15)',
@@ -153,7 +153,6 @@ function PricingPage() {
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [faqOpen, setFaqOpen] = useState<number[]>([]);
-  const [userUsage, setUserUsage] = useState<{ queriesThisMonth: number; queriesLimit: number; resetType?: string } | null>(null);
   const [currentTier, setCurrentTier] = useState<string | null>(null);
   const [promoCode, setPromoCode] = useState('');
   const [promoOpen, setPromoOpen] = useState(false);
@@ -181,11 +180,6 @@ function PricingPage() {
         const result = await res.json();
         if (result.success && result.data) {
           setCurrentTier(result.data.tier ?? null);
-          setUserUsage(result.data.usage ? {
-            queriesThisMonth: result.data.usage.queriesThisMonth,
-            queriesLimit: result.data.usage.queriesLimit,
-            resetType: result.data.usage.resetType,
-          } : null);
         }
       } catch {
         // non-blocking
@@ -302,13 +296,9 @@ function PricingPage() {
                     Active
                   </span>
                 </div>
-                {userUsage && typeof userUsage.queriesLimit === 'number' ? (
-                  <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                    {userUsage.queriesThisMonth} of {userUsage.queriesLimit} consultations used {userUsage.resetType === 'daily' ? 'today' : 'this month'}
-                  </p>
-                ) : (
-                  <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>Unlimited consultations</p>
-                )}
+                <p className="text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                  {currentTier === 'FREE' ? 'Limited cosmic intelligence from the Oracle' : 'Unlimited cosmic intelligence from the Oracle'}
+                </p>
               </div>
               <Link
                 href="/settings/subscription"
@@ -318,20 +308,6 @@ function PricingPage() {
                 Manage billing →
               </Link>
             </div>
-            {/* Usage bar for FREE users */}
-            {currentTier === 'FREE' && userUsage && typeof userUsage.queriesLimit === 'number' && (
-              <div className="mt-4">
-                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                  <motion.div
-                    className="h-full rounded-full"
-                    style={{ background: 'linear-gradient(90deg, #e41aff, #00f0ff)' }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${Math.min(100, (userUsage.queriesThisMonth / userUsage.queriesLimit) * 100)}%` }}
-                    transition={{ duration: 0.8, delay: 0.4 }}
-                  />
-                </div>
-              </div>
-            )}
           </motion.div>
         )}
 
@@ -428,7 +404,9 @@ function PricingPage() {
                     </p>
                   )}
                   <p className="text-xs mt-2 font-semibold" style={{ color: plan.accentColor }}>
-                    {plan.consultations === 'Unlimited' ? 'Unlimited consultations' : `${plan.consultations} consultations`}
+                    {plan.consultations === 'Unlimited'
+                      ? 'Unlimited cosmic intelligence from the Oracle'
+                      : 'Limited cosmic intelligence from the Oracle'}
                   </p>
                 </div>
 

@@ -196,23 +196,32 @@ export default function AdminConfigPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Free tier token limit
+  const [tokenLimit, setTokenLimit] = useState<number>(1500);
+  const [tokenLimitSaving, setTokenLimitSaving] = useState(false);
+  const [tokenLimitMsg, setTokenLimitMsg] = useState<string | null>(null);
+
   // Fetch current config on mount
   useEffect(() => {
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const data = await adminGet<ModelsResponse>('/config/models');
+        const [modelsData, limitsData] = await Promise.all([
+          adminGet<ModelsResponse>('/config/models'),
+          adminGet<{ freeTierDailyTokenLimit: number }>('/config/free-tier-limits'),
+        ]);
         setModels({
-          FREE: data.FREE.model,
-          PRO: data.PRO.model,
-          PREMIUM: data.PREMIUM.model,
+          FREE: modelsData.FREE.model,
+          PRO: modelsData.PRO.model,
+          PREMIUM: modelsData.PREMIUM.model,
         });
         setSources({
-          FREE: data.FREE.source,
-          PRO: data.PRO.source,
-          PREMIUM: data.PREMIUM.source,
+          FREE: modelsData.FREE.source,
+          PRO: modelsData.PRO.source,
+          PREMIUM: modelsData.PREMIUM.source,
         });
+        setTokenLimit(limitsData.freeTierDailyTokenLimit ?? 1500);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load model config');
       } finally {
@@ -220,6 +229,20 @@ export default function AdminConfigPage() {
       }
     })();
   }, []);
+
+  async function handleSaveTokenLimit() {
+    setTokenLimitSaving(true);
+    setTokenLimitMsg(null);
+    try {
+      await adminPut('/config/free-tier-limits', { freeTierDailyTokenLimit: tokenLimit });
+      setTokenLimitMsg('Saved!');
+      setTimeout(() => setTokenLimitMsg(null), 3000);
+    } catch {
+      setTokenLimitMsg('Failed to save.');
+    } finally {
+      setTokenLimitSaving(false);
+    }
+  }
 
   function handleChange(tier: Tier, value: string) {
     setModels((prev) => ({ ...prev, [tier]: value }));
@@ -293,6 +316,44 @@ export default function AdminConfigPage() {
           <p className="text-sm font-medium" style={{ color: '#ff0080' }}>
             Error: {error}
           </p>
+        </div>
+      )}
+
+      {/* Free Tier Limits */}
+      {!loading && (
+        <div className="mb-10 max-w-xl">
+          <h2 className="text-lg font-semibold text-white mb-1">Free Tier Limits</h2>
+          <p className="text-xs text-text-secondary mb-4">Daily output token limit for FREE users. Takes effect immediately — no deploy needed.</p>
+          <div
+            className="rounded-[16px] p-6"
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(228,26,255,0.15)' }}
+          >
+            <label className="block text-sm text-white/70 mb-2">Daily token limit (FREE tier)</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min={100}
+                step={100}
+                value={tokenLimit}
+                onChange={e => setTokenLimit(parseInt(e.target.value, 10) || 1500)}
+                className="w-36 px-3 py-2 rounded-lg text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:border-primary"
+              />
+              <button
+                onClick={handleSaveTokenLimit}
+                disabled={tokenLimitSaving}
+                className="px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
+                style={{ background: 'linear-gradient(135deg, #e41aff, #00f0ff)', color: '#fff' }}
+              >
+                {tokenLimitSaving ? 'Saving…' : 'Save'}
+              </button>
+              {tokenLimitMsg && (
+                <span className="text-xs" style={{ color: tokenLimitMsg === 'Saved!' ? '#00f0ff' : '#ff0080' }}>
+                  {tokenLimitMsg}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-white/30 mt-2">Current: {tokenLimit.toLocaleString()} tokens/day ≈ ~{Math.round(tokenLimit / 4)} words</p>
+          </div>
         </div>
       )}
 

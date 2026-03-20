@@ -24,7 +24,7 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
     isStreaming,
     streamingContent,
     error,
-    usage,
+    dailyLimitReached,
     hasMoreMessages,
     isLoadingMore,
     currentSession,
@@ -82,8 +82,6 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
     );
   }
 
-  const isLimitReached = usage?.remaining === 0;
-
   return (
     <div className="flex flex-col h-full">
       {/* Error banner */}
@@ -97,14 +95,22 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
         </div>
       )}
 
-      {/* Usage limit warning */}
-      {isLimitReached && (
+      {/* Daily limit banner — shown after the last message completes */}
+      {dailyLimitReached && (
         <div
-          className="mx-4 mt-3 px-4 py-2.5 rounded-xl text-xs text-pro-gold shrink-0"
+          className="mx-4 mt-3 px-4 py-3 rounded-xl shrink-0 flex items-center justify-between gap-4"
           style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.18)' }}
         >
-          Daily limit reached.{' '}
-          <a href="/pricing" className="underline hover:opacity-80">Upgrade for unlimited access</a>
+          <span className="text-xs text-pro-gold">
+            ✦ You&apos;ve reached your daily cosmic limit. The Oracle will be ready again tomorrow.
+          </span>
+          <a
+            href="/pricing"
+            className="text-xs font-medium whitespace-nowrap px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
+            style={{ background: 'rgba(245,158,11,0.15)', color: '#F59E0B', border: '1px solid rgba(245,158,11,0.3)' }}
+          >
+            Upgrade to Pro →
+          </a>
         </div>
       )}
 
@@ -127,22 +133,13 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
         />
       )}
 
-      {/* Query counter for limited tiers */}
-      {usage && typeof usage.remaining === 'number' && !isLimitReached && (
-        <div className="px-4 pb-1 text-right shrink-0">
-          <span className="text-xs" style={{ color: usage.remaining <= 1 ? 'rgba(245,158,11,0.7)' : 'rgba(255,255,255,0.22)' }}>
-            {usage.remaining} {usage.remaining === 1 ? 'query' : 'queries'} remaining today
-          </span>
-        </div>
-      )}
-
       {/* Input */}
       <ChatInputBar
         onSend={(content) => sendMessage(content)}
         onCancel={cancelGeneration}
         isStreaming={isStreaming}
-        disabled={isLoading || isLimitReached}
-        placeholder={isLimitReached ? 'Daily limit reached — upgrade to continue' : 'Ask the Oracle...'}
+        disabled={isLoading || dailyLimitReached}
+        placeholder={dailyLimitReached ? 'Daily cosmic limit reached — upgrade to continue' : 'Ask the Oracle...'}
         sendError={error}
       />
     </div>

@@ -17,6 +17,7 @@ import { PasswordResetEmail } from '../emails/PasswordResetEmail';
 import { PasswordChangedEmail } from '../emails/PasswordChangedEmail';
 import { sendWelcomeEmail, sendVerificationEmail } from '../services/email/lifecycle';
 import { createRefreshToken, validateAndRotate, revokeToken, revokeUserTokens } from '../utils/refreshTokens';
+import { checkTrialExpiry } from '../services/streakService';
 
 /**
  * Generate access token
@@ -284,6 +285,11 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
       res.status(401).json(invalidCredentialsError);
       return;
     }
+
+    // ENH-23: Revert any expired PRO trials before generating the access token
+    await checkTrialExpiry(user.id).catch(() => {});
+    const freshUserTier = await prisma.user.findUnique({ where: { id: user.id }, select: { tier: true } });
+    if (freshUserTier) user.tier = freshUserTier.tier;
 
     // Generate tokens
     const accessToken = generateAccessToken(user.id, user.email, user.tier);

@@ -47,6 +47,7 @@ export interface ChatContextType {
   streamingContent: string;
   error: string | null;
   usage: UsageInfo | null;
+  dailyLimitReached: boolean;
   hasMoreMessages: boolean;
   isLoadingMore: boolean;
   connectionState: 'connected' | 'error';
@@ -78,6 +79,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [streamingContent, setStreamingContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [usage, setUsage] = useState<UsageInfo | null>(null);
+  const [dailyLimitReached, setDailyLimitReached] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
@@ -279,9 +281,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
       if (response.status === 429) {
         const data = await response.json();
-        setError(data.error?.message || 'Rate limit exceeded');
-        // Force remaining=0 so the upgrade CTA banner activates in the UI
-        setUsage((prev) => prev ? { ...prev, remaining: 0 } : null);
+        if (data.error?.code === 'DAILY_LIMIT_REACHED') {
+          setDailyLimitReached(true);
+        } else {
+          setError(data.error?.message || 'Rate limit exceeded');
+        }
         setMessages((prev) => prev.filter((m) => m.id !== userMessage.id));
         return;
       }
@@ -333,6 +337,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 }
               } else if (currentEvent === 'complete' || data.messageId) {
                 assistantMessageId = data.messageId || assistantMessageId;
+                if (data.dailyLimitReached) {
+                  setDailyLimitReached(true);
+                }
               }
             } catch {
               // Skip invalid JSON
@@ -484,6 +491,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     streamingContent,
     error,
     usage,
+    dailyLimitReached,
     hasMoreMessages,
     isLoadingMore,
     connectionState: 'connected',

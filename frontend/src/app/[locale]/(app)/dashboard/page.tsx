@@ -32,7 +32,6 @@ const copy = {
     quickActions: 'Бързи действия',
     plan: 'Звезден План',
     freePlan: 'Търсач (Безплатен)',
-    usage: 'Оставащи въпроси',
     upgrade: 'Говори с Оракула',
     addBirthData: 'Добави Натални Данни',
     noBirthDataMsg: 'Добави своята дата, час и място на раждане, за да разкриеш своята натална карта.',
@@ -49,7 +48,6 @@ const copy = {
     quickActions: 'Quick Actions',
     plan: 'Astral Plan',
     freePlan: 'The Seeker (Free)',
-    usage: 'Queries remaining',
     upgrade: 'Chat with the Oracle',
     addBirthData: 'Add Birth Data',
     noBirthDataMsg: 'Add your birth date, time, and location to reveal your natal chart.',
@@ -77,7 +75,6 @@ export default function DashboardPage({
   const [profileName, setProfileName] = useState('');
   const [isUnknownTime, setIsUnknownTime] = useState(false);
   const [pendingNotice, setPendingNotice] = useState<string | null>(null);
-  const [queriesRemaining, setQueriesRemaining] = useState<number | 'unlimited' | null>(null);
 
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -137,10 +134,6 @@ export default function DashboardPage({
   useEffect(() => {
     if (!isAuthenticated) return;
     loadChart();
-    // Fetch live query usage
-    apiGet<{ usage: { queriesRemaining: number | 'unlimited' } }>('/api/v1/subscription/status')
-      .then(res => setQueriesRemaining(res.data?.usage?.queriesRemaining ?? null))
-      .catch(() => {});
   }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadChart() {
@@ -462,14 +455,8 @@ export default function DashboardPage({
                   {user?.tier || c.freePlan}
                 </p>
                 <p className="text-text-secondary text-sm flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full animate-pulse ${
-                    queriesRemaining === 'unlimited' || queriesRemaining === null || queriesRemaining > 5
-                      ? 'bg-emerald-400'
-                      : queriesRemaining > 2
-                      ? 'bg-amber-400'
-                      : 'bg-red-400'
-                  }`} />
-                  {c.usage}: {queriesRemaining === null ? '…' : queriesRemaining === 'unlimited' ? '∞' : queriesRemaining}
+                  <span className="w-2 h-2 rounded-full animate-pulse bg-emerald-400" />
+                  {user?.tier === 'FREE' ? 'Limited cosmic intelligence from the Oracle' : 'Unlimited cosmic intelligence from the Oracle'}
                 </p>
               </div>
               <Link

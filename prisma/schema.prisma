@@ -62,6 +62,7 @@ model User {
   notificationPreference NotificationPreference? // US-29: Notification Preferences
   dailyForecasts    DailyForecast[]
   refreshTokens     RefreshToken[]
+  streak            UserStreak?
 
   @@map("users")
 }
@@ -500,4 +501,23 @@ model RefreshToken {
   @@index([userId], name: "refresh_tokens_user_id_idx")
   @@index([familyId], name: "refresh_tokens_family_id_idx")
   @@map("refresh_tokens")
+}
+
+// ============================================
+// USER STREAKS (ENH-23)
+// ============================================
+
+model UserStreak {
+  id               String    @id @default(uuid())
+  userId           String    @unique @map("user_id")
+  currentStreak    Int       @default(0) @map("current_streak")
+  longestStreak    Int       @default(0) @map("longest_streak")
+  lastActivityDate DateTime? @map("last_activity_date") // date of last Oracle message (date only)
+  trialTier        String?   @map("trial_tier")         // e.g. 'PRO' if a trial is active
+  trialExpiresAt   DateTime? @map("trial_expires_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_streaks")
 }

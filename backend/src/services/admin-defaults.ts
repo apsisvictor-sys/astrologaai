@@ -39,6 +39,9 @@ const DEFAULTS: { key: string; value: string }[] = [
   { key: 'alert_threshold_free_eur_cents',    value: '200'  }, // 2.00€ — flag heavy free users
   { key: 'alert_threshold_pro_eur_cents',     value: '500'  }, // 5.00€ — 50% of 10€ subscription
   { key: 'alert_threshold_premium_eur_cents', value: '1000' }, // 10.00€ — 50% of 20€ subscription
+
+  // ── FREE tier limits ────────────────────────────────────────────────────
+  { key: 'free_tier_daily_token_limit', value: '1500' }, // output tokens per day for FREE users
 ];
 
 export async function seedAdminDefaults(): Promise<void> {

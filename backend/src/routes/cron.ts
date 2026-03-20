@@ -10,6 +10,7 @@ import { resetMonthlyQueryCounters, isResetDay, archiveOldUsageRecords } from '.
 import { getCronSecret } from '../utils/cron';
 import { adminAuthMiddleware } from '../middleware/adminAuth';
 import { runLifecycleCron } from '../services/email/lifecycle';
+import { revertExpiredTrials } from '../services/streakService';
 
 const router = Router();
 
@@ -177,6 +178,21 @@ router.post('/email-lifecycle', async (req: Request, res: Response) => {
         message: 'Lifecycle cron failed',
       },
     });
+  }
+});
+
+/**
+ * POST /api/v1/cron/streak-maintenance
+ * Daily: revert expired PRO trials from streak rewards
+ * Called by Railway cron or external scheduler (once per day)
+ */
+router.post('/streak-maintenance', adminAuthMiddleware, async (_req: Request, res: Response) => {
+  try {
+    const reverted = await revertExpiredTrials();
+    return res.json({ success: true, data: { trialsReverted: reverted } });
+  } catch (error) {
+    console.error('[Cron] streak-maintenance error:', error);
+    return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Streak maintenance failed' } });
   }
 });
 
