@@ -54,11 +54,13 @@
 
 ---
 
-## Review
+## System 3: Railway Cron Setup
 
-All Sprint 5 tasks complete. Ready to commit and deploy.
+### Tasks
 
-### Changes summary
-**System 1 (Token Limits):** FREE users now limited by daily output tokens (default 1500, configurable from admin /config page). Messages stream fully before limit check fires — user gets their response then sees upgrade CTA. Admin emails bypass all limits. All "queries remaining" UI removed across dashboard, settings, pricing, and chat. Pricing copy updated to "Limited/Unlimited cosmic intelligence from the Oracle".
+- [x] **C1** `routes/cron.ts` — fix `streak-maintenance` to use CRON_SECRET (not adminAuthMiddleware)
+- [x] **C2** `services/transits.ts` — export `warmDailyTransitsCache()` function
+- [x] **C3** `routes/cron.ts` — add `POST /api/v1/cron/daily-transits` endpoint (pre-warms planetary positions)
+- [x] **C4** `routes/cron.ts` — add `POST /api/v1/cron/daily-forecasts` endpoint (runs nightly forecast job)
 
-**System 2 (Streaks):** New `user_streaks` table live in Railway DB. Oracle streak tracked per user. 7-day streak (and every 7-day multiple) triggers 48h PRO trial via existing tier gating. Streak badge shows in sidebar. Milestone toast fires on reward. Expired trials auto-reverted on login and via daily cron.
+---

@@ -312,6 +312,48 @@ export function calculateTransitsToNatal(
 }
 
 /**
+ * Pre-warm the global planetary positions cache for today.
+ * Call from cron at 01:00 UTC so the first Oracle request of the day
+ * doesn't pay the API latency cost.
+ */
+export async function warmDailyTransitsCache(): Promise<{ cached: boolean; date: string }> {
+  const today = new Date();
+  const dateStr = today.toISOString().split('T')[0];
+  const cacheKey = `transits:global:${dateStr}`;
+
+  const existing = await redisClient.get(cacheKey);
+  if (existing) {
+    return { cached: true, date: dateStr };
+  }
+
+  const { AstrologyClient } = await import('@astro-api/astroapi-typescript');
+  const client = new AstrologyClient({ apiKey: process.env.ASTROLOGY_API_KEY });
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const response = await client.data.getGlobalPositions({
+    year, month, day, hour: 12, minute: 0, second: 0,
+    options: {
+      active_points: ['Sun', 'Moon', 'Mercury', 'Venus', 'Mars', 'Jupiter', 'Saturn',
+                      'Uranus', 'Neptune', 'Pluto', 'True_Node'],
+      zodiac_type: 'Tropic',
+    },
+  });
+  const skyPositions = response.positions.map((p: any) => {
+    const internalName = PLANET_SDK_TO_INTERNAL[p.name] || p.name.toLowerCase();
+    const fullSign = SIGN_ABBREV_TO_FULL[p.sign] || p.sign;
+    return {
+      planet: internalName,
+      planetBg: PLANET_BG[internalName] || p.name,
+      sign: fullSign,
+      signBg: SIGN_BG[fullSign] || p.sign,
+      degree: Math.round((p.degree ?? 0) * 10) / 10,
+      retrograde: p.is_retrograde ?? false,
+    };
+  });
+  await redisClient.setEx(cacheKey, 86400, JSON.stringify(skyPositions));
+  return { cached: false, date: dateStr };
+}
+
+/**
  * Get active transit-to-natal aspects for a user's chart.
  * Fetches today's sky from astrology-api.io via SDK (cached 24h, one call per day for all users),
  * then computes which transiting planets are aspecting the user's natal planets.

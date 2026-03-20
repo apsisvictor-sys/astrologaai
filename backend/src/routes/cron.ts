@@ -6,135 +6,13 @@
  */
 
 import { Router, Request, Response } from 'express';
-import { resetMonthlyQueryCounters, isResetDay, archiveOldUsageRecords } from '../services/monthly-reset';
 import { getCronSecret } from '../utils/cron';
-import { adminAuthMiddleware } from '../middleware/adminAuth';
 import { runLifecycleCron } from '../services/email/lifecycle';
 import { revertExpiredTrials } from '../services/streakService';
+import { runNightlyForecastJob } from '../services/forecast-cron';
+import { warmDailyTransitsCache } from '../services/transits';
 
 const router = Router();
-
-/**
- * POST /api/v1/cron/monthly-reset
- * Run monthly query counter reset
- * 
- * This endpoint should be called daily by a cron service.
- * It will only perform the reset on the configured reset day (default: 1st of month)
- * 
- * Security: Requires CRON_SECRET header for authentication
- */
-router.post('/monthly-reset', async (req: Request, res: Response) => {
-  try {
-    const configuredSecret = getCronSecret();
-    if (!configuredSecret) {
-      return res.status(503).json({
-        success: false,
-        error: {
-          code: 'CRON_NOT_CONFIGURED',
-          message: 'Cron secret is not configured on this environment',
-        },
-      });
-    }
-
-    const cronSecret = req.headers['x-cron-secret'];
-    if (cronSecret !== configuredSecret) {
-      return res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Invalid or missing cron secret',
-        },
-      });
-    }
-    
-    // Check if today is reset day
-    if (!isResetDay()) {
-      return res.json({
-        success: true,
-        message: 'Not reset day. Skipping.',
-        isResetDay: false,
-      });
-    }
-    
-    // Run the reset
-    const result = await resetMonthlyQueryCounters();
-    
-    return res.json({
-      success: result.success,
-      message: result.success 
-        ? `Reset completed. ${result.usersProcessed} users processed.`
-        : 'Reset failed',
-      details: {
-        usersProcessed: result.usersProcessed,
-        duration: result.duration,
-        errorCount: result.errors.length,
-        errors: result.errors.slice(0, 5), // First 5 errors only
-      },
-    });
-  } catch (error) {
-    console.error('[Cron] Monthly reset error:', error);
-    return res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to run monthly reset',
-      },
-    });
-  }
-});
-
-/**
- * POST /api/v1/cron/archive-old-records
- * Archive old usage records (cleanup)
- * 
- * Security: Requires CRON_SECRET header for authentication
- */
-router.post('/archive-old-records', async (req: Request, res: Response) => {
-  try {
-    const configuredSecret = getCronSecret();
-    if (!configuredSecret) {
-      return res.status(503).json({
-        success: false,
-        error: {
-          code: 'CRON_NOT_CONFIGURED',
-          message: 'Cron secret is not configured on this environment',
-        },
-      });
-    }
-
-    const cronSecret = req.headers['x-cron-secret'];
-    if (cronSecret !== configuredSecret) {
-      return res.status(401).json({
-        success: false,
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Invalid or missing cron secret',
-        },
-      });
-    }
-    
-    // Run archive
-    const result = await archiveOldUsageRecords(12);
-    
-    return res.json({
-      success: result.success,
-      message: `Archived ${result.recordsDeleted} old records`,
-      details: {
-        recordsDeleted: result.recordsDeleted,
-        errorCount: result.errors.length,
-      },
-    });
-  } catch (error) {
-    console.error('[Cron] Archive error:', error);
-    return res.status(500).json({
-      success: false,
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to archive old records',
-      },
-    });
-  }
-});
 
 /**
  * POST /api/v1/cron/email-lifecycle
@@ -184,10 +62,19 @@ router.post('/email-lifecycle', async (req: Request, res: Response) => {
 /**
  * POST /api/v1/cron/streak-maintenance
  * Daily: revert expired PRO trials from streak rewards
- * Called by Railway cron or external scheduler (once per day)
+ * Called by Railway cron (once per day at 04:00 UTC)
+ * Security: Requires CRON_SECRET header for authentication
  */
-router.post('/streak-maintenance', adminAuthMiddleware, async (_req: Request, res: Response) => {
+router.post('/streak-maintenance', async (req: Request, res: Response) => {
   try {
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED', message: 'Cron secret is not configured' } });
+    }
+    if (req.headers['x-cron-secret'] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } });
+    }
+
     const reverted = await revertExpiredTrials();
     return res.json({ success: true, data: { trialsReverted: reverted } });
   } catch (error) {
@@ -197,18 +84,54 @@ router.post('/streak-maintenance', adminAuthMiddleware, async (_req: Request, re
 });
 
 /**
- * GET /api/v1/cron/status
- * Check cron job status
+ * POST /api/v1/cron/daily-transits
+ * Pre-warm global planetary positions Redis cache for today.
+ * Run at 01:00 UTC — before forecasts — so the first Oracle request of the day
+ * doesn't pay the astrology-api.io latency cost.
+ * Security: Requires CRON_SECRET header for authentication
  */
-router.get('/status', adminAuthMiddleware, (req: Request, res: Response) => {
-  res.json({
-    success: true,
-    data: {
-      isResetDay: isResetDay(),
-      resetDay: parseInt(process.env.FREE_TIER_RESET_DAY || '1'),
-      timezone: 'UTC',
-    },
-  });
+router.post('/daily-transits', async (req: Request, res: Response) => {
+  try {
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED', message: 'Cron secret is not configured' } });
+    }
+    if (req.headers['x-cron-secret'] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } });
+    }
+
+    const result = await warmDailyTransitsCache();
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[Cron] daily-transits error:', error);
+    return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Daily transits warm-up failed' } });
+  }
+});
+
+/**
+ * POST /api/v1/cron/daily-forecasts
+ * Pre-generate horoscope + daily forecast for all PRO/PREMIUM users with birth data.
+ * Run at 02:00 UTC (after daily-transits at 01:00).
+ * The internal setInterval scheduler in forecast-cron.ts remains as a safety net.
+ * Security: Requires CRON_SECRET header for authentication
+ */
+router.post('/daily-forecasts', async (req: Request, res: Response) => {
+  try {
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED', message: 'Cron secret is not configured' } });
+    }
+    if (req.headers['x-cron-secret'] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } });
+    }
+
+    // Fire-and-forget — job can take several minutes for large user bases
+    runNightlyForecastJob().catch(err => console.error('[Cron] daily-forecasts job error:', err));
+    return res.json({ success: true, message: 'Forecast generation started' });
+  } catch (error) {
+    console.error('[Cron] daily-forecasts error:', error);
+    return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Daily forecasts cron failed' } });
+  }
 });
 
 export default router;
