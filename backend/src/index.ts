@@ -5,6 +5,13 @@
  * US-10: WebSocket support via Socket.io
  */
 
+import * as Sentry from '@sentry/node';
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV || 'production',
+  tracesSampleRate: 0.1,
+});
+
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -196,6 +203,9 @@ app.use((req: Request, res: Response) => {
     },
   });
 });
+
+// Sentry error handler (must be before custom error handler)
+Sentry.setupExpressErrorHandler(app);
 
 // Global error handler
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
