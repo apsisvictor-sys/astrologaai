@@ -59,6 +59,7 @@ model User {
   usageRecords      UsageRecord[]
   notificationPreference NotificationPreference? // US-29: Notification Preferences
   dailyForecasts    DailyForecast[]
+  refreshTokens     RefreshToken[]
 
   @@map("users")
 }
@@ -477,4 +478,24 @@ model DailyForecast {
   @@unique([userId, date])
   @@index([date])
   @@map("daily_forecasts")
+}
+
+// ============================================
+// REFRESH TOKEN ROTATION (BUG-38)
+// ============================================
+
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String    @map("user_id")
+  tokenHash  String    @unique @map("token_hash")
+  familyId   String    @map("family_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  usedAt     DateTime? @map("used_at")
+  revokedAt  DateTime? @map("revoked_at")
+  expiresAt  DateTime  @map("expires_at")
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], name: "refresh_tokens_user_id_idx")
+  @@index([familyId], name: "refresh_tokens_family_id_idx")
+  @@map("refresh_tokens")
 }

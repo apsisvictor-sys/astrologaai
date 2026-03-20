@@ -21,6 +21,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 // SECURITY FIX: Import validated JWT secret (no insecure fallbacks)
 import { JWT_SECRET, JWT_CONFIG } from '../utils/jwt';
+import { createRefreshToken } from '../utils/refreshTokens';
 
 // Supabase configuration
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -38,16 +39,6 @@ function generateAccessToken(userId: string, email: string, tier: Tier): string 
   );
 }
 
-/**
- * Generate refresh token
- */
-function generateRefreshToken(userId: string): string {
-  return jwt.sign(
-    { sub: userId, type: 'refresh' },
-    JWT_SECRET,
-    { expiresIn: JWT_CONFIG.refreshExpiresIn } as jwt.SignOptions
-  );
-}
 
 /**
  * Initiate Google OAuth login
@@ -310,14 +301,14 @@ export async function oauthCallback(req: Request, res: Response, next: NextFunct
 
     // Generate our JWT tokens
     const accessToken = generateAccessToken(user.id, user.email, user.tier);
-    const refreshToken = generateRefreshToken(user.id);
+    const refreshToken = await createRefreshToken(user.id);
 
-    // Set refresh token as httpOnly cookie
+    // Set refresh token as httpOnly cookie (90-day rolling window)
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: 90 * 24 * 60 * 60 * 1000,
       path: '/',
     });
 

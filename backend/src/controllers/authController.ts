@@ -16,6 +16,7 @@ import { render } from '@react-email/render';
 import { PasswordResetEmail } from '../emails/PasswordResetEmail';
 import { PasswordChangedEmail } from '../emails/PasswordChangedEmail';
 import { sendWelcomeEmail } from '../services/email/lifecycle';
+import { createRefreshToken, validateAndRotate, revokeToken, revokeUserTokens } from '../utils/refreshTokens';
 
 /**
  * Generate access token
@@ -25,17 +26,6 @@ function generateAccessToken(userId: string, email: string, tier: Tier): string 
     { sub: userId, email, tier },
     JWT_SECRET,
     { expiresIn: JWT_CONFIG.expiresIn } as jwt.SignOptions
-  );
-}
-
-/**
- * Generate refresh token
- */
-function generateRefreshToken(userId: string): string {
-  return jwt.sign(
-    { sub: userId, type: 'refresh' },
-    JWT_SECRET,
-    { expiresIn: JWT_CONFIG.refreshExpiresIn } as jwt.SignOptions
   );
 }
 
@@ -165,11 +155,16 @@ export async function register(req: Request, res: Response, next: NextFunction):
 
     // Generate tokens
     const accessToken = generateAccessToken(user.id, user.email, user.tier);
-    const refreshToken = generateRefreshToken(user.id);
+    const refreshToken = await createRefreshToken(user.id);
 
-    // TODO: Send confirmation email via Resend
-    // For now, we'll simulate this with a log message
-    console.log(`[Auth] Confirmation email should be sent to: ${email}`);
+    // Set refresh token as httpOnly cookie
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 90 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
 
     // Fire Day 0 welcome email — fire-and-forget, never block registration
     sendWelcomeEmail(user.id, user.email, user.fullName, detectedLanguage).catch((e) => {
@@ -283,14 +278,14 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 
     // Generate tokens
     const accessToken = generateAccessToken(user.id, user.email, user.tier);
-    const refreshToken = generateRefreshToken(user.id);
+    const refreshToken = await createRefreshToken(user.id);
 
-    // Set refresh token as httpOnly cookie (7-day expiration)
+    // Set refresh token as httpOnly cookie (90-day rolling window)
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in milliseconds
+      maxAge: 90 * 24 * 60 * 60 * 1000,
       path: '/',
     });
 
@@ -350,83 +345,68 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
  */
 export async function refresh(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const refreshToken = req.cookies?.refreshToken;
+    const raw = req.cookies?.refreshToken;
 
-    if (!refreshToken) {
+    if (!raw) {
       res.status(401).json({
         success: false,
-        error: {
-          code: 'MISSING_REFRESH_TOKEN',
-          message: 'Refresh token is required',
-        },
+        error: { code: 'MISSING_REFRESH_TOKEN', message: 'Refresh token is required' },
       });
       return;
     }
 
-    // Verify refresh token
-    const decoded = jwt.verify(refreshToken, JWT_SECRET) as { sub: string; type: string };
+    // ── JWT compatibility shim (remove after 2026-04-20 — 7-day old cookie window) ──
+    // Existing users have JWT strings in their cookie. Validate and issue a new opaque token.
+    if (raw.startsWith('eyJ')) {
+      try {
+        const decoded = jwt.verify(raw, JWT_SECRET) as { sub: string; type: string };
+        if (decoded.type !== 'refresh') throw new Error('not a refresh token');
+        const user = await prisma.user.findUnique({
+          where: { id: decoded.sub },
+          select: { id: true, email: true, tier: true },
+        });
+        if (!user) throw new Error('user not found');
+        const newToken = await createRefreshToken(user.id);
+        const accessToken = generateAccessToken(user.id, user.email, user.tier);
+        res.cookie('refreshToken', newToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+          maxAge: 90 * 24 * 60 * 60 * 1000,
+          path: '/',
+        });
+        res.json({ success: true, data: { accessToken, expiresIn: JWT_CONFIG.expiresIn } });
+        return;
+      } catch {
+        res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'none', path: '/' });
+        res.status(401).json({ success: false, error: { code: 'SESSION_EXPIRED', message: 'Please log in again.' } });
+        return;
+      }
+    }
+    // ── End compatibility shim ──
 
-    if (decoded.type !== 'refresh') {
+    const result = await validateAndRotate(raw);
+    if (!result) {
+      res.clearCookie('refreshToken', { httpOnly: true, secure: true, sameSite: 'none', path: '/' });
       res.status(401).json({
         success: false,
-        error: {
-          code: 'INVALID_REFRESH_TOKEN',
-          message: 'Invalid refresh token',
-        },
+        error: { code: 'INVALID_REFRESH_TOKEN', message: 'Session expired. Please log in again.' },
       });
       return;
     }
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.sub },
+    const { userId, email, tier, newToken } = result;
+    const accessToken = generateAccessToken(userId, email, tier as Tier);
+    res.cookie('refreshToken', newToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      maxAge: 90 * 24 * 60 * 60 * 1000,
+      path: '/',
     });
-
-    if (!user) {
-      res.status(401).json({
-        success: false,
-        error: {
-          code: 'USER_NOT_FOUND',
-          message: 'User not found',
-        },
-      });
-      return;
-    }
-
-    // Generate new access token
-    const accessToken = generateAccessToken(user.id, user.email, user.tier);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        accessToken,
-        expiresIn: JWT_CONFIG.expiresIn,
-      },
-    });
+    res.json({ success: true, data: { accessToken, expiresIn: JWT_CONFIG.expiresIn } });
   } catch (error) {
-    if (error instanceof jwt.TokenExpiredError) {
-      res.status(401).json({
-        success: false,
-        error: {
-          code: 'REFRESH_TOKEN_EXPIRED',
-          message: 'Refresh token has expired. Please login again.',
-        },
-      });
-      return;
-    }
-    if (error instanceof jwt.JsonWebTokenError) {
-      res.status(401).json({
-        success: false,
-        error: {
-          code: 'INVALID_REFRESH_TOKEN',
-          message: 'Invalid refresh token',
-        },
-      });
-      return;
-    }
-    if (handleAuthInfraError(error, res)) {
-      return;
-    }
+    if (handleAuthInfraError(error, res)) return;
     console.error('[Auth] Refresh error:', error);
     next(error);
   }
@@ -439,16 +419,19 @@ export async function refresh(req: Request, res: Response, next: NextFunction): 
  * SECURITY FIX: Clear refresh token cookie
  */
 export async function logout(req: Request, res: Response): Promise<void> {
+  // Revoke the opaque refresh token in DB (not applicable to JWT compat tokens)
+  const raw = req.cookies?.refreshToken;
+  if (raw && !raw.startsWith('eyJ')) {
+    await revokeToken(raw).catch(() => {});
+  }
+
   // Clear the refresh token cookie
   res.clearCookie('refreshToken', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     path: '/',
   });
-
-  // In a production environment, you would also invalidate the refresh token
-  // by adding it to a blacklist in Redis
 
   res.status(200).json({
     success: true,
@@ -656,8 +639,11 @@ export async function resetPassword(req: Request, res: Response, next: NextFunct
     // Invalidate reset token (single-use)
     await invalidateResetToken(token);
 
-    // Invalidate all user sessions for security
-    await invalidateUserSessions(userId);
+    // Invalidate all user sessions (Redis chat contexts + DB refresh tokens)
+    await Promise.all([
+      invalidateUserSessions(userId),
+      revokeUserTokens(userId),
+    ]);
 
     // Send confirmation email
     try {
