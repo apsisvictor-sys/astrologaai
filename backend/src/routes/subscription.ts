@@ -70,8 +70,8 @@ const SUBSCRIPTION_PLANS: Record<string, PlanConfig> = {
     id: 'pro',
     name: { bg: 'Про', en: 'Pro' },
     description: { bg: 'Пълна астрологична персонализация', en: 'Full astrological personalization' },
-    price: { monthly: 10, yearly: 96 }, // ~20% discount for yearly
-    priceBgn: { monthly: 20, yearly: 192 }, // Fixed BGN price for simplicity
+    price: { monthly: 9.99, yearly: 89.88 }, // 25% off yearly
+    priceBgn: { monthly: 19.56, yearly: 175.96 }, // Fixed BGN price for simplicity
     currency: 'EUR',
     popular: true,
     features: [
@@ -97,8 +97,8 @@ const SUBSCRIPTION_PLANS: Record<string, PlanConfig> = {
     id: 'premium',
     name: { bg: 'Премиум', en: 'Premium' },
     description: { bg: 'Пълен достъп до всичко', en: 'Full access to everything' },
-    price: { monthly: 20, yearly: 192 }, // ~20% discount for yearly
-    priceBgn: { monthly: 40, yearly: 384 }, // Fixed BGN price for simplicity
+    price: { monthly: 19.99, yearly: 179.88 }, // 25% off yearly
+    priceBgn: { monthly: 39.10, yearly: 351.96 }, // Fixed BGN price for simplicity
     currency: 'EUR',
     features: [
       { key: 'everything_in_pro', included: true, name: { bg: 'Всичко от Про плана', en: 'Everything in Pro' } },
@@ -648,6 +648,96 @@ router.post('/reactivate', authMiddleware, async (req: Request, res: Response) =
         code: 'REACTIVATE_ERROR',
         message: 'Failed to reactivate subscription',
       },
+    });
+  }
+});
+
+// POST /api/v1/subscription/pause - Pause subscription billing for 1 or 2 months
+router.post('/pause', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const { months } = req.body;
+
+    if (months !== 1 && months !== 2) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_MONTHS', message: 'months must be 1 or 2' },
+      });
+    }
+
+    const subscription = await prisma.subscription.findUnique({ where: { userId } });
+
+    if (!subscription?.stripeSubscriptionId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'NO_SUBSCRIPTION', message: 'No active subscription found' },
+      });
+    }
+
+    if (!stripe) {
+      return res.status(503).json({
+        success: false,
+        error: { code: 'STRIPE_NOT_CONFIGURED', message: 'Payment processing not available' },
+      });
+    }
+
+    const resumesAt = Math.floor(Date.now() / 1000) + months * 30 * 24 * 60 * 60;
+
+    await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+      pause_collection: { behavior: 'void', resumes_at: resumesAt },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        message: `Subscription paused for ${months} month${months > 1 ? 's' : ''}`,
+        resumesAt: new Date(resumesAt * 1000).toISOString(),
+      },
+    });
+  } catch (error) {
+    console.error('Error pausing subscription:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'PAUSE_ERROR', message: 'Failed to pause subscription' },
+    });
+  }
+});
+
+// POST /api/v1/subscription/resume - Resume a paused subscription immediately
+router.post('/resume', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+
+    const subscription = await prisma.subscription.findUnique({ where: { userId } });
+
+    if (!subscription?.stripeSubscriptionId) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'NO_SUBSCRIPTION', message: 'No active subscription found' },
+      });
+    }
+
+    if (!stripe) {
+      return res.status(503).json({
+        success: false,
+        error: { code: 'STRIPE_NOT_CONFIGURED', message: 'Payment processing not available' },
+      });
+    }
+
+    // Pass empty string to clear pause_collection
+    await stripe.subscriptions.update(subscription.stripeSubscriptionId, {
+      pause_collection: '' as any,
+    });
+
+    res.json({
+      success: true,
+      data: { message: 'Subscription resumed' },
+    });
+  } catch (error) {
+    console.error('Error resuming subscription:', error);
+    res.status(500).json({
+      success: false,
+      error: { code: 'RESUME_ERROR', message: 'Failed to resume subscription' },
     });
   }
 });

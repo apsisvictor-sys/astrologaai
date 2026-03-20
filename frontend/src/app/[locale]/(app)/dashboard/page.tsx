@@ -14,6 +14,8 @@ import { apiGet } from '@/lib/api-client';
 import { DailyHoroscopeCard } from '@/components/forecast/daily-horoscope-card';
 import { OracleWelcome } from '@/components/chat/oracle-welcome';
 import { CosmicEventBanner } from '@/components/dashboard/CosmicEventBanner';
+import { MoonPhaseCard } from '@/components/transits/moon-phase-card';
+import { getCurrentMoonPhase } from '@/lib/moon-phase';
 
 interface BirthProfile {
   id: string;
@@ -432,6 +434,21 @@ export default function DashboardPage({
               <DailyHoroscopeCard tier={(user?.tier as 'FREE' | 'PRO' | 'PREMIUM') || 'FREE'} />
             </div>
           )}
+
+          {/* Moon phase (4 cols) — always visible, pure math no API */}
+          <div className="lg:col-span-4 animate-fade-in-up" style={{ animationDelay: '0.19s' }}>
+            {(() => {
+              const moon = getCurrentMoonPhase();
+              return (
+                <MoonPhaseCard
+                  phase={moon.phase}
+                  phaseBg={moon.phaseBg}
+                  illumination={moon.illumination}
+                  locale={locale}
+                />
+              );
+            })()}
+          </div>
 
           {/* Subscription card (6 cols) */}
           <div className="lg:col-span-6 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>

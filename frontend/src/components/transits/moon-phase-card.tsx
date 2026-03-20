@@ -6,8 +6,8 @@ interface MoonPhaseCardProps {
   phase: string;
   phaseBg: string;
   illumination: number;
-  sign: string;
-  signBg: string;
+  sign?: string;
+  signBg?: string;
   locale: string;
 }
 
@@ -51,7 +51,7 @@ function getMoonPath(R: number, illumination: number, isWaxing: boolean): string
 
 export function MoonPhaseCard({ phase, phaseBg, illumination, sign, signBg, locale }: MoonPhaseCardProps) {
   const displayPhase = locale === 'bg' ? phaseBg : phase;
-  const displaySign  = locale === 'bg' ? signBg  : sign;
+  const displaySign  = locale === 'bg' ? (signBg ?? '') : (sign ?? '');
 
   const isWaxing  = !phase.toLowerCase().includes('waning') && !phase.toLowerCase().includes('last');
   const isFullMoon = illumination >= 99;
@@ -145,10 +145,12 @@ export function MoonPhaseCard({ phase, phaseBg, illumination, sign, signBg, loca
         {/* Moon info */}
         <div className="flex-1 min-w-0">
           <div className="text-sm font-bold text-white mb-1 leading-tight">{displayPhase}</div>
-          <div className="flex items-center gap-1.5 mb-3">
-            <span className="text-accent-cyan text-xs">{SIGN_SYMBOLS[sign] ?? '☽'}</span>
-            <span className="text-[11px] text-text-muted">in {displaySign}</span>
-          </div>
+          {(sign || signBg) && (
+            <div className="flex items-center gap-1.5 mb-3">
+              <span className="text-accent-cyan text-xs">{SIGN_SYMBOLS[sign ?? ''] ?? '☽'}</span>
+              <span className="text-[11px] text-text-muted">in {displaySign}</span>
+            </div>
+          )}
 
           {/* Illumination bar */}
           <div>

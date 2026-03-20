@@ -61,7 +61,7 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
     ],
     price: {
       monthly: 9.99,
-      yearly: 95.88,
+      yearly: 89.88, // 25% off: 9.99 * 12 * 0.75
       currency: 'EUR',
     },
   },
@@ -86,7 +86,7 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
     ],
     price: {
       monthly: 19.99,
-      yearly: 191.88,
+      yearly: 179.88, // 25% off: 19.99 * 12 * 0.75
       currency: 'EUR',
     },
   },

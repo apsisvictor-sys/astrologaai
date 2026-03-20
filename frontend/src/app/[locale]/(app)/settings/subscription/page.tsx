@@ -158,7 +158,9 @@ export default function SubscriptionManagementPage() {
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-  const [actionLoading, setActionLoading] = useState<'cancel' | 'reactivate' | 'portal' | null>(null);
+  const [showPauseModal, setShowPauseModal] = useState(false);
+  const [pausedUntil, setPausedUntil] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<'cancel' | 'reactivate' | 'portal' | 'pause' | 'resume' | null>(null);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   
   // Redirect if not authenticated
@@ -302,6 +304,59 @@ export default function SubscriptionManagementPage() {
     }
   };
   
+  // Pause subscription
+  const handlePause = async (months: 1 | 2) => {
+    const accessToken = localStorage.getItem('astrologaai_access_token');
+    if (!accessToken) return;
+    setActionLoading('pause');
+    try {
+      const response = await fetch(`${API_URL}/api/v1/subscription/pause`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ months }),
+      });
+      const data = await response.json();
+      if (data.success) {
+        setPausedUntil(data.data.resumesAt);
+        setShowPauseModal(false);
+        setNotification({ type: 'success', message: locale === 'bg'
+          ? `Абонаментът е паузиран до ${formatDateDisplay(data.data.resumesAt)}`
+          : `Subscription paused until ${formatDateDisplay(data.data.resumesAt)}` });
+      } else {
+        setNotification({ type: 'error', message: data.error?.message || 'Failed to pause subscription' });
+      }
+    } catch {
+      setNotification({ type: 'error', message: 'Network error' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Resume paused subscription
+  const handleResume = async () => {
+    const accessToken = localStorage.getItem('astrologaai_access_token');
+    if (!accessToken) return;
+    setActionLoading('resume');
+    try {
+      const response = await fetch(`${API_URL}/api/v1/subscription/resume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setPausedUntil(null);
+        setNotification({ type: 'success', message: locale === 'bg' ? 'Абонаментът е възстановен.' : 'Subscription resumed.' });
+        fetchData();
+      } else {
+        setNotification({ type: 'error', message: data.error?.message || 'Failed to resume' });
+      }
+    } catch {
+      setNotification({ type: 'error', message: 'Network error' });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   // Format date
   const formatDateDisplay = (dateString: string) =>
     formatDate(dateString, 'long', locale === 'bg' ? 'bg-BG' : undefined);
@@ -464,6 +519,33 @@ export default function SubscriptionManagementPage() {
             )}
           </div>
           
+          {/* Paused banner */}
+          {pausedUntil && (
+            <div
+              className="p-4 rounded-xl mb-4 flex items-center justify-between gap-4"
+              style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.3)' }}
+            >
+              <div>
+                <p className="text-sm font-semibold" style={{ color: COLORS.warning }}>
+                  {locale === 'bg' ? '⏸ Абонаментът е паузиран' : '⏸ Subscription paused'}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: COLORS.textSecondary }}>
+                  {locale === 'bg'
+                    ? `Таксуването възобновява на ${formatDateDisplay(pausedUntil)}`
+                    : `Billing resumes on ${formatDateDisplay(pausedUntil)}`}
+                </p>
+              </div>
+              <button
+                onClick={handleResume}
+                disabled={actionLoading === 'resume'}
+                className="text-xs px-3 py-1.5 rounded-lg font-medium shrink-0"
+                style={{ background: 'rgba(245,158,11,0.15)', color: COLORS.warning, border: '1px solid rgba(245,158,11,0.3)' }}
+              >
+                {locale === 'bg' ? 'Възобнови' : 'Resume'}
+              </button>
+            </div>
+          )}
+
           {/* Billing Info for paid tiers */}
           {subscription?.billing && isPaidTier && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -530,30 +612,34 @@ export default function SubscriptionManagementPage() {
                   : t('management.openPortal')}
               </button>
               
-              {/* Reactivate / Cancel Button */}
+              {/* Reactivate / Resume / Pause / Cancel */}
               {isCanceled ? (
                 <button
                   onClick={handleReactivate}
                   disabled={actionLoading === 'reactivate'}
                   className="px-4 py-2 rounded-xl font-medium transition-all hover:opacity-90 disabled:opacity-50"
-                  style={{
-                    background: COLORS.success,
-                    color: '#FFFFFF',
-                  }}
+                  style={{ background: COLORS.success, color: '#FFFFFF' }}
                 >
                   {actionLoading === 'reactivate'
                     ? (locale === 'bg' ? 'Възстановяване...' : 'Reactivating...')
                     : t('reactivateSubscription')}
                 </button>
+              ) : pausedUntil ? (
+                <button
+                  onClick={handleResume}
+                  disabled={actionLoading === 'resume'}
+                  className="px-4 py-2 rounded-xl font-medium transition-all hover:opacity-90 disabled:opacity-50"
+                  style={{ background: COLORS.success, color: '#FFFFFF' }}
+                >
+                  {actionLoading === 'resume'
+                    ? (locale === 'bg' ? 'Възстановяване...' : 'Resuming...')
+                    : (locale === 'bg' ? 'Възобнови сега' : 'Resume now')}
+                </button>
               ) : (
                 <button
-                  onClick={() => setShowCancelConfirm(true)}
+                  onClick={() => setShowPauseModal(true)}
                   className="px-4 py-2 rounded-xl font-medium transition-all hover:opacity-80"
-                  style={{
-                    background: 'transparent',
-                    border: `1px solid ${COLORS.error}`,
-                    color: COLORS.error,
-                  }}
+                  style={{ background: 'transparent', border: `1px solid ${COLORS.error}`, color: COLORS.error }}
                 >
                   {t('cancelSubscription')}
                 </button>
@@ -562,6 +648,64 @@ export default function SubscriptionManagementPage() {
           </div>
         )}
         
+        {/* Pause Modal — shown when user clicks Cancel */}
+        {showPauseModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: 'rgba(0, 0, 0, 0.8)' }}
+          >
+            <div
+              className="max-w-md w-full p-6 rounded-xl"
+              style={{ background: COLORS.backgroundSecondary, border: `1px solid ${COLORS.border}` }}
+            >
+              <h3 className="text-xl font-bold mb-2" style={{ color: COLORS.textPrimary }}>
+                {locale === 'bg' ? 'Преди да тръгнеш...' : 'Before you go...'}
+              </h3>
+              <p className="mb-6 text-sm" style={{ color: COLORS.textSecondary }}>
+                {locale === 'bg'
+                  ? 'Искаш ли да паузираш вместо да анулираш? Няма да бъдеш таксуван, а достъпът ти ще бъде запазен.'
+                  : 'Would you like to pause instead of canceling? You won\'t be charged, and your access will be preserved.'}
+              </p>
+
+              <div className="flex flex-col gap-3 mb-4">
+                <button
+                  onClick={() => handlePause(1)}
+                  disabled={actionLoading === 'pause'}
+                  className="w-full py-3 rounded-xl font-semibold text-sm transition-all hover:opacity-90 disabled:opacity-50"
+                  style={{ background: 'rgba(228,26,255,0.12)', border: '1px solid rgba(228,26,255,0.35)', color: COLORS.primary }}
+                >
+                  {actionLoading === 'pause' ? '…' : (locale === 'bg' ? 'Паузирай за 1 месец' : 'Pause for 1 month')}
+                </button>
+                <button
+                  onClick={() => handlePause(2)}
+                  disabled={actionLoading === 'pause'}
+                  className="w-full py-3 rounded-xl font-semibold text-sm transition-all hover:opacity-90 disabled:opacity-50"
+                  style={{ background: 'rgba(228,26,255,0.06)', border: '1px solid rgba(228,26,255,0.2)', color: COLORS.primary }}
+                >
+                  {actionLoading === 'pause' ? '…' : (locale === 'bg' ? 'Паузирай за 2 месеца' : 'Pause for 2 months')}
+                </button>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowPauseModal(false)}
+                  className="flex-1 py-2 rounded-xl text-sm font-medium"
+                  style={{ background: COLORS.surface, color: COLORS.textPrimary }}
+                >
+                  {locale === 'bg' ? 'Назад' : 'Go back'}
+                </button>
+                <button
+                  onClick={() => { setShowPauseModal(false); setShowCancelConfirm(true); }}
+                  className="flex-1 py-2 rounded-xl text-sm font-medium"
+                  style={{ background: 'transparent', border: `1px solid ${COLORS.error}40`, color: COLORS.error }}
+                >
+                  {locale === 'bg' ? 'Анулирай все пак' : 'No, cancel anyway'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Cancel Confirmation Modal */}
         {showCancelConfirm && (
           <div
