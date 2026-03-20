@@ -515,10 +515,8 @@ Query-based limits replaced by token-based daily limits. Admin users table now s
 
 ---
 
-### ENH-03 — House numeral display for narrow houses
-- **Priority:** Medium — visual quality issue for polar charts
-- **Where:** `frontend/src/components/astrology/natal-chart-canvas.tsx`
-- **Fix:** Place numeral at angular midpoint of each house at fixed inner radius (~52%). Skip if house < 3°, reduce font if < 20°.
+### ✅ ENH-03 — House numeral display for narrow houses (DONE 2026-03-21)
+- Skip numeral if span < 3°; reduce font (9→6) if span < 20°. Single conditional in natal-chart-canvas.tsx.
 
 ---
 
@@ -682,10 +680,8 @@ Query-based limits replaced by token-based daily limits. Admin users table now s
 
 ---
 
-### ENH-25 — MEDIUM IMPACT: In-app Oracle session rating — product intelligence at zero cost
-- **Impact:** MEDIUM — you need to know which Oracle responses land before you can improve them. Cheapest product feedback available. Also surfaces testimonials.
-- **Where:** `frontend/src/components/chat/chat-window.tsx` — after Oracle stream completes + new backend route
-- **What:** After the Oracle finishes a response, show 5 subtle star icons below the message for 8 seconds. If clicked, log the rating silently and show "✦ Thank you." Ratings surface in the admin panel.
+### ✅ ENH-25 — In-app Oracle session rating (DONE 2026-03-21)
+- After 3rd Oracle response per session, shows 5 stars for 8s → "✦ Noted". Admin usage page shows avg + low-rated sessions table.
 - **Implementation:**
   - **DB:** `CREATE TABLE session_ratings (id UUID DEFAULT gen_random_uuid() PRIMARY KEY, session_id UUID REFERENCES chat_sessions(id) ON DELETE CASCADE, message_index INT, rating SMALLINT CHECK (rating BETWEEN 1 AND 5), feedback TEXT, created_at TIMESTAMP DEFAULT NOW())`.
   - **Backend:** `POST /api/v1/chat/sessions/:id/rate` (auth required) — body: `{ rating: 1-5, messageIndex: number, feedback?: string }`. Insert into `session_ratings`. No validation needed beyond the CHECK constraint.
@@ -960,10 +956,8 @@ Query-based limits replaced by token-based daily limits. Admin users table now s
 - Inject next 3 upcoming transits into Oracle context automatically
 - Push notifications: "Your Saturn return begins in 6 weeks"
 
-### ENH-12 — Chat session 3-dot context menu (Pin, Share, Rename, Delete, Archive) + Search
-- **Priority:** HIGH — replaces the current primitive 📌 hover toggle with a full session management system matching industry standard (ChatGPT UX)
-- **Menu order:** Pin · Share · Rename · Delete *(red)* · Archive
-- **Also add:** Search chats input at top of sidebar history list (backend already supports `?search=` on `GET /sessions`)
+### ✅ ENH-12 — Chat session 3-dot context menu (DONE 2026-03-21)
+- Full Pin/Share/Rename/Delete/Archive menu. Share copies link to clipboard. DB-backed pin (no localStorage). Public share page at /share/:token. Search sidebar included.
 
 #### DB migration needed
 ```sql

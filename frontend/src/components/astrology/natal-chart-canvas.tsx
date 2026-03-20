@@ -335,18 +335,20 @@ export function NatalChartCanvas({ data = DUMMY_DATA, size = 460 }: NatalChartCa
                   opacity={isAxis ? '0.9' : '0.5'}
                   filter={isAxis ? 'url(#glow-soft)' : undefined}
                 />
-                {/* Roman numeral house label */}
-                <text
-                  x={numPos.x} y={numPos.y}
-                  fill="rgba(228,26,255,0.45)"
-                  fontSize="9"
-                  textAnchor="middle"
-                  alignmentBaseline="middle"
-                  className="select-none"
-                  style={{ fontFamily: 'Georgia, serif' }}
-                >
-                  {ROMAN_NUMERALS[i]}
-                </text>
+                {/* Roman numeral house label — skip if span < 3°, reduce font if < 20° */}
+                {diff >= 3 && (
+                  <text
+                    x={numPos.x} y={numPos.y}
+                    fill="rgba(228,26,255,0.45)"
+                    fontSize={diff < 20 ? '6' : '9'}
+                    textAnchor="middle"
+                    alignmentBaseline="middle"
+                    className="select-none"
+                    style={{ fontFamily: 'Georgia, serif' }}
+                  >
+                    {ROMAN_NUMERALS[i]}
+                  </text>
+                )}
               </g>
             );
           })}

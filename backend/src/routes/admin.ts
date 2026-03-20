@@ -534,6 +534,61 @@ router.get('/usage', async (req: Request, res: Response) => {
   }
 });
 
+// ── GET /admin/ratings ────────────────────────────────────────────────────────
+
+router.get('/ratings', async (_req: Request, res: Response) => {
+  try {
+    const [avgResult, lowRated, ratingDist] = await Promise.all([
+      // Average rating across all rated sessions
+      prisma.chatSession.aggregate({
+        where: { rating: { not: null } },
+        _avg: { rating: true },
+        _count: { rating: true },
+      }),
+      // Low-rated sessions (1-2 stars) — most recent 20
+      prisma.chatSession.findMany({
+        where: { rating: { lte: 2 } },
+        orderBy: { updatedAt: 'desc' },
+        take: 20,
+        select: {
+          id: true,
+          title: true,
+          rating: true,
+          updatedAt: true,
+          user: { select: { email: true } },
+        },
+      }),
+      // Rating distribution (count per star)
+      prisma.$queryRaw<{ rating: number; count: bigint }[]>`
+        SELECT rating, COUNT(*) as count
+        FROM chat_sessions
+        WHERE rating IS NOT NULL
+        GROUP BY rating
+        ORDER BY rating ASC
+      `,
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        avgRating: avgResult._avg.rating ? Number(avgResult._avg.rating.toFixed(2)) : null,
+        totalRated: avgResult._count.rating,
+        distribution: ratingDist.map(r => ({ stars: r.rating, count: Number(r.count) })),
+        lowRated: lowRated.map(s => ({
+          id: s.id,
+          title: s.title || 'Untitled',
+          rating: s.rating,
+          updatedAt: s.updatedAt,
+          email: s.user?.email ?? 'Unknown',
+        })),
+      },
+    });
+  } catch (err) {
+    console.error('[Admin] ratings error:', err);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR' } });
+  }
+});
+
 // ── GET /admin/revenue ────────────────────────────────────────────────────────
 
 router.get('/revenue', async (req: Request, res: Response) => {

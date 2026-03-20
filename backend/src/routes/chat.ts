@@ -20,9 +20,16 @@ import {
   getUsage,
   startNewConversation,
   importGuestMessages,
+  shareSession,
+  unshareSession,
+  getSharedSession,
+  rateSession,
 } from '../controllers/chatController';
 
 const router = Router();
+
+// Public route — no auth required (must be before authMiddleware)
+router.get('/share/:token', getSharedSession);
 
 // All chat routes require authentication
 router.use(authMiddleware);
@@ -39,6 +46,9 @@ router.get('/sessions/:id', getSession);
 router.patch('/sessions/:id', updateSession);
 router.delete('/sessions/:id', deleteSession);
 router.post('/sessions/:id/import', importGuestMessages);
+router.post('/sessions/:id/share', shareSession);
+router.delete('/sessions/:id/share', unshareSession);
+router.post('/sessions/:id/rate', rateSession);
 router.get('/usage', getUsage);
 
 export default router;

@@ -1,66 +1,64 @@
-# Sprint 5 — Token Limits + Streaks
+# Sprint 4 Completion — Polish
 
-## System 1: Token-Based Daily Limit (FREE tier)
+## ENH-12: Chat session 3-dot context menu
 
-### Architecture summary
-- Pre-stream: check Redis `tokens:daily:{userId}:{YYYY-MM-DD}` — if >= limit → 429 (block new messages)
-- Post-stream: INCR Redis key by approxOutput tokens, set 26h TTL on first write
-- If new total > limit → include `dailyLimitReached: true` in `complete` SSE event
-- Frontend: on `complete` with `dailyLimitReached: true` → show inline upgrade banner after message
-- Admin accounts (`ADMIN_EMAILS` env var) → bypass all limits
-- Limit value stored in AdminConfig table: key `free_tier_daily_token_limit`, default 1500
+### Architecture
+- DB: 3 new columns on `chat_sessions` — `is_pinned`, `is_archived`, `shared_token`
+- Backend: extend PATCH /sessions/:id (pin + archive), add POST/DELETE /sessions/:id/share, filter archived from GET /sessions
+- Frontend: replace 📌 hover button with `···` dropdown in chat-history-list.tsx
 
 ### Backend tasks
-
-- [x] **B1** `admin-defaults.ts` — add seed `free_tier_daily_token_limit: '1500'`
-- [x] **B2** `queryLimit.ts` — rewritten: token-based Redis check for FREE, admin bypass, burst for PRO/PREMIUM
-- [x] **B3** `chatController.ts` — post-stream INCR + `dailyLimitReached` in complete SSE event
-- [x] **B4** `routes/admin.ts` — GET/PUT `/admin/config/free-tier-limits`
-- [x] **B5** `routes/subscription.ts` — query count fields stripped from status response
+- [x] **B1** `prisma/schema.prisma` — add `isPinned`, `isArchived`, `sharedToken` to ChatSession + db:push
+- [x] **B2** `routes/chat.ts` — extend `PATCH /sessions/:id` to accept `isPinned` and `isArchived`
+- [x] **B3** `routes/chat.ts` — add `POST /sessions/:id/share` (generate nanoid token, return shareUrl) and `DELETE /sessions/:id/share` (clear token)
+- [x] **B4** `routes/chat.ts` — `GET /sessions` excludes `isArchived=true` by default; add `?archived=true` param
+- [x] **B5** `routes/chat.ts` — add `GET /share/:token` (public, no auth) — returns session title + messages for shared view
 
 ### Frontend tasks
-
-- [x] **F1** `chat-context-ws.tsx` — `dailyLimitReached` state, SSE handler, 429 handler
-- [x] **F2** `chat-window.tsx` — query counter removed, DailyLimitBanner added, input disabled on limit
-- [x] **F3** `dashboard/page.tsx` — `queriesRemaining` removed, replaced with Oracle access copy
-- [x] **F4** `settings/subscription/page.tsx` — query display replaced with Oracle access text
-- [x] **F5** `pricing/page.tsx` — "Limited/Unlimited cosmic intelligence from the Oracle"
-- [x] **F6** `admin/config/page.tsx` — "Free Tier Limits" section with token limit field + save
-- [x] **F7** `admin/users/page.tsx` — "Queries (legacy)" column label
+- [x] **F1** `chat-history-list.tsx` — replace 📌 hover with `···` button; build dropdown (Pin · Share · Rename · Delete · Archive)
+- [x] **F2** `chat-history-list.tsx` — pinned sessions float to top of list with pin icon
+- [x] **F3** `chat-history-list.tsx` — Share: copy link to clipboard + "Copied!" toast; Rename: inline edit field; Archive: removes from list
+- [x] **F4** `app/share/[token]/page.tsx` — public read-only conversation view (no auth required)
 
 ---
 
-## System 2: Daily Streak + Rewards (ENH-23)
+## ENH-25: Oracle session rating (after 3rd Oracle message)
 
-### Architecture summary
-- Any Oracle message sent = streak day counted
-- 7-day streak → 48h PRO trial (set subscription tier = PRO, trialExpiresAt = now + 48h)
-- On login: check + revert expired trials
-- Existing tier gating handles feature access automatically
+### Architecture
+- DB: `rating SMALLINT` column on `chat_sessions` (simpler than a separate table — one rating per session)
+- Backend: `POST /api/v1/chat/sessions/:id/rate` — body `{ rating: 1-5 }`
+- Frontend: count Oracle messages; after 3rd Oracle response, show 5 stars below that message; auto-hide 8s; on click → POST + show "✦ Noted"
+- Admin: average daily rating + table of 1-2 star sessions
 
 ### Backend tasks
-
-- [x] **B6** `prisma/schema.prisma` — `UserStreak` model added + `db:sync` run (deployed to Railway DB)
-- [x] **B7** `services/streakService.ts` — new service: updateStreak, grantProTrial, checkTrialExpiry, revertExpiredTrials, getStreakInfo
-- [x] **B8** `chatController.ts` — `updateStreak(userId)` called in background block after Oracle message
-- [x] **B9** `routes/user.ts` — `GET /api/v1/user/streak` endpoint added
-- [x] **B10** `authController.ts` — `checkTrialExpiry(userId)` called on login
-- [x] **B11** `routes/cron.ts` — `POST /api/v1/cron/streak-maintenance` for daily trial reversion
+- [x] **B6** `prisma/schema.prisma` — add `rating Int?` to ChatSession (same migration as B1)
+- [x] **B7** `routes/chat.ts` — `POST /sessions/:id/rate` — validates 1-5, updates `chat_sessions.rating`
+- [x] **B8** `routes/admin.ts` — expose ratings in usage stats (avg per day, low-rating session list)
 
 ### Frontend tasks
+- [x] **F5** `components/chat/session-rating.tsx` — new component: 5 stars, auto-hide 8s, "✦ Noted" on click
+- [x] **F6** `chat-window.tsx` — count Oracle messages; render `<SessionRating>` after 3rd Oracle response (once per session, hide after rated or dismissed)
+- [x] **F7** `admin/usage/page.tsx` — show avg rating + low-rating sessions
 
-- [x] **F8** `components/shell/streak-indicator.tsx` — new component: shows streak badge + milestone toast
-- [x] **F9** `components/shell/sidebar.tsx` — `<StreakIndicator />` added between nav and user card
+---
+
+## ENH-03: House numeral display for narrow houses
+
+### Frontend tasks
+- [x] **F8** `natal-chart-canvas.tsx` — skip house numeral if span < 3°; reduce font size (9→6) if span < 20°
 
 ---
 
-## System 3: Railway Cron Setup
+## Review
 
-### Tasks
-
-- [x] **C1** `routes/cron.ts` — fix `streak-maintenance` to use CRON_SECRET (not adminAuthMiddleware)
-- [x] **C2** `services/transits.ts` — export `warmDailyTransitsCache()` function
-- [x] **C3** `routes/cron.ts` — add `POST /api/v1/cron/daily-transits` endpoint (pre-warms planetary positions)
-- [x] **C4** `routes/cron.ts` — add `POST /api/v1/cron/daily-forecasts` endpoint (runs nightly forecast job)
-
----
+### Changes made
+- **Schema**: Added `isPinned`, `isArchived`, `sharedToken` (unique), `rating` to `ChatSession`. DB pushed to Railway.
+- **chatController.ts**: Extended `updateSession` (pin/archive), added `shareSession`, `unshareSession`, `getSharedSession` (public), `rateSession`.
+- **routes/chat.ts**: Added public `GET /share/:token` (before auth middleware), `POST/DELETE /sessions/:id/share`, `POST /sessions/:id/rate`. `GET /sessions` now excludes archived by default.
+- **chat-history-list.tsx**: Full rewrite — removed localStorage pin system, added `ContextMenu` with Pin/Share/Rename/Archive/Delete, inline rename, clipboard share with toast, DB-backed pin state, pinned sessions float to top.
+- **app/share/[token]/page.tsx**: New public page — renders shared conversation read-only with Oracle branding and sign-up CTA.
+- **session-rating.tsx**: New component — 5 stars, auto-hides after 8s, shows "✦ Noted" on click, fires POST to rate endpoint.
+- **chat-window.tsx**: Counts assistant messages; shows `<SessionRating>` when count crosses 3 (not on initial load of existing session); resets on session change.
+- **admin/usage/page.tsx**: Added ratings section — avg score, star distribution bars, low-rated session table (1–2★).
+- **routes/admin.ts**: Added `GET /admin/ratings` endpoint — avg rating, distribution, recent low-rated sessions.
+- **natal-chart-canvas.tsx**: House numerals skip if span < 3°, reduced font (9→6) if span < 20°.

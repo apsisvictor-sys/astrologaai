@@ -159,12 +159,17 @@ model ChatSession {
   title             String?   // Auto-generated or user-defined
   summary           String?   // Session summary for context compression (after 20+ messages)
   birthProfileId    String?   @map("birth_profile_id") // Optional: which chart to use
+  isPinned          Boolean   @default(false) @map("is_pinned")
+  isArchived        Boolean   @default(false) @map("is_archived")
+  sharedToken       String?   @unique @map("shared_token") // ENH-12: public share link token
+  rating            Int?      // ENH-25: 1-5 star session rating
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
   messages          ChatMessage[]
 
   @@index([userId])
+  @@index([sharedToken])
   @@map("chat_sessions")
 }
 

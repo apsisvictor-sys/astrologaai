@@ -63,6 +63,21 @@ interface UsageData {
   topUsers: TopUser[];
 }
 
+interface LowRatedSession {
+  id: string;
+  title: string;
+  rating: number;
+  updatedAt: string;
+  email: string;
+}
+
+interface RatingsData {
+  avgRating: number | null;
+  totalRated: number;
+  distribution: { stars: number; count: number }[];
+  lowRated: LowRatedSession[];
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function centsToEuro(cents: number): string {
@@ -161,6 +176,7 @@ export default function UsagePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userSortDesc, setUserSortDesc] = useState(true);
+  const [ratings, setRatings] = useState<RatingsData | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -180,6 +196,10 @@ export default function UsagePage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    adminGet<RatingsData>('/ratings').then(setRatings).catch(() => {});
+  }, []);
 
   function applyPreset(days: number | null) {
     if (days === null) return; // custom — user edits manually
@@ -511,6 +531,77 @@ export default function UsagePage() {
                 </table>
               </div>
             </div>
+          {/* ── Session Ratings ── */}
+          {ratings && (
+            <div className="glass-panel p-6 space-y-5">
+              <div className="flex items-center justify-between">
+                <h2 className="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted">
+                  Session Ratings
+                </h2>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl font-bold text-amber-400">
+                    {ratings.avgRating != null ? ratings.avgRating.toFixed(1) : '—'}
+                  </span>
+                  <span className="text-xs text-text-muted">avg / {ratings.totalRated} rated</span>
+                </div>
+              </div>
+
+              {/* Star distribution bar */}
+              <div className="space-y-2">
+                {[5, 4, 3, 2, 1].map((star) => {
+                  const entry = ratings.distribution.find(d => d.stars === star);
+                  const count = entry?.count ?? 0;
+                  const pct = ratings.totalRated > 0 ? Math.round((count / ratings.totalRated) * 100) : 0;
+                  return (
+                    <div key={star} className="flex items-center gap-3 text-xs">
+                      <span className="w-4 text-right text-amber-400">{star}★</span>
+                      <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full bg-amber-400/70" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="w-8 text-right text-text-muted font-mono">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Low-rated sessions */}
+              {ratings.lowRated.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-text-muted mb-3">
+                    Low-rated sessions (1–2 ★)
+                  </p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/5">
+                          {['User', 'Session', 'Rating', 'Date'].map(h => (
+                            <th key={h} className="pb-2 text-left text-[11px] font-bold uppercase tracking-[0.12em] text-text-muted first:pl-0 pl-4">
+                              {h}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ratings.lowRated.map(s => (
+                          <tr key={s.id} className="border-b border-white/[0.04] hover:bg-white/[0.02] transition-colors">
+                            <td className="py-2 text-slate-300 text-xs">{s.email}</td>
+                            <td className="py-2 pl-4 text-slate-400 text-xs truncate max-w-[200px]">{s.title}</td>
+                            <td className="py-2 pl-4">
+                              <span className="text-amber-400">{'★'.repeat(s.rating ?? 0)}</span>
+                              <span className="text-white/10">{'★'.repeat(5 - (s.rating ?? 0))}</span>
+                            </td>
+                            <td className="py-2 pl-4 text-xs text-text-muted font-mono">
+                              {new Date(s.updatedAt).toLocaleDateString()}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           </>
         )}
       </div>

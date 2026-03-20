@@ -492,7 +492,7 @@ ${aspectLines || 'No major aspects within orb today.'}`;
 export async function listSessions(req: Request, res: Response): Promise<void> {
   try {
     const userId = req.user?.id;
-    const { page = 1, limit = 20, search } = req.query;
+    const { page = 1, limit = 20, search, archived } = req.query;
     const userLanguage = req.user?.language || 'en';
 
     if (!userId) {
@@ -503,8 +503,9 @@ export async function listSessions(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Build where clause
-    let whereClause: any = { userId };
+    // Build where clause — exclude archived by default; include only archived when ?archived=true
+    const showArchived = archived === 'true';
+    let whereClause: any = { userId, isArchived: showArchived };
     // Map of session_id → matching message content snippet (populated during search)
     const snippetMap = new Map<string, string>();
 
@@ -550,7 +551,7 @@ export async function listSessions(req: Request, res: Response): Promise<void> {
         return;
       }
 
-      whereClause = { userId, id: { in: allMatchingIds } };
+      whereClause = { userId, isArchived: showArchived, id: { in: allMatchingIds } };
     }
 
     const sessions = await prisma.chatSession.findMany({
@@ -572,6 +573,8 @@ export async function listSessions(req: Request, res: Response): Promise<void> {
         sessions: sessions.map((s) => ({
           id: s.id,
           title: s.title,
+          isPinned: s.isPinned,
+          isArchived: s.isArchived,
           lastMessage: s.messages[0]?.content?.substring(0, 100),
           matchSnippet: snippetMap.get(s.id) ?? null,
           lastMessageAt: s.messages[0]?.createdAt || s.createdAt,
@@ -905,59 +908,158 @@ export async function updateSession(req: Request, res: Response): Promise<void> 
   try {
     const userId = req.user?.id;
     const { id } = req.params;
-    const { title } = req.body;
+    const { title, isPinned, isArchived } = req.body;
 
     if (!userId) {
-      res.status(401).json({
-        success: false,
-        error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
-      });
+      res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
       return;
     }
 
-    if (!title || typeof title !== 'string' || title.trim().length === 0) {
-      res.status(400).json({
-        success: false,
-        error: { code: 'VALIDATION_ERROR', message: 'Title is required' },
-      });
+    // At least one field must be provided
+    if (title === undefined && isPinned === undefined && isArchived === undefined) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'No fields to update' } });
       return;
     }
 
-    // Verify session belongs to user
-    const session = await prisma.chatSession.findFirst({
-      where: { id, userId },
+    const session = await prisma.chatSession.findFirst({ where: { id, userId } });
+    if (!session) {
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Session not found' } });
+      return;
+    }
+
+    const data: Record<string, unknown> = {};
+    if (title !== undefined) {
+      if (typeof title !== 'string' || title.trim().length === 0) {
+        res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Title must be a non-empty string' } });
+        return;
+      }
+      data.title = title.trim().substring(0, 100);
+    }
+    if (isPinned !== undefined) data.isPinned = Boolean(isPinned);
+    if (isArchived !== undefined) data.isArchived = Boolean(isArchived);
+
+    const updated = await prisma.chatSession.update({ where: { id }, data });
+
+    res.json({ success: true, data: { session: { id: updated.id, title: updated.title, isPinned: updated.isPinned, isArchived: updated.isArchived, updatedAt: updated.updatedAt } } });
+  } catch (error) {
+    console.error('[Chat] Error updating session:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to update session' } });
+  }
+}
+
+/**
+ * POST /api/v1/chat/sessions/:id/share
+ * Generate a public share token for the session
+ */
+export async function shareSession(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    if (!userId) { res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } }); return; }
+
+    const session = await prisma.chatSession.findFirst({ where: { id, userId } });
+    if (!session) { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Session not found' } }); return; }
+
+    // Reuse existing token or generate new one
+    const token = session.sharedToken ?? require('crypto').randomBytes(12).toString('hex');
+    await prisma.chatSession.update({ where: { id }, data: { sharedToken: token } });
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://astrologa.bg';
+    res.json({ success: true, data: { shareUrl: `${frontendUrl}/share/${token}` } });
+  } catch (error) {
+    console.error('[Chat] Error sharing session:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to share session' } });
+  }
+}
+
+/**
+ * DELETE /api/v1/chat/sessions/:id/share
+ * Revoke the public share token
+ */
+export async function unshareSession(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    if (!userId) { res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } }); return; }
+
+    const session = await prisma.chatSession.findFirst({ where: { id, userId } });
+    if (!session) { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Session not found' } }); return; }
+
+    await prisma.chatSession.update({ where: { id }, data: { sharedToken: null } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Chat] Error unsharing session:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to unshare session' } });
+  }
+}
+
+/**
+ * GET /api/v1/chat/share/:token
+ * Public endpoint — returns a shared session's title + messages (no auth required)
+ */
+export async function getSharedSession(req: Request, res: Response): Promise<void> {
+  try {
+    const { token } = req.params;
+
+    const session = await prisma.chatSession.findUnique({
+      where: { sharedToken: token },
+      include: {
+        messages: { orderBy: { createdAt: 'asc' } },
+      },
     });
 
     if (!session) {
-      res.status(404).json({
-        success: false,
-        error: { code: 'NOT_FOUND', message: 'Session not found' },
-      });
+      res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Shared conversation not found' } });
       return;
     }
-
-    // Update title
-    const updated = await prisma.chatSession.update({
-      where: { id },
-      data: { title: title.trim().substring(0, 100) },
-    });
 
     res.json({
       success: true,
       data: {
         session: {
-          id: updated.id,
-          title: updated.title,
-          updatedAt: updated.updatedAt,
+          id: session.id,
+          title: session.title || 'Oracle conversation',
+          createdAt: session.createdAt,
+          messages: session.messages.map(m => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            createdAt: m.createdAt,
+          })),
         },
       },
     });
   } catch (error) {
-    console.error('[Chat] Error updating session:', error);
-    res.status(500).json({
-      success: false,
-      error: { code: 'INTERNAL_ERROR', message: 'Failed to update session' },
-    });
+    console.error('[Chat] Error fetching shared session:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch shared session' } });
+  }
+}
+
+/**
+ * POST /api/v1/chat/sessions/:id/rate
+ * Submit a 1-5 star rating for a session (ENH-25)
+ */
+export async function rateSession(req: Request, res: Response): Promise<void> {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { rating } = req.body;
+    if (!userId) { res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Not authenticated' } }); return; }
+
+    const r = parseInt(rating, 10);
+    if (!r || r < 1 || r > 5) {
+      res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Rating must be 1-5' } });
+      return;
+    }
+
+    const session = await prisma.chatSession.findFirst({ where: { id, userId } });
+    if (!session) { res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Session not found' } }); return; }
+
+    await prisma.chatSession.update({ where: { id }, data: { rating: r } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Chat] Error rating session:', error);
+    res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to rate session' } });
   }
 }
 
@@ -1072,4 +1174,8 @@ export default {
   createSession,
   deleteSession,
   getUsage,
+  shareSession,
+  unshareSession,
+  getSharedSession,
+  rateSession,
 };

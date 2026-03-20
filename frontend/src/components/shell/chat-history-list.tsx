@@ -6,12 +6,11 @@ import { cn } from '@/lib/utils';
 import { getApiBaseUrl } from '@/lib/runtime-config';
 import { useAuth } from '@/lib/auth-context';
 
-const PINNED_KEY = 'astrologaai_pinned_chats';
-
 interface ChatSession {
   id: string;
   title: string;
   updatedAt: string;
+  isPinned?: boolean;
   matchSnippet?: string | null;
 }
 
@@ -45,54 +44,183 @@ function groupByDate(sessions: ChatSession[]) {
   }, {} as Record<string, ChatSession[]>);
 }
 
-// ── Pinned helpers ────────────────────────────────────────────────────────────
+// ── Context menu ──────────────────────────────────────────────────────────────
 
-function getPinnedIds(): string[] {
-  if (typeof window === 'undefined') return [];
-  try { return JSON.parse(localStorage.getItem(PINNED_KEY) || '[]'); }
-  catch { return []; }
+interface MenuProps {
+  session: ChatSession;
+  onPin: () => void;
+  onRename: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+  onShare: () => void;
+  onClose: () => void;
 }
 
-function savePinnedIds(ids: string[]) {
-  localStorage.setItem(PINNED_KEY, JSON.stringify(ids));
+function ContextMenu({ session, onPin, onRename, onArchive, onDelete, onShare, onClose }: MenuProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  const item = (label: string, onClick: () => void, red = false) => (
+    <button
+      key={label}
+      onClick={(e) => { e.stopPropagation(); onClick(); onClose(); }}
+      className={cn(
+        'w-full text-left px-3 py-2 text-xs rounded-lg transition-colors',
+        red ? 'text-red-400/80 hover:text-red-400' : 'text-white/70 hover:text-white'
+      )}
+      onMouseEnter={(e) => { e.currentTarget.style.background = red ? 'rgba(239,68,68,0.08)' : 'rgba(228,26,255,0.08)'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-full mt-1 w-40 rounded-xl z-50 py-1"
+      style={{
+        background: 'rgba(18,6,20,0.98)',
+        backdropFilter: 'blur(16px)',
+        border: '1px solid rgba(228,26,255,0.18)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+      }}
+    >
+      {item(session.isPinned ? '📌 Unpin' : '📌 Pin', onPin)}
+      {item('🔗 Share', onShare)}
+      {item('✏️ Rename', onRename)}
+      {item('📦 Archive', onArchive)}
+      {item('🗑️ Delete', onDelete, true)}
+    </div>
+  );
 }
 
 // ── Chat item ─────────────────────────────────────────────────────────────────
 
-function ChatItem({ session, active, pinned, onTogglePin }: {
+function ChatItem({
+  session, active, onUpdate, onDelete,
+}: {
   session: ChatSession;
   active: boolean;
-  pinned: boolean;
-  onTogglePin: (id: string) => void;
+  onUpdate: (id: string, patch: Partial<ChatSession> & { deleted?: boolean }) => void;
+  onDelete: (id: string) => void;
 }) {
-  const [hovered, setHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(session.title || '');
+  const [shareToast, setShareToast] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const API = getApiBaseUrl();
+
+  const getToken = () => localStorage.getItem('astrologaai_access_token');
+
+  const patch = async (body: Record<string, unknown>) => {
+    await fetch(`${API}/api/v1/chat/sessions/${session.id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  };
+
+  const handlePin = async () => {
+    await patch({ isPinned: !session.isPinned });
+    onUpdate(session.id, { isPinned: !session.isPinned });
+  };
+
+  const handleArchive = async () => {
+    await patch({ isArchived: true });
+    onUpdate(session.id, { deleted: true }); // removes from list
+  };
+
+  const handleDelete = async () => {
+    await fetch(`${API}/api/v1/chat/sessions/${session.id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    onDelete(session.id);
+  };
+
+  const handleShare = async () => {
+    const res = await fetch(`${API}/api/v1/chat/sessions/${session.id}/share`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    const data = await res.json();
+    if (data.data?.shareUrl) {
+      await navigator.clipboard.writeText(data.data.shareUrl).catch(() => {});
+      setShareToast(true);
+      setTimeout(() => setShareToast(false), 2500);
+    }
+  };
+
+  const handleRenameSubmit = async () => {
+    const trimmed = renameValue.trim();
+    if (trimmed && trimmed !== session.title) {
+      await patch({ title: trimmed });
+      onUpdate(session.id, { title: trimmed });
+    }
+    setRenaming(false);
+  };
+
   return (
-    <div
-      className="relative group"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <Link
-        href={`/chat/${session.id}`}
-        className={cn(
-          'block px-3 py-2 rounded-xl text-sm truncate transition-all pr-8',
-          active ? 'bg-primary/10 text-white' : 'text-text-muted hover:bg-white/5 hover:text-white'
-        )}
-      >
-        {session.title || 'New conversation'}
-      </Link>
-      {(hovered || pinned) && (
-        <button
-          onClick={(e) => { e.preventDefault(); onTogglePin(session.id); }}
+    <div className="relative group" ref={menuRef}>
+      {renaming ? (
+        <input
+          autoFocus
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onBlur={handleRenameSubmit}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleRenameSubmit(); if (e.key === 'Escape') setRenaming(false); }}
+          className="w-full px-3 py-2 rounded-xl text-sm text-white bg-transparent outline-none border border-primary/40"
+        />
+      ) : (
+        <Link
+          href={`/chat/${session.id}`}
           className={cn(
-            'absolute right-2 top-1/2 -translate-y-1/2 text-xs transition-colors',
-            pinned ? 'opacity-70 hover:opacity-100' : 'opacity-40 hover:opacity-80'
+            'block px-3 py-2 rounded-xl text-sm truncate transition-all pr-8',
+            active ? 'bg-primary/10 text-white' : 'text-text-muted hover:bg-white/5 hover:text-white'
           )}
-          title={pinned ? 'Unpin' : 'Pin to top'}
-          aria-label={pinned ? 'Unpin conversation' : 'Pin conversation to top'}
         >
-          📌
+          {session.isPinned && <span className="mr-1 opacity-50 text-[10px]">📌</span>}
+          {session.title || 'New conversation'}
+        </Link>
+      )}
+
+      {/* Share copied toast */}
+      {shareToast && (
+        <span className="absolute right-8 top-1/2 -translate-y-1/2 text-[10px] text-primary whitespace-nowrap bg-black/80 px-2 py-0.5 rounded-md pointer-events-none">
+          Link copied!
+        </span>
+      )}
+
+      {/* ··· button */}
+      {!renaming && (
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setMenuOpen(v => !v); }}
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-md text-white/30 hover:text-white/70 opacity-0 group-hover:opacity-100 transition-opacity text-xs"
+          aria-label="Session options"
+        >
+          ···
         </button>
+      )}
+
+      {menuOpen && (
+        <ContextMenu
+          session={session}
+          onPin={handlePin}
+          onRename={() => { setRenaming(true); setRenameValue(session.title || ''); }}
+          onArchive={handleArchive}
+          onDelete={handleDelete}
+          onShare={handleShare}
+          onClose={() => setMenuOpen(false)}
+        />
       )}
     </div>
   );
@@ -102,7 +230,6 @@ function ChatItem({ session, active, pinned, onTogglePin }: {
 
 export function ChatHistoryList() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
-  const [pinnedIds, setPinnedIds] = useState<string[]>([]);
   const pathname = usePathname();
   const router = useRouter();
   const { isAuthenticated } = useAuth();
@@ -115,13 +242,14 @@ export function ChatHistoryList() {
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { setPinnedIds(getPinnedIds()); }, []);
+  const API = getApiBaseUrl();
+  const getToken = () => localStorage.getItem('astrologaai_access_token');
 
   // Load all sessions
   useEffect(() => {
-    const token = localStorage.getItem('astrologaai_access_token');
+    const token = getToken();
     if (!token) return;
-    fetch(`${getApiBaseUrl()}/api/v1/chat/sessions`, {
+    fetch(`${API}/api/v1/chat/sessions`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
@@ -159,10 +287,9 @@ export function ChatHistoryList() {
     searchTimerRef.current = setTimeout(async () => {
       setSearchLoading(true);
       try {
-        const token = localStorage.getItem('astrologaai_access_token');
         const res = await fetch(
-          `${getApiBaseUrl()}/api/v1/chat/sessions?search=${encodeURIComponent(value.trim())}`,
-          { headers: { Authorization: `Bearer ${token}` } }
+          `${API}/api/v1/chat/sessions?search=${encodeURIComponent(value.trim())}`,
+          { headers: { Authorization: `Bearer ${getToken()}` } }
         );
         const data = await res.json();
         setSearchResults(data.data?.sessions || []);
@@ -178,16 +305,21 @@ export function ChatHistoryList() {
     router.push(`/chat/${id}`);
   };
 
-  const togglePin = (id: string) => {
-    const updated = pinnedIds.includes(id)
-      ? pinnedIds.filter(p => p !== id)
-      : [id, ...pinnedIds];
-    setPinnedIds(updated);
-    savePinnedIds(updated);
+  // Optimistic update handler
+  const handleUpdate = (id: string, patch: Partial<ChatSession> & { deleted?: boolean }) => {
+    if (patch.deleted) {
+      setSessions(prev => prev.filter(s => s.id !== id));
+      return;
+    }
+    setSessions(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s));
   };
 
-  const pinned = sessions.filter(s => pinnedIds.includes(s.id));
-  const unpinned = sessions.filter(s => !pinnedIds.includes(s.id));
+  const handleDelete = (id: string) => {
+    setSessions(prev => prev.filter(s => s.id !== id));
+  };
+
+  const pinned = sessions.filter(s => s.isPinned);
+  const unpinned = sessions.filter(s => !s.isPinned);
   const grouped = groupByDate(unpinned);
 
   return (
@@ -223,7 +355,7 @@ export function ChatHistoryList() {
           )}
         </div>
 
-        {/* Floating search results popover — anchored left-full of sidebar */}
+        {/* Floating search results popover */}
         {popoverOpen && searchQuery.trim() && (
           <div
             className="absolute top-0 left-full ml-2 w-[360px] rounded-2xl overflow-hidden z-50"
@@ -236,7 +368,6 @@ export function ChatHistoryList() {
               overflowY: 'auto',
             }}
           >
-            {/* Header */}
             <div className="px-4 py-3 flex items-center justify-between"
               style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}
             >
@@ -253,10 +384,9 @@ export function ChatHistoryList() {
               )}
             </div>
 
-            {/* Results */}
             {!searchLoading && searchResults.length === 0 && (
               <p className="px-4 py-5 text-sm text-center" style={{ color: 'rgba(255,255,255,0.3)' }}>
-                No chats found for "{searchQuery}"
+                No chats found for &ldquo;{searchQuery}&rdquo;
               </p>
             )}
 
@@ -269,11 +399,9 @@ export function ChatHistoryList() {
                 onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(228,26,255,0.06)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               >
-                {/* Title row */}
                 <p className="text-sm font-medium text-white/90 leading-snug mb-1 truncate">
                   <Highlight text={s.title || 'New conversation'} term={searchQuery} />
                 </p>
-                {/* Snippet row */}
                 {s.matchSnippet && (
                   <p className="text-xs leading-relaxed line-clamp-2" style={{ color: 'rgba(255,255,255,0.4)' }}>
                     <Highlight text={s.matchSnippet} term={searchQuery} />
@@ -296,8 +424,8 @@ export function ChatHistoryList() {
                 key={s.id}
                 session={s}
                 active={pathname === `/chat/${s.id}`}
-                pinned
-                onTogglePin={togglePin}
+                onUpdate={handleUpdate}
+                onDelete={handleDelete}
               />
             ))}
             <div className="mx-3 my-2 border-t border-white/5" />
@@ -313,8 +441,8 @@ export function ChatHistoryList() {
                 key={s.id}
                 session={s}
                 active={pathname === `/chat/${s.id}`}
-                pinned={false}
-                onTogglePin={togglePin}
+                onUpdate={handleUpdate}
+                onDelete={handleDelete}
               />
             ))}
           </div>

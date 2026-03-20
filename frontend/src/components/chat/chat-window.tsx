@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useChat } from '@/lib/chat-context';
@@ -9,6 +9,7 @@ import { MessageList } from './message-list';
 import { ChatInputBar } from './chat-input-bar';
 import { EmptyState } from './empty-state';
 import { OracleWelcome } from './oracle-welcome';
+import { SessionRating } from './session-rating';
 
 interface ChatWindowProps {
   sessionId?: string;
@@ -18,6 +19,8 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [hasBirthData, setHasBirthData] = useState<boolean | null>(null);
+  const [showRating, setShowRating] = useState(false);
+  const prevAssistantCount = useRef<number | null>(null);
   const {
     messages,
     isLoading,
@@ -73,6 +76,25 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, isAuthenticated]);
+
+  // Reset rating when session changes
+  useEffect(() => {
+    prevAssistantCount.current = null;
+    setShowRating(false);
+  }, [currentSession?.id]);
+
+  // Show rating after 3rd Oracle response (only when threshold is crossed, not on initial load)
+  useEffect(() => {
+    const count = messages.filter(m => m.role === 'assistant').length;
+    if (prevAssistantCount.current === null) {
+      prevAssistantCount.current = count;
+      return;
+    }
+    if (!showRating && count >= 3 && prevAssistantCount.current < 3) {
+      setShowRating(true);
+    }
+    prevAssistantCount.current = count;
+  }, [messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (authLoading) {
     return (
@@ -131,6 +153,16 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
           hasMoreMessages={hasMoreMessages}
           onLoadMore={loadMoreMessages}
         />
+      )}
+
+      {/* Session rating — after 3rd Oracle response, once per session */}
+      {showRating && currentSession && (
+        <div className="px-4 pb-1 shrink-0">
+          <SessionRating
+            sessionId={currentSession.id}
+            onRated={() => setShowRating(false)}
+          />
+        </div>
       )}
 
       {/* Input */}
