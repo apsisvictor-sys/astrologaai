@@ -59,6 +59,15 @@ function extractSearchSnippet(content: string, term: string, maxLen = 140): stri
 const MAX_CONTEXT_MESSAGES = 10; // Last 10 messages for context
 const SUMMARY_THRESHOLD = 20; // Generate summary after 20 messages
 
+// ENH-04: Approximate LLM cost in USD cents (character-length token estimates)
+function estimateCostCents(model: string, inputTokens: number, outputTokens: number): number {
+  const isHaiku = model.includes('haiku');
+  const isOpus = model.includes('opus');
+  const inputRate = isHaiku ? 0.025 : isOpus ? 1.5 : 0.3;
+  const outputRate = isHaiku ? 0.125 : isOpus ? 7.5 : 1.5;
+  return Math.round((inputTokens / 1000) * inputRate + (outputTokens / 1000) * outputRate);
+}
+
 // ============================================
 // Helper Functions
 // ============================================
@@ -394,6 +403,32 @@ ${aspectLines || 'No major aspects within orb today.'}`;
                 console.error('[Chat] Failed to generate session summary:', err);
               });
           }
+
+          // ENH-04: Aggregate token usage — character-length approximations
+          const modelUsed = process.env.LLM_MODEL || 'unknown';
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          const approxInput = BigInt(Math.ceil((systemPrompt?.length ?? 0) / 4));
+          const approxOutput = BigInt(Math.ceil(fullResponse.length / 4));
+          await prisma.llmUsage.upsert({
+            where: { date_tier_model: { date: today, tier: userTier, model: modelUsed } },
+            create: {
+              date: today,
+              tier: userTier,
+              model: modelUsed,
+              requestCount: 1,
+              inputTokens: approxInput,
+              outputTokens: approxOutput,
+              totalTokens: approxInput + approxOutput,
+              costUsdCents: estimateCostCents(modelUsed, Number(approxInput), Number(approxOutput)),
+            },
+            update: {
+              requestCount: { increment: 1 },
+              inputTokens: { increment: approxInput },
+              outputTokens: { increment: approxOutput },
+              totalTokens: { increment: approxInput + approxOutput },
+              costUsdCents: { increment: estimateCostCents(modelUsed, Number(approxInput), Number(approxOutput)) },
+            },
+          });
         } catch (err) {
           console.error('[Chat] Failed to persist assistant message (non-fatal):', err);
         }
