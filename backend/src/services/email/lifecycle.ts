@@ -15,6 +15,7 @@ import { Resend } from 'resend';
 import { prisma } from '../../utils/prisma';
 import { redisClient } from '../../utils/redis';
 import { WelcomeEmail } from '../../emails/WelcomeEmail';
+import { VerificationEmail } from '../../emails/VerificationEmail';
 import { OracleWaitingEmail } from '../../emails/OracleWaitingEmail';
 import { FeatureDiscoveryEmail } from '../../emails/FeatureDiscoveryEmail';
 import { ReEngagementEmail } from '../../emails/ReEngagementEmail';
@@ -266,4 +267,19 @@ export async function runLifecycleCron(): Promise<{ processed: number; sent: num
   }
 
   return { processed, sent, errors };
+}
+
+/**
+ * Send email verification link — BUG-45
+ * Called on register (fire-and-forget) and on resend request.
+ */
+export async function sendVerificationEmail(email: string, token: string, language = 'en'): Promise<void> {
+  const locale = language === 'bg' ? '' : 'en/';
+  const verifyUrl = `${FRONTEND_URL}/${locale}verify-email?token=${token}`;
+  const html = await render(VerificationEmail({ verifyUrl, language }));
+  const subject = language === 'bg'
+    ? 'Потвърди имейл адреса си ✦'
+    : 'Verify your email ✦';
+  const resend = getResend();
+  await resend.emails.send({ from: FROM_EMAIL, to: email, subject, html });
 }

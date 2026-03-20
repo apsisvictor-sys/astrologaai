@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Sidebar } from './sidebar';
 import { BottomNav } from './bottom-nav';
 import { UpgradeModal } from './upgrade-modal';
+import { EmailVerificationBanner } from './email-verification-banner';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [lockedFeature, setLockedFeature] = useState('');
@@ -13,6 +14,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <Sidebar onLockedFeatureClick={setLockedFeature} />
 
       <main className="flex-1 md:ml-[260px] min-h-screen pb-20 md:pb-0">
+        <EmailVerificationBanner />
         {children}
       </main>
 

@@ -20,9 +20,10 @@
  */
 
 import { Router } from 'express';
-import { register, login, refresh, logout, forgotPassword, resetPassword } from '../controllers/authController';
+import { register, login, refresh, logout, forgotPassword, resetPassword, verifyEmail, resendVerification } from '../controllers/authController';
 import { googleLogin, appleLogin, oauthCallback, getOAuthUrl } from '../controllers/oauthController';
 import { registrationLimiter, loginLimiter } from '../middleware/rateLimiter';
+import { authMiddleware } from '../middleware/auth';
 
 const router = Router();
 
@@ -103,5 +104,19 @@ router.get('/oauth-url/:provider', getOAuthUrl);
  * @body    { code: string, provider: string }
  */
 router.post('/callback', oauthCallback);
+
+/**
+ * @route   GET /api/v1/auth/verify-email?token=...
+ * @desc    Verify email address (BUG-45)
+ * @access  Public
+ */
+router.get('/verify-email', verifyEmail);
+
+/**
+ * @route   POST /api/v1/auth/resend-verification
+ * @desc    Resend verification email (BUG-45)
+ * @access  Private
+ */
+router.post('/resend-verification', authMiddleware, resendVerification);
 
 export default router;

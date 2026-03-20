@@ -12,6 +12,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
+    "db:sync": "prisma db push && prisma generate",
     "lint": "eslint src/**/*.ts",
     "test": "vitest run",
     "test:watch": "vitest"

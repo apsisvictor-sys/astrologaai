@@ -15,7 +15,7 @@ import { JWT_SECRET, JWT_CONFIG } from '../utils/jwt';
 import { render } from '@react-email/render';
 import { PasswordResetEmail } from '../emails/PasswordResetEmail';
 import { PasswordChangedEmail } from '../emails/PasswordChangedEmail';
-import { sendWelcomeEmail } from '../services/email/lifecycle';
+import { sendWelcomeEmail, sendVerificationEmail } from '../services/email/lifecycle';
 import { createRefreshToken, validateAndRotate, revokeToken, revokeUserTokens } from '../utils/refreshTokens';
 
 /**
@@ -170,6 +170,15 @@ export async function register(req: Request, res: Response, next: NextFunction):
     sendWelcomeEmail(user.id, user.email, user.fullName, detectedLanguage).catch((e) => {
       console.error('[Auth] Failed to send welcome email:', e);
     });
+
+    // BUG-45: Send verification email — fire-and-forget
+    const verificationToken = require('crypto').randomBytes(32).toString('hex');
+    const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    prisma.user.update({
+      where: { id: user.id },
+      data: { verificationToken, verificationTokenExpiry },
+    }).then(() => sendVerificationEmail(user.email, verificationToken, detectedLanguage))
+      .catch((e: unknown) => console.error('[Auth] Failed to send verification email:', e));
 
     // Return success response
     res.status(201).json({
@@ -680,6 +689,58 @@ export async function resetPassword(req: Request, res: Response, next: NextFunct
     console.error('[Auth] Reset password error:', error);
     next(error);
   }
+}
+
+/**
+ * Verify email address — BUG-45
+ * GET /api/v1/auth/verify-email?token=...
+ * Public — no auth required
+ */
+export async function verifyEmail(req: Request, res: Response): Promise<void> {
+  const { token } = req.query as { token: string };
+  if (!token) {
+    res.status(400).json({ success: false, error: { code: 'MISSING_TOKEN' } });
+    return;
+  }
+  const user = await prisma.user.findFirst({
+    where: {
+      verificationToken: token,
+      verificationTokenExpiry: { gt: new Date() },
+      emailVerified: false,
+    },
+  });
+  if (!user) {
+    res.status(400).json({ success: false, error: { code: 'INVALID_OR_EXPIRED_TOKEN', message: 'Verification link is invalid or has expired.' } });
+    return;
+  }
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { emailVerified: true, verificationToken: null, verificationTokenExpiry: null },
+  });
+  res.json({ success: true, data: { message: 'Email verified successfully.' } });
+}
+
+/**
+ * Resend verification email — BUG-45
+ * POST /api/v1/auth/resend-verification
+ * Auth required
+ */
+export async function resendVerification(req: Request, res: Response): Promise<void> {
+  const userId = (req as any).user?.id;
+  if (!userId) { res.status(401).json({ success: false }); return; }
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user || user.emailVerified) {
+    res.status(400).json({ success: false, error: { code: 'ALREADY_VERIFIED' } });
+    return;
+  }
+  const verificationToken = require('crypto').randomBytes(32).toString('hex');
+  const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await prisma.user.update({
+    where: { id: userId },
+    data: { verificationToken, verificationTokenExpiry },
+  });
+  await sendVerificationEmail(user.email, verificationToken, user.language || 'en');
+  res.json({ success: true, data: { message: 'Verification email sent.' } });
 }
 
 /**
