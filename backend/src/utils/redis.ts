@@ -27,6 +27,8 @@ const memoryClient = {
   lPop: async (_key: string) => null as null,
   lTrim: async (_key: string, _start: number, _stop: number) => {},
   keys: async (_pattern: string) => [] as string[],
+  sadd: async (_key: string, ..._members: string[]) => 0,
+  smembers: async (_key: string): Promise<string[]> => [],
   ping: async () => 'PONG',
   on: () => {},
   connect: async () => {},
@@ -216,15 +218,19 @@ export async function invalidateResetToken(token: string): Promise<void> {
 
 /**
  * Invalidate all user sessions
- * Used after password reset for security
+ * Used after password reset for security.
+ * Uses a Redis Set per user (user_sessions:${userId}) to find and delete all session contexts.
  */
 export async function invalidateUserSessions(userId: string): Promise<void> {
-  // Get all session keys for user
-  const pattern = `session:*:${userId}`;
-  const keys = await redisClient.keys(pattern);
-
-  if (keys.length > 0) {
-    await redisClient.del(keys);
+  try {
+    const setKey = `user_sessions:${userId}`;
+    const sessionIds = await redisClient.smembers(setKey);
+    if (sessionIds.length > 0) {
+      const contextKeys = sessionIds.map(id => `chat_context:${id}`);
+      await redisClient.del(setKey, ...contextKeys);
+    }
+  } catch (err) {
+    console.error('[Redis] invalidateUserSessions error:', err);
   }
 }
 

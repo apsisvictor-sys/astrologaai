@@ -50,24 +50,6 @@ export async function deleteAccount(req: Request, res: Response, next: NextFunct
 
     const { password } = req.body;
 
-    // Validate password is provided
-    if (!password) {
-      res.status(400).json({
-        success: false,
-        error: {
-          code: 'VALIDATION_ERROR',
-          message: 'Password confirmation is required',
-          details: [
-            {
-              field: 'password',
-              message: 'Please enter your password to confirm account deletion',
-            },
-          ],
-        },
-      });
-      return;
-    }
-
     // Get user with password hash
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
@@ -88,18 +70,41 @@ export async function deleteAccount(req: Request, res: Response, next: NextFunct
       return;
     }
 
-    // Verify password
-    const isValidPassword = await bcrypt.compare(password, user.passwordHash);
+    // OAuth-only users have no passwordHash — JWT auth is sufficient proof of identity
+    const isOAuthOnly = !user.passwordHash;
 
-    if (!isValidPassword) {
-      res.status(401).json({
-        success: false,
-        error: {
-          code: 'INVALID_PASSWORD',
-          message: 'Incorrect password. Please try again.',
-        },
-      });
-      return;
+    if (!isOAuthOnly) {
+      // Validate password is provided
+      if (!password) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Password confirmation is required',
+            details: [
+              {
+                field: 'password',
+                message: 'Please enter your password to confirm account deletion',
+              },
+            ],
+          },
+        });
+        return;
+      }
+
+      // Verify password
+      const isValidPassword = await bcrypt.compare(password, user.passwordHash as string);
+
+      if (!isValidPassword) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'INVALID_PASSWORD',
+            message: 'Incorrect password. Please try again.',
+          },
+        });
+        return;
+      }
     }
 
     // Store user email for confirmation message before deletion

@@ -783,7 +783,9 @@ router.get('/invoices', authMiddleware, async (req: Request, res: Response) => {
       amount: invoice.amount_paid / 100, // Convert from cents
       currency: invoice.currency.toUpperCase(),
       createdAt: new Date(invoice.created * 1000).toISOString(),
-      paidAt: invoice.status === 'paid' ? new Date(invoice.created * 1000).toISOString() : null,
+      paidAt: invoice.status === 'paid'
+        ? new Date(((invoice.status_transitions as any)?.paid_at ?? invoice.created) * 1000).toISOString()
+        : null,
       invoiceUrl: invoice.hosted_invoice_url,
       invoicePdf: invoice.invoice_pdf,
       description: invoice.lines.data[0]?.description || 'Subscription',
