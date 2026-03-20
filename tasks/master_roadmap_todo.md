@@ -1,5 +1,5 @@
 # AstroLogAI — Master Roadmap & Source of Truth
-> **Single source of truth.** Last updated: 2026-03-18 (Fix sprint complete — all 22 items resolved, deployed fc81ba7).
+> **Single source of truth.** Last updated: 2026-03-20 (Sprint 4 complete — annual billing, moon phase, pause subscription deployed ace2602).
 > All bugs found during testing, all pending work, all future plans live here.
 > When testing resumes (Section 7+), new bugs get added to this file.
 
@@ -21,21 +21,31 @@
 
 ---
 
-## 🚀 Ready to Deploy (code done locally, one deploy batch)
+## ✅ Sprint History
 
-| # | What | Files |
-|---|------|-------|
-| BUG-01 | ✅ Guest session localStorage cleared on login/register | `frontend/src/lib/auth-context.tsx` |
-| BUG-02 | ✅ Swiss Ephemeris second provider removed | `astrology-orchestrator.ts`, `services/astrology/index.ts`, `routes/astrology.ts` |
-| BUG-03 | ✅ Login error shows correctly (submitError state + min-h reserved space) | `frontend/src/components/login-form.tsx`, `frontend/src/lib/auth-context.tsx` |
-| BUG-09 | ✅ Dashboard quick action labels fixed (Chat/Forecast/Partners) | `frontend/src/app/[locale]/(app)/dashboard/page.tsx` |
-| BUG-10 | ✅ FREE tier DailyHoroscopeCard shows 2 free sections | `frontend/src/components/forecast/daily-horoscope-card.tsx` |
-| BUG-11 | ✅ Chat in sidebar nav, dashboard CTA → /chat | `frontend/src/components/shell/sidebar-nav.tsx`, `dashboard/page.tsx` |
-| BUG-15 | ✅ Oracle language default fixed (bg → en) | `middleware/languageDetection.ts` |
-| BUG-16 | ✅ New Oracle system prompt written by Opus | `services/llm-helpers.ts` |
-| UI | ✅ CosmicSpinner — unified orbital loading animation | `spinner.tsx` + login-form, registration-form, forecast-panel, chart-loading |
+| Sprint | Name | Deployed | Key Items |
+|--------|------|---------|-----------|
+| Fix sprint | Stability | 2026-03-17 (059b70d / b8f1f22 / fc81ba7) | BUG-01/02/03/09/10/11/15/16/20/21/22/23/25/26/27/28/29/30/32/33 + CosmicSpinner, auth-context hardening, DB consolidation |
+| Sprint 1 | Lockdown | 2026-03-18/19 | Security audit fixes: BUG-34/35/36/37/41/42/43/44/47/48/49/50/51/52/53/54/56 |
+| Sprint 2 | Growth emails | 2026-03-19 | React Email templates, branded transactional emails, lifecycle cron (FEAT-05), Big 3 share card (ENH-18), retrograde banners (ENH-20) |
+| Sprint 3 | (merged into Sprint 2 delivery) | 2026-03-19 | — |
+| Sprint 4 | Revenue | 2026-03-20 (ace2602) | Annual billing (FEAT-07), moon phase dashboard (FEAT-06), pause/cancel (ENH-19) |
 
-**Deployed 2026-03-17.**
+---
+
+## ✅ Deployed Batch — 2026-03-17 (historical)
+
+| # | What |
+|---|------|
+| BUG-01 | ✅ Guest session localStorage cleared on login/register |
+| BUG-02 | ✅ Swiss Ephemeris second provider removed |
+| BUG-03 | ✅ Login error shows correctly |
+| BUG-09 | ✅ Dashboard quick action labels fixed (Chat/Forecast/Partners) |
+| BUG-10 | ✅ FREE tier DailyHoroscopeCard shows 2 free sections |
+| BUG-11 | ✅ Chat in sidebar nav, dashboard CTA → /chat |
+| BUG-15 | ✅ Oracle language default fixed (bg → en) |
+| BUG-16 | ✅ New Oracle system prompt |
+| UI | ✅ CosmicSpinner — unified orbital loading animation |
 
 ---
 
@@ -43,7 +53,7 @@
 
 > Found during systematic source-level audit of all backend and frontend source files. **Fix all CRITICAL items before public launch.** Items ordered by severity.
 
-### BUG-34 — CRITICAL: Stripe webhook forgery — attacker can self-upgrade any account to PREMIUM for free
+### ~~BUG-34~~ — ✅ RESOLVED (2026-03-18, 60570ff) — Stripe webhook forgery fixed
 - **Priority:** CRITICAL — direct revenue loss; no Stripe involvement needed; single `curl` command exploits it
 - **Where:** `backend/src/routes/subscription.ts` — webhook handler (search for `STRIPE_WEBHOOK_SECRET`)
 - **Symptom:** When `STRIPE_WEBHOOK_SECRET` is not set in the environment, OR when the `stripe-signature` header is absent from the incoming request, the handler skips signature verification entirely and processes the raw JSON body as a valid `Stripe.Event`. An attacker can `curl -X POST` the webhook URL with a crafted `customer.subscription.updated` body setting any user's tier to `premium` — no Stripe account needed.
@@ -56,7 +66,7 @@
 
 ---
 
-### BUG-35 — CRITICAL: Rate limit middleware fails open on Redis/DB error — all users get unlimited queries during any outage
+### ~~BUG-35~~ — ✅ RESOLVED (2026-03-18, b297b13) — Rate limit middleware now fails closed
 - **Priority:** CRITICAL — direct billing abuse risk; any Redis hiccup bypasses ALL subscription limits for ALL users simultaneously
 - **Where:** `backend/src/middleware/queryLimit.ts` lines ~397-404 — the outer `catch` block
 - **Symptom:** The `catch` block calls `next()` unconditionally on any error (Redis unreachable, Postgres timeout, network blip). During any infrastructure hiccup, every user including FREE tier gets unlimited Oracle queries for the duration of the outage.
@@ -68,7 +78,7 @@
 
 ---
 
-### BUG-36 — CRITICAL: Refresh token stored in localStorage — defeats httpOnly cookie, enables account takeover via XSS
+### ~~BUG-36~~ — ✅ RESOLVED (2026-03-18, 63fb53f + b817b00) — Refresh token no longer in localStorage; httpOnly cookie only; SameSite:none in prod
 - **Priority:** CRITICAL — any XSS in the app (including third-party scripts) can steal the refresh token and silently own accounts for 7 days
 - **Where:** `frontend/src/lib/auth-context.tsx` lines ~293-294, ~347-348, ~466-493 — `loginUser`, `registerUser`, `refreshSession` functions
 - **Symptom:** The backend sets `refresh_token` as an `httpOnly` cookie correctly. However, the backend also returns `refreshToken` in the JSON response body, and the frontend saves it to `localStorage` as `astrologaai_refresh_token`. The `refreshSession` function reads this localStorage value and sends it in the POST body to `/auth/refresh`. This completely negates the httpOnly protection — a single XSS payload can steal the token and maintain access indefinitely.
@@ -82,7 +92,7 @@
 
 ---
 
-### BUG-37 — CRITICAL: CORS wildcard allows any Vercel deployment to make credentialed requests to the API
+### ~~BUG-37~~ — ✅ RESOLVED (2026-03-18, 556acf0) — CORS wildcard replaced with regex matching own Vercel project only
 - **Priority:** CRITICAL — any attacker-controlled `*.vercel.app` domain can make credentialed API requests on behalf of logged-in users
 - **Where:** `backend/src/config/runtime.ts` lines ~50-52 — CORS origin allowlist
 - **Symptom:** CORS allows `*.vercel.app` with `credentials: true`. An attacker deploys any Vercel app, serves a page that silently fetches the AstroLogAI API, and the browser includes the victim's cookies. The response is readable by the attacker's origin — full user data exfiltration, chat session access, and account manipulation.
@@ -94,7 +104,8 @@
 
 ---
 
-### BUG-38 — HIGH: No refresh token rotation — stolen refresh tokens remain valid for 7 days with no revocation path
+### ~~BUG-38~~ — ✅ RESOLVED (2026-03-20, d5aa22d) — Refresh token rotation with opaque tokens + JWT compat shim (remove shim 2026-04-20)
+### ~~BUG-38 original~~ — HIGH: No refresh token rotation — stolen refresh tokens remain valid for 7 days with no revocation path
 - **Priority:** HIGH — once a token is stolen (especially from localStorage per BUG-36), the attacker can silently maintain access with no detection
 - **Where:** `backend/src/controllers/authController.ts` — `refreshToken` endpoint handler
 - **Symptom:** When a refresh token is exchanged for a new access token, the old token is NOT invalidated. No token family is tracked. Both the legitimate user and an attacker with the stolen token can use the same refresh token indefinitely for 7 days. Silent parallel sessions with no alert.
@@ -105,7 +116,8 @@
 
 ---
 
-### BUG-39 — HIGH: Session invalidation after password change uses wrong Redis key pattern — existing sessions never invalidated
+### ~~BUG-39~~ — ✅ RESOLVED (2026-03-20, fa1d947) — Session invalidation uses Redis Set per user; sessions registered on create
+### ~~BUG-39 original~~ — HIGH: Session invalidation after password change uses wrong Redis key pattern — existing sessions never invalidated
 - **Priority:** HIGH — a user who changes their password cannot force-logout active sessions, including attacker sessions after account takeover
 - **Where:** `backend/src/utils/redis.ts` line ~222 — `invalidateUserSessions` function
 - **Symptom:** `invalidateUserSessions` scans for keys matching `session:*:${userId}`. Chat contexts are stored under `chat_context:${sessionId}` (user ID is not in the key). The scan returns zero matches. After a password change or account recovery, all existing sessions — including those held by an attacker — continue to work.
@@ -134,7 +146,7 @@
 
 ---
 
-### BUG-41 — HIGH: Stripe webhook sets subscription period end to hardcoded +30 days — annual subscribers lose access after 30 days
+### ~~BUG-41~~ — ✅ RESOLVED (2026-03-18, 1242244) — Stripe subscription period end uses actual Stripe value
 - **Priority:** HIGH — billing correctness; annual subscribers pay for 12 months and get cut off after 30
 - **Where:** `backend/src/routes/subscription.ts` — `invoice.payment_succeeded` handler line ~908
 - **Symptom:** `currentPeriodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)` — hardcoded 30-day expiry set on every successful payment, regardless of whether the subscription is monthly or annual.
@@ -147,7 +159,7 @@
 
 ---
 
-### BUG-42 — HIGH: Pricing mismatch — frontend shows €9.99/€19.99, backend config has 10/20 — users see wrong prices
+### ~~BUG-42~~ — ✅ RESOLVED (2026-03-18, 240a37a) — Prices unified to 9.99/19.99 across backend config and frontend
 - **Priority:** HIGH — users see one price and may pay a different one; chargeback and trust risk
 - **Where:**
   - `frontend/src/app/[locale]/pricing/page.tsx` lines ~50-108 — `PLANS` array (hardcoded 9.99/19.99)
@@ -161,7 +173,7 @@
 
 ---
 
-### BUG-43 — HIGH: Clearing chat history resets the Redis rate limit counter — FREE users can bypass daily query limits
+### ~~BUG-43~~ — ✅ RESOLVED (2026-03-18, 05afe1e) — via BUG-44: duplicate rate limiter removed
 - **Priority:** HIGH — abuse vector; any FREE user can get unlimited daily queries by repeatedly clearing chat history
 - **Where:** `backend/src/controllers/chatController.ts` lines ~926-928 — `clearAllSessions` function
 - **Symptom:** `clearAllSessions` deletes the Redis key `monthly:${userId}:${month}` — the same key used by `chatController.ts`'s internal `checkRateLimit`. After clearing, the counter reads 0 and the user gets 3 fresh queries. Repeat indefinitely.
@@ -170,7 +182,7 @@
 
 ---
 
-### BUG-44 — HIGH: Two contradictory rate limit systems — inconsistent user errors and partial bypass possible
+### ~~BUG-44~~ — ✅ RESOLVED (2026-03-18, 05afe1e) — Duplicate Redis rate limiter removed from chatController; queryLimitMiddleware is sole authority
 - **Priority:** HIGH — users can receive different rate limit errors from the same request; one system can be bypassed (BUG-43)
 - **Where:**
   - `backend/src/controllers/chatController.ts` lines ~85-138 — `checkRateLimit` using Redis monthly counters with stale "FREE: 10/month" comment
@@ -185,10 +197,11 @@
 
 ---
 
-### BUG-45 — MEDIUM: Email verification is not implemented — any address registers immediately without verification
+### ~~BUG-45~~ — ✅ RESOLVED (2026-03-20, c27d118) — Verification email on register, verify route, resend route, banner for unverified users
+### ~~BUG-45 original~~ — MEDIUM: Email verification is not implemented — any address registers immediately without verification
 - **Priority:** MEDIUM — spam account risk; users with typo'd emails have no recovery path; no proof of address ownership
-- **Where:** `backend/src/controllers/authController.ts` lines ~166-168 — post-registration logic
-- **Symptom:** Registration logs `console.log('Send verification email to', email)` (or similar) but no email is sent. Users see a message implying verification is pending, but accounts are immediately active and fully functional.
+- **Where:** `backend/src/controllers/authController.ts` — post-registration logic
+- **Symptom:** `authController.ts` line ~170 has `// TODO: Send confirmation email via Resend`. The `emailVerified` column exists in the DB and is set to `false` on registration, but no verification email is sent and no verification endpoint exists. Accounts are immediately active and fully functional.
 - **Fix:**
   1. Generate a `verificationToken` (`crypto.randomBytes(32).toString('hex')`) on registration. Store it + a 24h expiry on the User row.
   2. Send a verification email via Resend (already integrated) with link: `https://astrologa.bg/verify-email?token=...`.
@@ -198,7 +211,8 @@
 
 ---
 
-### BUG-46 — MEDIUM: OAuth users cannot delete their account — bcrypt throws on null passwordHash
+### ~~BUG-46~~ — ✅ RESOLVED (2026-03-20, fa1d947) — OAuth-only users skip password check on delete (JWT auth is sufficient)
+### ~~BUG-46 original~~ — MEDIUM: OAuth users cannot delete their account — bcrypt throws on null passwordHash
 - **Priority:** MEDIUM — Google OAuth users are permanently locked out of self-service account deletion; support burden
 - **Where:** `backend/src/controllers/deleteAccountController.ts` line ~92 — password verification step
 - **Symptom:** `deleteAccount` calls `bcrypt.compare(password, user.passwordHash)`. OAuth users either have `passwordHash = null` or a bcrypt salt string (not a real user-set password). If `passwordHash` is null, `bcrypt.compare` throws synchronously before the async phase — the surrounding try/catch may not catch it. Even if it doesn't throw, the comparison always fails. OAuth users can never pass this check.
@@ -210,7 +224,7 @@
 
 ---
 
-### BUG-47 — MEDIUM: /health/env endpoint is publicly accessible — exposes infrastructure configuration to anyone
+### ~~BUG-47~~ — ✅ RESOLVED (2026-03-18, 6f9a360) — /health/env endpoint removed entirely
 - **Priority:** MEDIUM — security reconnaissance; helps attackers identify which services are configured or missing
 - **Where:** `backend/src/index.ts` — `/health/env` route registration (no auth middleware applied)
 - **Symptom:** `GET /health/env` returns a JSON map of which environment variables are present vs absent. Any external caller learns whether `STRIPE_WEBHOOK_SECRET` is set, what Redis config is active, which AI providers are configured, etc.
@@ -218,7 +232,7 @@
 
 ---
 
-### BUG-48 — MEDIUM: Multiple PrismaClient instances across files — will exhaust PostgreSQL connection pool under load
+### ~~BUG-48~~ — ✅ RESOLVED (2026-03-18, e07fbf9) — All files use shared Prisma singleton from utils/prisma
 - **Priority:** MEDIUM — in production under moderate traffic, Railway Postgres will hit its connection limit, causing 500 errors
 - **Where:**
   - `backend/src/controllers/chatController.ts` line ~39 — `new PrismaClient()`
@@ -229,7 +243,7 @@
 
 ---
 
-### BUG-49 — MEDIUM: New chat session title is always hardcoded in Bulgarian regardless of user language
+### ~~BUG-49~~ — ✅ RESOLVED (2026-03-18, 8f94032) — Session title uses user.language to set EN/BG default
 - **Priority:** MEDIUM — English-language users see 'Нов разговор' (Bulgarian) as the title for every new conversation in their sidebar
 - **Where:** `backend/src/controllers/chatController.ts` line ~194 — `createSession` function
 - **Symptom:** `title: 'Нов разговор'` is hardcoded. English users see Bulgarian text in the chat history list.
@@ -241,7 +255,7 @@
 
 ---
 
-### BUG-50 — MEDIUM: /api/v1/cron/status has no authentication — exposes internal scheduling configuration publicly
+### ~~BUG-50~~ — ✅ RESOLVED (2026-03-18, 60e9a49) — adminAuthMiddleware required on /cron/status
 - **Priority:** MEDIUM — information disclosure; leaks internal reset schedule and cron configuration
 - **Where:** `backend/src/routes/cron.ts` line ~140 — cron status endpoint
 - **Symptom:** The endpoint checks for a cron job secret header but has a fallback that returns reset-day configuration publicly when the header is absent. Any external caller can read the cron schedule.
@@ -249,7 +263,7 @@
 
 ---
 
-### BUG-51 — MEDIUM: Admin panel silently inaccessible if ADMIN_EMAILS env var is not set — no diagnostic
+### ~~BUG-51~~ — ✅ RESOLVED (2026-03-18, 75dd055) — Startup warning added when ADMIN_EMAILS is not set
 - **Priority:** MEDIUM — silent production lockout; no error message; no startup warning
 - **Where:** `backend/src/middleware/adminAuth.ts` — admin email check
 - **Symptom:** If `ADMIN_EMAILS` is not set in Railway, the parsed array is empty and every admin request returns 403 with no explanation. There is no startup log or health check warning. Victor would have no obvious diagnostic.
@@ -259,7 +273,7 @@
 
 ---
 
-### BUG-52 — MEDIUM: Guest chat language hardcoded to English — Bulgarian guests always get English Oracle responses
+### ~~BUG-52~~ — ✅ RESOLVED (2026-03-18, 7528d96) — Guest chat language from request body or Accept-Language header
 - **Priority:** MEDIUM — Bulgarian-speaking guests (the primary target market) experience the Oracle in English; reduces conversion
 - **Where:** `backend/src/routes/guestChat.ts` line ~169 — language passed to chart summary generation
 - **Symptom:** `language: 'en'` is hardcoded regardless of the guest's browser language or the locale in the URL path.
@@ -269,7 +283,7 @@
 
 ---
 
-### BUG-53 — LOW: bcrypt.genSaltSync used as OAuth user random password — semantically wrong and misleading to future maintainers
+### ~~BUG-53~~ — ✅ RESOLVED (2026-03-18, 0efd678) — Using crypto.randomBytes for OAuth fake password
 - **Priority:** LOW — works at runtime but is a maintenance hazard
 - **Where:** `backend/src/controllers/oauthController.ts` line ~243
 - **Symptom:** `const fakePassword = bcrypt.genSaltSync(32)` generates a bcrypt salt string (e.g., `$2b$32$...`), which looks like an already-hashed value. Future maintainers may skip hashing it or assume it's already processed.
@@ -277,7 +291,7 @@
 
 ---
 
-### BUG-54 — LOW: OAuth users always created with language 'bg' — English-speaking Google users get Bulgarian UI and Oracle responses
+### ~~BUG-54~~ — ✅ RESOLVED (2026-03-18, 0efd678) — New OAuth users inherit locale from Accept-Language header
 - **Priority:** LOW — English-speaking Google OAuth users default to Bulgarian; first session is in wrong language
 - **Where:** `backend/src/controllers/oauthController.ts` line ~260 — user creation on first OAuth login
 - **Symptom:** `language: 'bg'` is hardcoded for all new OAuth users. A user who clicks "Sign in with Google" from the English-language homepage gets a Bulgarian UI and Bulgarian Oracle.
@@ -287,7 +301,8 @@
 
 ---
 
-### BUG-55 — LOW: Subscription paidAt records invoice creation time not actual payment time
+### ~~BUG-55~~ — ✅ RESOLVED (2026-03-20, fa1d947) — paidAt uses Stripe status_transitions.paid_at
+### ~~BUG-55 original~~ — LOW: Subscription paidAt records invoice creation time not actual payment time
 - **Priority:** LOW — minor billing record accuracy issue; affects retried invoices
 - **Where:** `backend/src/routes/subscription.ts` line ~696 — `paidAt` field in `invoice.payment_succeeded` handler
 - **Symptom:** `paidAt: new Date(invoice.created * 1000)` — uses invoice creation timestamp. For invoices with failed first attempts and later retries, `paidAt` could be hours or days before actual payment.
@@ -295,7 +310,7 @@
 
 ---
 
-### BUG-56 — LOW: PREMIUM burst limit documented as "unlimited" in comments but code enforces 60 req/min
+### ~~BUG-56~~ — ✅ RESOLVED (2026-03-18, 4f76d4c) — PREMIUM burstLimit set to -1 (truly unlimited)
 - **Priority:** LOW — comment/reality mismatch; potential marketing copy inconsistency
 - **Where:** `backend/src/config/subscription-tiers.ts` lines ~68-93 + `backend/src/middleware/queryLimit.ts` lines ~63-70
 - **Symptom:** Code comments say "PREMIUM: no burst limits" / "unlimited". In reality `burstLimit: 60` is set and `isUnlimitedBurst` only returns true when `burstLimit === -1`. PREMIUM users hitting >60 req/min are rate-limited.
@@ -364,10 +379,7 @@
 
 ---
 
-### BUG-09 — Quick action card labels are wrong on Dashboard
-- **Priority:** Medium — misleading navigation labels
-- **Where:** `frontend/src/app/[locale]/(app)/dashboard/page.tsx` — Quick Actions section
-- **Fix:** Oracle → Chat → `/chat` | Transits → Forecast → `/forecast` | Synastry → Partners → `/partners`
+### ~~BUG-09~~ — ✅ RESOLVED (2026-03-17, deployed) — Dashboard quick actions now Chat/Forecast/Partners with correct hrefs
 
 ---
 
@@ -376,11 +388,7 @@
 
 ---
 
-### BUG-11 — Wrong CTA + no Chat button in navigation
-- **Priority:** HIGH — Chat is the core product and is not reachable from main nav
-- **Where:** `frontend/src/app/[locale]/(app)/dashboard/page.tsx` + `frontend/src/components/shell/sidebar.tsx`
-- **Fix 1:** CTA button: change label "Unlock The Oracle" → "Chat with the Oracle", href → `/chat`
-- **Fix 2:** Add Chat nav item to sidebar near top of nav list
+### ~~BUG-11~~ — ✅ RESOLVED (2026-03-17, deployed) — Chat is first item in sidebar nav; dashboard CTA says "Chat with the Oracle" → /chat
 
 ---
 
@@ -518,10 +526,8 @@
 
 ---
 
-### ENH-04 — Wire LlmUsage table (Task 9 from old roadmap)
-- **Priority:** Medium — admin usage/cost page currently shows no data
-- **Where:** `backend/src/controllers/chatController.ts` — after each LLM stream completes
-- **Fix:** After stream, write to `LlmUsage` table: date, tier, model, inputTokens, outputTokens, latencyMs
+### ~~ENH-04~~ — ✅ RESOLVED (2026-03-20, 14dd8dd) — LlmUsage upsert after each Oracle stream; character-length token approximations
+### ~~ENH-04 original~~ — Wire LlmUsage table (Task 9 from old roadmap)
 
 ---
 
@@ -584,7 +590,7 @@
 
 ---
 
-### ENH-19 — HIGH IMPACT: Pause instead of cancel — saves 20-40% of would-be cancellations passively
+### ENH-19 — HIGH IMPACT: Pause instead of cancel ✅ CODE COMPLETE (2026-03-20, ace2602)
 - **Impact:** HIGH — industry standard retention mechanic. A single Stripe API call and a modal. No ongoing maintenance. Directly reduces churn.
 - **Where:** Cancel button in `frontend/src/app/[locale]/(app)/settings/subscription/page.tsx` + new `POST /api/v1/subscription/pause` backend route
 - **What:** When user clicks "Cancel subscription", show an intermediate modal before processing: *"Life gets busy. Pause your subscription for 1 month instead — your chart, Oracle history, and partner profiles stay safe."* Two buttons: "Pause for 1 month" (primary) and "Cancel anyway" (secondary, smaller).
@@ -752,7 +758,7 @@
 
 ---
 
-### FEAT-06 — HIGH IMPACT: Moon phase tracker — the #1 daily engagement driver in astrology apps
+### FEAT-06 — HIGH IMPACT: Moon phase tracker ✅ CODE COMPLETE (2026-03-20, ace2602)
 - **Impact:** HIGH — every serious astrology app shows the current moon phase. Users check it daily. New Moon and Full Moon in a user's natal chart house is deeply personal and drives daily opens. Without it the app feels static.
 - **Where:** New `backend/src/services/moon-phase.ts` + Dashboard widget + `/forecast` page section
 - **What:** Current moon phase with phase name, percentage illumination, exact sign and degree, and which house it falls in the user's natal chart. Next New Moon and Full Moon countdowns.
@@ -770,7 +776,7 @@
 
 ---
 
-### FEAT-07 — HIGH IMPACT: Annual billing with 20% discount — 2-3× LTV improvement per subscriber
+### FEAT-07 — HIGH IMPACT: Annual billing with 25% discount ✅ CODE COMPLETE (2026-03-20, ace2602)
 - **Impact:** HIGH — annual billing eliminates 11 monthly churn decision points per customer per year. Industry standard offer: pay for 10 months, get 12. For a €9.99/month product: €95.90/year (vs €119.88 monthly). Significant revenue improvement with minimal engineering.
 - **Where:** `backend/src/routes/subscription.ts` + `backend/src/config/subscription-tiers.ts` + `frontend/src/app/[locale]/pricing/page.tsx`
 - **Blocked on:** Victor creating yearly Stripe Price IDs (already in Deferred table)
@@ -783,9 +789,14 @@
 
 ---
 
-### FEAT-08 — HIGH IMPACT: Product analytics + error tracking — required before you can optimise anything
+### ~~FEAT-08~~ — ✅ RESOLVED (2026-03-20, e22daa2) — PostHog mounted in layout, Sentry wired frontend + backend
+### ~~FEAT-08 original~~ — HIGH IMPACT: Product analytics + error tracking ⚠️ PARTIAL
 - **Impact:** HIGH — you are currently flying blind. You do not know where users drop off in onboarding, which Oracle features drive upgrades, or when your app throws errors in production. Both tools are free at startup scale.
 - **Tools:** PostHog (product analytics, free up to 1M events/month) + Sentry (error tracking, free tier)
+- **Status:**
+  - ✅ Sentry frontend: `sentry.client.config.ts`, `sentry.server.config.ts`, `instrumentation.ts` — properly wired via Next.js wizard
+  - ⚠️ PostHog frontend: `posthog-provider.tsx` + `analytics.ts` written and complete, BUT `<PostHogProvider>` is NOT yet mounted in `app/[locale]/layout.tsx`. Also needs `NEXT_PUBLIC_POSTHOG_KEY` env var set in Vercel.
+  - ❌ Sentry backend: not wired. `errorLogger.ts` is a Winston-based logger, not Sentry. Needs `@sentry/node` init in `backend/src/index.ts`.
 - **Implementation — Sentry (backend + frontend):**
   - Backend: `npm install @sentry/node`. In `backend/src/index.ts`, call `Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV })` before any route registration. Add `Sentry.Handlers.requestHandler()` as the first middleware and `Sentry.Handlers.errorHandler()` as the last error middleware. This catches all unhandled exceptions and 500 responses automatically.
   - Frontend: `npm install @sentry/nextjs`. Run `npx @sentry/wizard@latest -i nextjs`. Wraps the app automatically. Captures client-side errors including React rendering errors.
