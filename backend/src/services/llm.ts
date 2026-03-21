@@ -159,7 +159,7 @@ Rules for suggestions:
 - ${suggestionRules}
 - Do not number them or add punctuation after [SUGGESTIONS]/[/SUGGESTIONS]`;
 
-    const systemPromptContext = tier === 'FREE'
+    const systemPromptContext = (tier === 'FREE'
       ? `The user is on the FREE plan — 'The Seeker' (Търсачът).
 Your natal chart data and today's active transits are already loaded in your context above — use them directly without calling any tools.
 You CANNOT access year-ahead forecasts, monthly returns, or relationship analysis on this plan.
@@ -188,7 +188,7 @@ For synastry/composite tools, use the partner ID from the stored partners list b
 ${config.partners && config.partners.length > 0
   ? `Stored partners: ${config.partners.map(p => `${p.name} (id: ${p.id})`).join(', ')}. If the user refers to someone not in this list, ask them to add that person's birth data via Settings → Partners first.`
   : `No partners stored yet. If the user asks about relationship compatibility, invite them to add a partner's birth data via Settings → Partners.`}
-Answer every question with depth, nuance, and comprehensive multi-tool synthesis when relevant.`
+Answer every question with depth, nuance, and comprehensive multi-tool synthesis when relevant.`)
       + SUGGESTION_INSTRUCTION;
 
     if (coreMessages.length > 0 && coreMessages[0].role === 'system') {
