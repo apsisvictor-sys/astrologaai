@@ -136,6 +136,29 @@ export async function* streamChatCompletion(
     }
 
     // Tier-accurate system prompt context — must exactly match the tools above
+    const suggestionRules = tier === 'FREE'
+      ? 'Never suggest partner, synastry, or relationship-compatibility questions in your suggestions.'
+      : tier === 'PRO'
+      ? 'Never suggest synastry, composite chart, or partner-specific questions in your suggestions.'
+      : 'All topics are allowed in your suggestions including partner and relationship compatibility.';
+
+    const SUGGESTION_INSTRUCTION = `
+
+[CONVERSATION SUGGESTIONS]
+After EVERY response — no exceptions — append this exact block on a new line after your main text:
+[SUGGESTIONS]
+<follow-up question 1>
+<follow-up question 2>
+<follow-up question 3>
+[/SUGGESTIONS]
+
+Rules for suggestions:
+- Must be directly relevant to what was just discussed
+- Keep each question under 12 words
+- Mix simple plain-language and astrology-aware questions
+- ${suggestionRules}
+- Do not number them or add punctuation after [SUGGESTIONS]/[/SUGGESTIONS]`;
+
     const systemPromptContext = tier === 'FREE'
       ? `The user is on the FREE plan — 'The Seeker' (Търсачът).
 Your natal chart data and today's active transits are already loaded in your context above — use them directly without calling any tools.
@@ -165,7 +188,8 @@ For synastry/composite tools, use the partner ID from the stored partners list b
 ${config.partners && config.partners.length > 0
   ? `Stored partners: ${config.partners.map(p => `${p.name} (id: ${p.id})`).join(', ')}. If the user refers to someone not in this list, ask them to add that person's birth data via Settings → Partners first.`
   : `No partners stored yet. If the user asks about relationship compatibility, invite them to add a partner's birth data via Settings → Partners.`}
-Answer every question with depth, nuance, and comprehensive multi-tool synthesis when relevant.`;
+Answer every question with depth, nuance, and comprehensive multi-tool synthesis when relevant.`
+      + SUGGESTION_INSTRUCTION;
 
     if (coreMessages.length > 0 && coreMessages[0].role === 'system') {
       coreMessages[0].content += `\n\n[TIER SYSTEM INSTRUCTION]\n${systemPromptContext}`;
