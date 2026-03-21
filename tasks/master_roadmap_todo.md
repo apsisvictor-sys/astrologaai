@@ -1028,11 +1028,10 @@ ALTER TABLE chat_sessions ADD COLUMN shared_token VARCHAR(64) UNIQUE DEFAULT NUL
 
 ### FUTURE-05 — ~~Wire Admin Prompts UI to Live Oracle (BUG-17 Option A)~~ ✅ DONE (f239670)
 
-### FUTURE-06 — Dynamic Chat Suggested Prompts
-- **Where:** `frontend/src/components/chat/empty-state.tsx`
-- **What:** Currently shows 3 static hardcoded prompts. Replace with context-aware suggestions that change based on: user's chart (sun/moon/rising signs), their recent chat history topics, current transits, and time of day.
-- **How:** Backend endpoint `GET /api/v1/chat/suggested-prompts` — reads user's birth profile + last 3 chat session titles + current day's transit → Claude Haiku generates 3 personalized prompt ideas (cached per user per day in Redis).
-- **UX:** Prompts rotate on each new conversation. First-time users see generic prompts. Returning users see chart-tailored prompts like "Your Venus in Scorpio intensifies today — how does this affect relationships?"
+### ~~FUTURE-06 — Dynamic Chat Suggested Prompts~~ ✅ DONE (058b0cf)
+- **What shipped:** Hybrid approach — static tier-gated question bank (62 questions) for empty state + Oracle-generated mid-conversation suggestion chips
+- **Empty state:** `selectQuestions(tier)` returns 2 unlocked + 1 locked (from next tier up) for FREE/PRO; 3 unlocked for PREMIUM; lock shows upgrade tooltip
+- **Mid-conversation chips:** Oracle appends `[SUGGESTIONS]...[/SUGGESTIONS]` block; frontend strips from display, parses, renders clickable chips below Oracle response; clicking prefills input
 
 ---
 

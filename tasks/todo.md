@@ -1,64 +1,45 @@
-# Sprint 4 Completion — Polish
+# Sprint 5 — FUTURE-06: Suggested Prompts
 
-## ENH-12: Chat session 3-dot context menu
+## Plan
+Full implementation plan: `docs/superpowers/plans/2026-03-21-suggested-prompts.md`
+Execute with: `superpowers:subagent-driven-development`
 
-### Architecture
-- DB: 3 new columns on `chat_sessions` — `is_pinned`, `is_archived`, `shared_token`
-- Backend: extend PATCH /sessions/:id (pin + archive), add POST/DELETE /sessions/:id/share, filter archived from GET /sessions
-- Frontend: replace 📌 hover button with `···` dropdown in chat-history-list.tsx
+## Architecture
+- **Empty state**: static question bank (62 questions, tier-gated) — 2 eligible + 1 always-locked from next tier
+- **Mid-conversation**: Oracle appends `[SUGGESTIONS]...[/SUGGESTIONS]` block → frontend strips from display, parses after stream, renders as clickable chips that prefill the input
 
-### Backend tasks
-- [x] **B1** `prisma/schema.prisma` — add `isPinned`, `isArchived`, `sharedToken` to ChatSession + db:push
-- [x] **B2** `routes/chat.ts` — extend `PATCH /sessions/:id` to accept `isPinned` and `isArchived`
-- [x] **B3** `routes/chat.ts` — add `POST /sessions/:id/share` (generate nanoid token, return shareUrl) and `DELETE /sessions/:id/share` (clear token)
-- [x] **B4** `routes/chat.ts` — `GET /sessions` excludes `isArchived=true` by default; add `?archived=true` param
-- [x] **B5** `routes/chat.ts` — add `GET /share/:token` (public, no auth) — returns session title + messages for shared view
-
-### Frontend tasks
-- [x] **F1** `chat-history-list.tsx` — replace 📌 hover with `···` button; build dropdown (Pin · Share · Rename · Delete · Archive)
-- [x] **F2** `chat-history-list.tsx` — pinned sessions float to top of list with pin icon
-- [x] **F3** `chat-history-list.tsx` — Share: copy link to clipboard + "Copied!" toast; Rename: inline edit field; Archive: removes from list
-- [x] **F4** `app/share/[token]/page.tsx` — public read-only conversation view (no auth required)
-
----
-
-## ENH-25: Oracle session rating (after 3rd Oracle message)
-
-### Architecture
-- DB: `rating SMALLINT` column on `chat_sessions` (simpler than a separate table — one rating per session)
-- Backend: `POST /api/v1/chat/sessions/:id/rate` — body `{ rating: 1-5 }`
-- Frontend: count Oracle messages; after 3rd Oracle response, show 5 stars below that message; auto-hide 8s; on click → POST + show "✦ Noted"
-- Admin: average daily rating + table of 1-2 star sessions
-
-### Backend tasks
-- [x] **B6** `prisma/schema.prisma` — add `rating Int?` to ChatSession (same migration as B1)
-- [x] **B7** `routes/chat.ts` — `POST /sessions/:id/rate` — validates 1-5, updates `chat_sessions.rating`
-- [x] **B8** `routes/admin.ts` — expose ratings in usage stats (avg per day, low-rating session list)
-
-### Frontend tasks
-- [x] **F5** `components/chat/session-rating.tsx` — new component: 5 stars, auto-hide 8s, "✦ Noted" on click
-- [x] **F6** `chat-window.tsx` — count Oracle messages; render `<SessionRating>` after 3rd Oracle response (once per session, hide after rated or dismissed)
-- [x] **F7** `admin/usage/page.tsx` — show avg rating + low-rating sessions
-
----
-
-## ENH-03: House numeral display for narrow houses
-
-### Frontend tasks
-- [x] **F8** `natal-chart-canvas.tsx` — skip house numeral if span < 3°; reduce font size (9→6) if span < 20°
-
----
+## Tasks
+- [x] **T1** `frontend/src/lib/question-bank.ts` — 62 questions + `selectQuestions(tier)` function (7374018)
+- [x] **T2** `frontend/src/components/chat/empty-state.tsx` — question bank + lock UI (tooltip on hover) (f9ccaee)
+- [x] **T3** `backend/src/services/llm.ts` — append [SUGGESTIONS] instruction to Oracle system prompt (tier-aware) (a395203)
+- [x] **T4** `frontend/src/lib/chat-context-ws.tsx` — strip [SUGGESTIONS] from streaming display, parse after complete, expose `suggestions` state + `clearSuggestions`
+- [x] **T5** `frontend/src/components/chat/suggestion-chips.tsx` — new component, clickable chips (50f6896)
+- [x] **T6** `frontend/src/components/chat/chat-window.tsx` + `chat-input-bar.tsx` — wire prefill + render chips (058b0cf)
+- [x] **T7** Update `tasks/todo.md` + `tasks/master_roadmap_todo.md`
 
 ## Review
 
-### Changes made
-- **Schema**: Added `isPinned`, `isArchived`, `sharedToken` (unique), `rating` to `ChatSession`. DB pushed to Railway.
-- **chatController.ts**: Extended `updateSession` (pin/archive), added `shareSession`, `unshareSession`, `getSharedSession` (public), `rateSession`.
-- **routes/chat.ts**: Added public `GET /share/:token` (before auth middleware), `POST/DELETE /sessions/:id/share`, `POST /sessions/:id/rate`. `GET /sessions` now excludes archived by default.
-- **chat-history-list.tsx**: Full rewrite — removed localStorage pin system, added `ContextMenu` with Pin/Share/Rename/Archive/Delete, inline rename, clipboard share with toast, DB-backed pin state, pinned sessions float to top.
-- **app/share/[token]/page.tsx**: New public page — renders shared conversation read-only with Oracle branding and sign-up CTA.
-- **session-rating.tsx**: New component — 5 stars, auto-hides after 8s, shows "✦ Noted" on click, fires POST to rate endpoint.
-- **chat-window.tsx**: Counts assistant messages; shows `<SessionRating>` when count crosses 3 (not on initial load of existing session); resets on session change.
-- **admin/usage/page.tsx**: Added ratings section — avg score, star distribution bars, low-rated session table (1–2★).
-- **routes/admin.ts**: Added `GET /admin/ratings` endpoint — avg rating, distribution, recent low-rated sessions.
-- **natal-chart-canvas.tsx**: House numerals skip if span < 3°, reduced font (9→6) if span < 20°.
+**FUTURE-06 complete** (2026-03-21). All 7 tasks done across 7 commits.
+
+**New files:**
+- `frontend/src/lib/question-bank.ts` — 62 tier-gated questions (30 FREE, 20 PRO, 12 PREMIUM), `selectQuestions()` returns 2 unlocked + 1 locked for FREE/PRO, 3 unlocked for PREMIUM
+- `frontend/src/components/chat/suggestion-chips.tsx` — clickable pill chips with purple accent
+
+**Modified files:**
+- `frontend/src/components/chat/empty-state.tsx` — replaces 3 hardcoded prompts with question bank; locked questions disabled + tooltip
+- `backend/src/services/llm.ts` — Oracle appends `[SUGGESTIONS]...[/SUGGESTIONS]` block after every response (tier-aware topic restrictions)
+- `frontend/src/lib/chat-context-ws.tsx` — strips suggestions block from display, parses after stream, exposes `suggestions` + `clearSuggestions` via context
+- `frontend/src/components/chat/chat-window.tsx` — renders SuggestionChips above input when not streaming
+- `frontend/src/components/chat/chat-input-bar.tsx` — `prefill` + `onPrefillConsumed` props for chip click-to-prefill
+
+**Notable fix caught in review:** SUGGESTION_INSTRUCTION was initially only appended to PREMIUM tier; fixed by wrapping ternary in parens so it applies to all tiers.
+
+## Key details
+- `ChatInputBar` needs new `prefill?: string` + `onPrefillConsumed?: () => void` props
+- `ChatContextType` needs `suggestions: string[]` + `clearSuggestions: () => void`
+- Suggestion block format: `[SUGGESTIONS]\nq1\nq2\nq3\n[/SUGGESTIONS]`
+- Strip from display: `assistantContent.split('[SUGGESTIONS]')[0]`
+- Parse: `assistantContent.match(/\[SUGGESTIONS\]([\s\S]*?)\[\/SUGGESTIONS\]/)`
+- Clear suggestions when user sends next message (top of sendMessageSSE)
+- PREMIUM user empty state: 3 unlocked, no locks
+- FREE/PRO: always 2 unlocked + 1 locked (shuffle so lock not always last)
