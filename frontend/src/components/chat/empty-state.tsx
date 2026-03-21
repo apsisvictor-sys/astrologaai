@@ -41,6 +41,8 @@ export function EmptyState({ onPrompt }: EmptyStateProps) {
             <div key={question.id} className="relative group">
               <button
                 disabled
+                aria-disabled="true"
+                aria-label={`${question.text}. ${upgradeLabel} to unlock`}
                 className="w-full px-4 py-3 rounded-xl text-sm text-left opacity-40 cursor-not-allowed flex items-center gap-2"
                 style={{
                   background: 'rgba(255,255,255,0.02)',
