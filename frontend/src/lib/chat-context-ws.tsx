@@ -52,6 +52,9 @@ export interface ChatContextType {
   isLoadingMore: boolean;
   connectionState: 'connected' | 'error';
 
+  suggestions: string[];
+  clearSuggestions: () => void;
+
   // Actions
   createSession: (birthProfileId?: string) => Promise<ChatSession>;
   loadSession: (sessionId: string) => Promise<void>;
@@ -82,6 +85,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [dailyLimitReached, setDailyLimitReached] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
 
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -242,6 +246,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
    * Send message via SSE stream
    */
   const sendMessageSSE = useCallback(async (content: string, sessionId: string): Promise<void> => {
+    setSuggestions([]);
+
     const token = getAccessToken();
 
     if (!token) {
@@ -328,7 +334,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 }
               } else if (currentEvent === 'chunk' || (data.content && !data.done)) {
                 assistantContent += data.content;
-                setStreamingContent(assistantContent);
+                const displayContent = assistantContent.includes('[SUGGESTIONS]')
+                  ? assistantContent.split('[SUGGESTIONS]')[0]
+                  : assistantContent;
+                setStreamingContent(displayContent);
               } else if (currentEvent === 'error') {
                 setError(data.message || 'Stream error');
                 // Only remove user message if no content was received (stream never started)
@@ -350,10 +359,19 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
 
       if (assistantContent) {
+        // Parse and strip suggestions block
+        const suggestionsMatch = assistantContent.match(/\[SUGGESTIONS\]([\s\S]*?)\[\/SUGGESTIONS\]/);
+        const parsedSuggestions = suggestionsMatch
+          ? suggestionsMatch[1].trim().split('\n').filter(s => s.trim().length > 0)
+          : [];
+        const cleanContent = assistantContent.split('[SUGGESTIONS]')[0].trimEnd();
+
+        if (parsedSuggestions.length > 0) setSuggestions(parsedSuggestions);
+
         const assistantMessage: ChatMessage = {
           id: assistantMessageId || `assistant-${Date.now()}`,
           role: 'assistant',
-          content: assistantContent,
+          content: cleanContent,
           createdAt: new Date().toISOString(),
         };
         setMessages((prev) => [...prev, assistantMessage]);
@@ -495,6 +513,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     hasMoreMessages,
     isLoadingMore,
     connectionState: 'connected',
+    suggestions,
+    clearSuggestions: () => setSuggestions([]),
     createSession,
     loadSession,
     loadMoreMessages,
