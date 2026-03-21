@@ -11,8 +11,8 @@ const FRONTEND_URL = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://astrologa.
 
 export function ShareCardModal({ userId, onClose }: ShareCardModalProps) {
   const [copied, setCopied] = useState(false);
-  const shareUrl = `${FRONTEND_URL}/share/${userId}`;
-  const ogImageUrl = `${FRONTEND_URL}/share/${userId}/opengraph-image`;
+  const shareUrl = `${FRONTEND_URL}/share/card/${userId}`;
+  const ogImageUrl = `${FRONTEND_URL}/share/card/${userId}/opengraph-image`;
 
   async function copyLink() {
     await navigator.clipboard.writeText(shareUrl);

@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: { params: { userId: string } 
     openGraph: {
       title,
       description: 'Discover your cosmic blueprint',
-      images: [`${FRONTEND_URL}/share/${params.userId}/opengraph-image`],
+      images: [`${FRONTEND_URL}/share/card/${params.userId}/opengraph-image`],
     },
     twitter: { card: 'summary_large_image', title },
   };
