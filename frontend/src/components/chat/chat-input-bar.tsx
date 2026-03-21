@@ -9,9 +9,11 @@ interface ChatInputBarProps {
   disabled?: boolean;
   placeholder?: string;
   sendError?: string | null;
+  prefill?: string;
+  onPrefillConsumed?: () => void;
 }
 
-export function ChatInputBar({ onSend, onCancel, isStreaming, disabled, placeholder, sendError }: ChatInputBarProps) {
+export function ChatInputBar({ onSend, onCancel, isStreaming, disabled, placeholder, sendError, prefill, onPrefillConsumed }: ChatInputBarProps) {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const lastSentRef = useRef('');
@@ -30,6 +32,15 @@ export function ChatInputBar({ onSend, onCancel, isStreaming, disabled, placehol
       lastSentRef.current = '';
     }
   }, [sendError]);
+
+  // Prefill from suggestion chip selection
+  useEffect(() => {
+    if (prefill) {
+      setMessage(prefill);
+      textareaRef.current?.focus();
+      onPrefillConsumed?.();
+    }
+  }, [prefill]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSend = () => {
     const trimmed = message.trim();

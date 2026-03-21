@@ -10,6 +10,7 @@ import { ChatInputBar } from './chat-input-bar';
 import { EmptyState } from './empty-state';
 import { OracleWelcome } from './oracle-welcome';
 import { SessionRating } from './session-rating';
+import { SuggestionChips } from './suggestion-chips';
 
 interface ChatWindowProps {
   sessionId?: string;
@@ -20,6 +21,7 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
   const router = useRouter();
   const [hasBirthData, setHasBirthData] = useState<boolean | null>(null);
   const [showRating, setShowRating] = useState(false);
+  const [prefillText, setPrefillText] = useState('');
   const prevAssistantCount = useRef<number | null>(null);
   const {
     messages,
@@ -37,6 +39,8 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
     createSession,
     loadSession,
     loadMoreMessages,
+    suggestions,
+    clearSuggestions,
   } = useChat();
 
   // Auth guard
@@ -155,6 +159,14 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
         />
       )}
 
+      {/* Suggestion chips — shown after Oracle response, hidden while streaming */}
+      {suggestions.length > 0 && !isStreaming && (
+        <SuggestionChips
+          suggestions={suggestions}
+          onSelect={(text) => { setPrefillText(text); clearSuggestions(); }}
+        />
+      )}
+
       {/* Session rating — after 3rd Oracle response, once per session */}
       {showRating && currentSession && (
         <div className="px-4 pb-1 shrink-0">
@@ -173,6 +185,8 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
         disabled={isLoading || dailyLimitReached}
         placeholder={dailyLimitReached ? 'Daily cosmic limit reached — upgrade to continue' : 'Ask the Oracle...'}
         sendError={error}
+        prefill={prefillText}
+        onPrefillConsumed={() => setPrefillText('')}
       />
     </div>
   );
