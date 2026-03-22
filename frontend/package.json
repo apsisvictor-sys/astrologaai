@@ -26,6 +26,7 @@
     "next": "^14.2.33",
     "next-intl": "^4.8.3",
     "postcss": "^8.4.33",
+    "posthog-js": "^1.363.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-i18next": "^14.0.0",
