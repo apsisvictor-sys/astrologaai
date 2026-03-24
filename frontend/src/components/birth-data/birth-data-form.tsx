@@ -457,6 +457,17 @@ export default function BirthDataForm() {
                   </p>
                 </div>
               )}
+
+              {formData.latitude !== null && formData.latitude > 66 && (
+                <div
+                  className="p-4 rounded-xl"
+                  style={{ background: '#F59E0B15', borderLeft: '3px solid #F59E0B' }}
+                >
+                  <p style={{ color: '#F59E0B' }}>
+                    ⚠ Polar latitude detected (&gt;66°N). Ascendant (ASC) calculations may be less accurate at extreme northern latitudes. Other placements are not affected.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

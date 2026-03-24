@@ -299,6 +299,11 @@ export function PartnerForm({ partner, onSuccess, onCancel, language = 'bg' }: P
             </div>
           )}
           {errors.locationName && <p className="mt-1 text-xs" style={{ color: '#EF4444' }}>{errors.locationName}</p>}
+          {locationConfirmed && form.latitude > 66 && (
+            <p className="mt-1 text-xs" style={{ color: '#F59E0B' }}>
+              ⚠ Polar latitude (&gt;66°N) — ASC calculations may be less accurate at extreme northern latitudes.
+            </p>
+          )}
         </div>
 
         {/* Notes */}
