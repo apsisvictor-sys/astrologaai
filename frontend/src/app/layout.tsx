@@ -9,6 +9,7 @@
 
 import { Suspense } from 'react';
 import { Space_Grotesk } from 'next/font/google';
+import NextTopLoader from 'nextjs-toploader';
 import { AuthProvider } from '@/lib/auth-context';
 import { ClientProviders } from '@/components/client-providers';
 import { ReferralCapture } from '@/components/referral-capture';
@@ -36,6 +37,7 @@ export default function RootLayout({
       <body
         className={`${spaceGrotesk.className} antialiased min-h-screen`}
       >
+        <NextTopLoader color="#6366f1" showSpinner={false} />
         <Suspense fallback={null}>
           <ReferralCapture />
         </Suspense>
