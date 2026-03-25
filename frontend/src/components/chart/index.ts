@@ -16,6 +16,7 @@ export { default as AspectModal } from './aspect-modal';
 export { default as AspectFilter } from './aspect-filter';
 export { default as AspectExplorer } from './aspect-explorer';
 export { default as TimeSensitivity } from './time-sensitivity';
+export { AspectGrid } from './aspect-grid';
 
 // Export types
 export type { NatalChart, PlanetPosition, HouseCusp, Aspect } from './circular-chart-wheel';

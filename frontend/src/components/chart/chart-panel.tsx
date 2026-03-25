@@ -9,6 +9,7 @@ import { BigThreeCard }        from './big-three-card';
 import { PlanetTable }         from './planet-table';
 import { ElementsCard }        from './elements-card';
 import { AspectsSummary }      from './aspects-summary';
+import { AspectGrid }          from './aspect-grid';
 import { ChartLoadingAnimation } from './chart-loading-animation';
 import { adaptNatalChart, type BackendNatalChart } from './natal-chart-adapter';
 import { ShareCardModal } from './ShareCardModal';
@@ -231,6 +232,14 @@ export function ChartPanel() {
             {/* Aspects */}
             {rawChart.aspects && rawChart.aspects.length > 0 && (
               <AspectsSummary aspects={rawChart.aspects} />
+            )}
+
+            {/* Aspect Grid Matrix */}
+            {rawChart.aspects && rawChart.aspects.length > 0 && (
+              <AspectGrid
+                aspects={rawChart.aspects}
+                planets={chartData.planets.map(p => p.name)}
+              />
             )}
 
             {/* Oracle CTA */}
