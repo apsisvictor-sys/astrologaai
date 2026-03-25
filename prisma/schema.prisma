@@ -165,6 +165,7 @@ model ChatSession {
   isArchived        Boolean   @default(false) @map("is_archived")
   sharedToken       String?   @unique @map("shared_token") // ENH-12: public share link token
   rating            Int?      // ENH-25: 1-5 star session rating
+  creditTier        String?   @map("credit_tier")         // FEAT-10: effective tier if started with credits ('PRO'|'PREMIUM')
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 

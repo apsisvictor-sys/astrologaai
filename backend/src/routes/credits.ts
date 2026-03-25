@@ -4,12 +4,24 @@
  * GET  /api/v1/credits/balance       — current balance + upsell data
  * GET  /api/v1/credits/transactions  — paginated transaction history
  * POST /api/v1/credits/checkout      — create Stripe one-time Checkout session
+ * POST /api/v1/credits/spend         — deduct credits for a premium action
  */
 
 import { Router, Request, Response } from 'express';
 import { authMiddleware } from '../middleware/auth';
 import { prisma } from '../utils/prisma';
 import Stripe from 'stripe';
+import { deductCredits } from '../services/credits';
+
+// Credit costs per action — must match frontend CREDIT_COSTS in credits-api.ts
+const CREDIT_COSTS: Record<string, number> = {
+  oracle_sonnet: 2,
+  oracle_opus:   4,
+  solar_return:  1,
+  lunar_return:  1,
+  synastry:      3,
+  natal_pdf:     1,
+};
 
 const router = Router();
 
@@ -159,6 +171,50 @@ router.post('/checkout', async (req: Request, res: Response) => {
     res.json({ success: true, data: { checkoutUrl: session.url } });
   } catch (err) {
     console.error('[credits/checkout]', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ─── POST /spend ───────────────────────────────────────────────────────────────
+
+router.post('/spend', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+    const { action, relatedEntityId } = req.body as { action: string; relatedEntityId?: string };
+
+    const cost = CREDIT_COSTS[action];
+    if (cost === undefined) {
+      return res.status(400).json({ error: `Unknown credit action: ${action}` });
+    }
+
+    // Auto-create credits row if missing (0 balance)
+    await prisma.userCredits.upsert({
+      where: { userId },
+      create: { userId },
+      update: {},
+    });
+
+    const { newBalance } = await deductCredits(
+      userId,
+      cost,
+      `${action} credit spend`,
+      action,
+      relatedEntityId
+    );
+
+    res.json({ success: true, data: { newBalance, cost, action } });
+  } catch (err: any) {
+    if (err?.code === 'INSUFFICIENT_CREDITS') {
+      return res.status(402).json({
+        error: 'Insufficient credits',
+        code: 'INSUFFICIENT_CREDITS',
+        required: err.required,
+        available: err.available,
+      });
+    }
+    console.error('[credits/spend]', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

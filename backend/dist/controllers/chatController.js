@@ -1,974 +1,1023 @@
 "use strict";
-/**
- * Chat Controller
- * US-07: Send Message to AI Astrologer
- * US-08: Chat History
- * US-09: Chat Context Persistence
- *
- * Handles chat message sending with streaming responses
- * Implements rate limiting based on user tier
- * Implements context persistence via Redis with session summarization
- */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.sendMessage = sendMessage;
-exports.listSessions = listSessions;
-exports.getSession = getSession;
-exports.createSession = createSession;
-exports.deleteSession = deleteSession;
-exports.startNewConversation = startNewConversation;
-exports.clearAllSessions = clearAllSessions;
-exports.updateSession = updateSession;
-exports.getUsage = getUsage;
-exports.importGuestMessages = importGuestMessages;
-const client_1 = require("@prisma/client");
-const redis_1 = require("../utils/redis");
-const llm_1 = require("../services/llm");
-const transits_1 = require("../services/transits");
-const subscription_tiers_1 = require("../config/subscription-tiers");
-const queryLimit_1 = require("../middleware/queryLimit");
-const prisma = new client_1.PrismaClient();
-// ============================================
-// Rate Limiting Configuration (US-36, US-37)
-// ============================================
-// Using centralized subscription-tiers.ts config
-// FREE: 10 queries/month, 10/min burst
-// PRO: unlimited, 60/min burst
-// PREMIUM: unlimited, no burst limit
-const RATE_LIMIT_WINDOW = 60; // 1 minute for burst
-const MAX_CONTEXT_MESSAGES = 10; // Last 10 messages for context
-const SUMMARY_THRESHOLD = 20; // Generate summary after 20 messages
-// ============================================
-// Helper Functions
-// ============================================
-function getCurrentMonth() {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var chatController_exports = {};
+__export(chatController_exports, {
+  clearAllSessions: () => clearAllSessions,
+  createSession: () => createSession,
+  default: () => chatController_default,
+  deleteSession: () => deleteSession,
+  getSession: () => getSession,
+  getSharedSession: () => getSharedSession,
+  getUsage: () => getUsage,
+  importGuestMessages: () => importGuestMessages,
+  listSessions: () => listSessions,
+  rateSession: () => rateSession,
+  sendMessage: () => sendMessage,
+  shareSession: () => shareSession,
+  startNewConversation: () => startNewConversation,
+  unshareSession: () => unshareSession,
+  updateSession: () => updateSession
+});
+module.exports = __toCommonJS(chatController_exports);
+var import_client = require("@prisma/client");
+var import_redis = require("../utils/redis");
+var import_llm = require("../services/llm");
+var import_transits = require("../services/transits");
+var import_queryLimit = require("../middleware/queryLimit");
+var import_streakService = require("../services/streakService");
+var import_credits = require("../services/credits");
+const prisma = new import_client.PrismaClient();
+function extractSearchSnippet(content, term, maxLen = 140) {
+  const idx = content.toLowerCase().indexOf(term.toLowerCase());
+  if (idx === -1) return content.length > maxLen ? content.substring(0, maxLen) + "\u2026" : content;
+  const start = Math.max(0, idx - 50);
+  const end = Math.min(content.length, idx + term.length + 90);
+  let snippet = content.substring(start, end);
+  if (start > 0) snippet = "\u2026" + snippet;
+  if (end < content.length) snippet += "\u2026";
+  return snippet;
 }
-function getMonthResetDate() {
-    const now = new Date();
-    const resetDay = (0, subscription_tiers_1.getMonthlyResetDay)();
-    const nextMonth = now.getMonth() === 11 ? 0 : now.getMonth() + 1;
-    const nextYear = now.getMonth() === 11 ? now.getFullYear() + 1 : now.getFullYear();
-    return new Date(nextYear, nextMonth, resetDay);
+const MAX_CONTEXT_MESSAGES = 10;
+const SUMMARY_THRESHOLD = 20;
+function estimateCostCents(model, inputTokens, outputTokens) {
+  const isHaiku = model.includes("haiku");
+  const isOpus = model.includes("opus");
+  const inputRate = isHaiku ? 0.025 : isOpus ? 1.5 : 0.3;
+  const outputRate = isHaiku ? 0.125 : isOpus ? 7.5 : 1.5;
+  return Math.round(inputTokens / 1e3 * inputRate + outputTokens / 1e3 * outputRate);
 }
-async function checkRateLimit(userId, tier) {
-    // Get burst limit from centralized config
-    const burstLimit = (0, subscription_tiers_1.getBurstLimit)(tier);
-    const isUnlimitedBurstTier = (0, subscription_tiers_1.isUnlimitedBurst)(tier);
-    // Burst rate limiting (per minute) - skip for unlimited tiers
-    if (!isUnlimitedBurstTier) {
-        const burstKey = `ratelimit:burst:${userId}`;
-        const burstCount = parseInt(await redis_1.redisClient.get(burstKey) || '0', 10);
-        if (burstCount >= burstLimit) {
-            return {
-                allowed: false,
-                remaining: 0,
-                limit: burstLimit,
-                resetAt: new Date(Date.now() + RATE_LIMIT_WINDOW * 1000)
-            };
+async function getOrCreateSession(userId, sessionId, birthProfileId, language = "en") {
+  if (sessionId) {
+    const cachedContext = await (0, import_redis.getSessionContext)(sessionId);
+    const existing = await prisma.chatSession.findFirst({
+      where: { id: sessionId, userId },
+      include: {
+        messages: {
+          orderBy: { createdAt: "asc" },
+          take: MAX_CONTEXT_MESSAGES
+          // Last 10 messages for DB
         }
-    }
-    // Monthly rate limiting (for FREE tier)
-    if (!(0, subscription_tiers_1.isUnlimitedTier)(tier)) {
-        const monthlyLimit = (0, subscription_tiers_1.getEffectiveMonthlyLimit)(tier);
-        const month = getCurrentMonth();
-        const monthKey = `ratelimit:monthly:${userId}:${month}`;
-        const monthCount = parseInt(await redis_1.redisClient.get(monthKey) || '0', 10);
-        if (monthCount >= monthlyLimit) {
-            return {
-                allowed: false,
-                remaining: 0,
-                limit: monthlyLimit,
-                resetAt: getMonthResetDate()
-            };
-        }
-        return {
-            allowed: true,
-            remaining: monthlyLimit - monthCount,
-            limit: monthlyLimit
-        };
-    }
-    return {
-        allowed: true,
-        remaining: Infinity,
-        limit: 'unlimited'
-    };
-}
-async function incrementRateLimit(userId) {
-    // Increment burst counter
-    const burstKey = `ratelimit:burst:${userId}`;
-    const burstCount = await redis_1.redisClient.incr(burstKey);
-    if (burstCount === 1) {
-        await redis_1.redisClient.expire(burstKey, RATE_LIMIT_WINDOW);
-    }
-    // Increment monthly counter
-    const month = getCurrentMonth();
-    const monthKey = `ratelimit:monthly:${userId}:${month}`;
-    const monthCount = await redis_1.redisClient.incr(monthKey);
-    if (monthCount === 1) {
-        // Set expiry to end of month
-        const ttl = Math.floor((getMonthResetDate().getTime() - Date.now()) / 1000);
-        await redis_1.redisClient.expire(monthKey, ttl);
-    }
-}
-async function getOrCreateSession(userId, sessionId, birthProfileId) {
-    if (sessionId) {
-        // Try to get from Redis first for faster context
-        const cachedContext = await (0, redis_1.getSessionContext)(sessionId);
-        const existing = await prisma.chatSession.findFirst({
-            where: { id: sessionId, userId },
-            include: {
-                messages: {
-                    orderBy: { createdAt: 'asc' },
-                    take: MAX_CONTEXT_MESSAGES // Last 10 messages for DB
-                }
-            },
-        });
-        if (existing) {
-            // Sync Redis context if not present but session exists
-            if (!cachedContext && existing.messages.length > 0) {
-                const summary = existing.summary || undefined;
-                await (0, redis_1.storeSessionContext)(existing.id, userId, existing.messages.map(m => ({ role: m.role.toLowerCase(), content: m.content })), summary || undefined);
-            }
-            return existing;
-        }
-    }
-    // Create new session
-    return prisma.chatSession.create({
-        data: {
-            userId,
-            birthProfileId,
-            title: 'Нов разговор', // Will be updated after first message
-        },
-        include: {
-            messages: true
-        },
+      }
     });
+    if (existing) {
+      if (!cachedContext && existing.messages.length > 0) {
+        const summary = existing.summary || void 0;
+        await (0, import_redis.storeSessionContext)(
+          existing.id,
+          userId,
+          existing.messages.map((m) => ({ role: m.role.toLowerCase(), content: m.content })),
+          summary || void 0
+        );
+      }
+      return existing;
+    }
+  }
+  return prisma.chatSession.create({
+    data: {
+      userId,
+      birthProfileId,
+      title: language === "bg" ? "\u041D\u043E\u0432 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440" : "New Conversation"
+    },
+    include: {
+      messages: true
+    }
+  });
 }
-// ============================================
-// Session Summary Generation (US-09)
-// ============================================
 async function generateAndStoreSessionSummary(sessionId, userId, allMessages, language) {
-    // Generate summary using LLM
-    const lang = (language === 'en' ? 'en' : 'bg');
-    const summary = await (0, llm_1.generateSessionSummary)(allMessages, lang);
-    // Store summary in database
-    await prisma.chatSession.update({
-        where: { id: sessionId },
-        data: { summary },
-    });
-    // Update Redis context
-    await (0, redis_1.updateSessionSummary)(sessionId, summary);
-    return summary;
+  const lang = language === "en" ? "en" : "bg";
+  const summary = await (0, import_llm.generateSessionSummary)(allMessages, lang);
+  await prisma.chatSession.update({
+    where: { id: sessionId },
+    data: { summary }
+  });
+  await (0, import_redis.updateSessionSummary)(sessionId, summary);
+  return summary;
 }
-// ============================================
-// Controller Functions
-// ============================================
-/**
- * POST /api/v1/chat/message
- * Send a message to the AI astrologer with streaming response
- */
 async function sendMessage(req, res) {
-    try {
-        // US-34: Track latency for response headers
-        const startTime = Date.now();
-        const { content, sessionId, birthProfileId } = req.body;
-        const userId = req.user?.id;
-        const userEmail = req.user?.email || '';
-        const userTier = req.user?.tier || 'FREE';
-        // US-25: Get from user preferences, ensure valid type
-        const userLanguage = (req.user?.language === 'bg' ? 'bg' : 'en');
-        const isAdmin = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim()).includes(userEmail);
-        if (!userId) {
-            res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+  try {
+    const startTime = Date.now();
+    const { content, sessionId, birthProfileId, creditAction } = req.body;
+    const userId = req.user?.id;
+    const userEmail = req.user?.email || "";
+    const userTier = req.user?.tier || "FREE";
+    const userLanguage = req.user?.language === "bg" ? "bg" : "en";
+    const isAdmin = (process.env.ADMIN_EMAILS || "").split(",").map((e) => e.trim()).includes(userEmail);
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "User not authenticated" }
+      });
+      return;
+    }
+    if (!content || typeof content !== "string" || content.trim().length === 0) {
+      res.status(400).json({
+        success: false,
+        error: { code: "VALIDATION_ERROR", message: "Message content is required" }
+      });
+      return;
+    }
+    const session = await getOrCreateSession(userId, sessionId, birthProfileId, userLanguage);
+    const TIER_ORDER = { FREE: 0, PRO: 1, PREMIUM: 2 };
+    const CREDIT_ACTION_TIER = {
+      oracle_sonnet: "PRO",
+      oracle_opus: "PREMIUM"
+    };
+    const CREDIT_ACTION_COST = {
+      oracle_sonnet: 2,
+      oracle_opus: 4
+    };
+    let effectiveTier = userTier;
+    let creditDeducted = false;
+    if (session.creditTier) {
+      effectiveTier = session.creditTier;
+    } else if (creditAction && CREDIT_ACTION_TIER[creditAction] && session.messages.length === 0) {
+      const requestedTier = CREDIT_ACTION_TIER[creditAction];
+      if ((TIER_ORDER[requestedTier] ?? 0) > (TIER_ORDER[userTier] ?? 0)) {
+        try {
+          await prisma.userCredits.upsert({
+            where: { userId },
+            create: { userId },
+            update: {}
+          });
+          await (0, import_credits.deductCredits)(
+            userId,
+            CREDIT_ACTION_COST[creditAction],
+            `Oracle session (${creditAction})`,
+            "oracle_session",
+            session.id
+          );
+          creditDeducted = true;
+          effectiveTier = requestedTier;
+          await prisma.chatSession.update({
+            where: { id: session.id },
+            data: { creditTier: requestedTier }
+          });
+        } catch (creditErr) {
+          if (creditErr?.code === "INSUFFICIENT_CREDITS") {
+            res.status(402).json({
+              success: false,
+              error: {
+                code: "INSUFFICIENT_CREDITS",
+                message: "Insufficient credits for this Oracle session",
+                required: creditErr.required,
+                available: creditErr.available
+              }
             });
             return;
+          }
+          throw creditErr;
         }
-        if (!content || typeof content !== 'string' || content.trim().length === 0) {
-            res.status(400).json({
-                success: false,
-                error: { code: 'VALIDATION_ERROR', message: 'Message content is required' },
-            });
-            return;
-        }
-        // Check rate limit
-        const rateLimit = await checkRateLimit(userId, userTier);
-        if (!rateLimit.allowed) {
-            res.status(429).json({
-                success: false,
-                error: {
-                    code: 'RATE_LIMIT_EXCEEDED',
-                    message: userLanguage === 'bg'
-                        ? 'Достигнахте лимита на заявките. Моля, опитайте по-късно или надградете плана си.'
-                        : 'Rate limit exceeded. Please try again later or upgrade your plan.',
-                    limit: rateLimit.limit,
-                    remaining: rateLimit.remaining,
-                    resetAt: rateLimit.resetAt,
-                    upgradeUrl: '/subscription',
-                },
-            });
-            return;
-        }
-        // Get or create session
-        const session = await getOrCreateSession(userId, sessionId, birthProfileId);
-        // Get user's birth chart for context
-        let chartSummary;
-        let rawChartData = null;
-        if (session.birthProfileId || birthProfileId) {
-            const profileId = session.birthProfileId || birthProfileId;
-            const birthProfile = await prisma.birthProfile.findUnique({
-                where: { id: profileId },
-                include: { birthChart: true },
-            });
-            if (birthProfile?.birthChart?.chartData) {
-                const chart = birthProfile.birthChart.chartData;
-                rawChartData = chart;
-                chartSummary = (0, llm_1.generateChartSummary)(chart, userLanguage);
-            }
-        }
-        else {
-            // Try to get user's primary birth chart
-            const userChart = await prisma.birthChart.findFirst({
-                where: { userId },
-                orderBy: { createdAt: 'desc' },
-            });
-            if (userChart?.chartData) {
-                const chart = userChart.chartData;
-                rawChartData = chart;
-                chartSummary = (0, llm_1.generateChartSummary)(chart, userLanguage);
-            }
-        }
-        // Build messages array for LLM
-        const conversationHistory = session.messages.map((msg) => ({
-            role: msg.role.toLowerCase(),
-            content: msg.content,
-        }));
-        // US-09: Get session context from Redis for enhanced context
-        const sessionContext = await (0, redis_1.getSessionContext)(session.id);
-        const sessionSummary = sessionContext?.summary || session.summary || undefined;
-        const recentMessages = sessionContext?.recentMessages ||
-            session.messages.slice(-MAX_CONTEXT_MESSAGES).map(m => ({
-                role: m.role.toLowerCase(),
-                content: m.content
-            }));
-        // Pre-compute active transits for Oracle context (avoids tool calls for this universal data)
-        let transitsSummary;
-        if (chartSummary && rawChartData) {
-            try {
-                const { skyPositions, aspectsToNatal, moonPhase } = await (0, transits_1.getActiveTransitsForUser)(rawChartData);
-                const aspectLines = aspectsToNatal.slice(0, 12).map(a => `- ${a.transitPlanetBg} ${a.aspectBg} natal ${a.natalPlanetBg} | orb ${a.orb}° | ${a.influence} | ${a.description}`).join('\n');
-                const skyLines = skyPositions.map(p => `${p.planetBg}: ${p.signBg} ${p.degree}°${p.retrograde ? ' ℞' : ''}`).join(', ');
-                transitsSummary = `TODAY'S SKY (${new Date().toISOString().split('T')[0]}):
+      }
+    }
+    let chartSummary;
+    let rawChartData = null;
+    if (session.birthProfileId || birthProfileId) {
+      const profileId = session.birthProfileId || birthProfileId;
+      const birthProfile = await prisma.birthProfile.findUnique({
+        where: { id: profileId },
+        include: { birthChart: true }
+      });
+      if (birthProfile?.birthChart?.chartData) {
+        const chart = birthProfile.birthChart.chartData;
+        rawChartData = chart;
+        chartSummary = (0, import_llm.generateChartSummary)(chart, userLanguage);
+      }
+    } else {
+      const userChart = await prisma.birthChart.findFirst({
+        where: { userId },
+        orderBy: { createdAt: "desc" }
+      });
+      if (userChart?.chartData) {
+        const chart = userChart.chartData;
+        rawChartData = chart;
+        chartSummary = (0, import_llm.generateChartSummary)(chart, userLanguage);
+      }
+    }
+    const conversationHistory = session.messages.map((msg) => ({
+      role: msg.role.toLowerCase(),
+      content: msg.content
+    }));
+    const sessionContext = await (0, import_redis.getSessionContext)(session.id);
+    const sessionSummary = sessionContext?.summary || session.summary || void 0;
+    const recentMessages = sessionContext?.recentMessages || session.messages.slice(-MAX_CONTEXT_MESSAGES).map((m) => ({
+      role: m.role.toLowerCase(),
+      content: m.content
+    }));
+    let transitsSummary;
+    if (chartSummary && rawChartData) {
+      try {
+        const { skyPositions, aspectsToNatal, moonPhase } = await (0, import_transits.getActiveTransitsForUser)(rawChartData);
+        const aspectLines = aspectsToNatal.slice(0, 12).map(
+          (a) => `- ${a.transitPlanetBg} ${a.aspectBg} natal ${a.natalPlanetBg} | orb ${a.orb}\xB0 | ${a.influence} | ${a.description}`
+        ).join("\n");
+        const skyLines = skyPositions.map(
+          (p) => `${p.planetBg}: ${p.signBg} ${p.degree}\xB0${p.retrograde ? " \u211E" : ""}`
+        ).join(", ");
+        transitsSummary = `TODAY'S SKY (${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}):
 ${skyLines}
 
 Moon: ${moonPhase.phaseBg} (${moonPhase.illumination}% illuminated) in ${moonPhase.moonSignBg}
 
-ACTIVE TRANSITS TO NATAL CHART (sorted by orb — tightest = most powerful):
-${aspectLines || 'No major aspects within orb today.'}`;
-            }
-            catch (err) {
-                console.warn('[Chat] Failed to compute active transits for system prompt:', err instanceof Error ? err.message : err);
-                // Non-fatal — Oracle continues without transit context
-            }
-        }
-        const systemPrompt = (0, llm_1.buildSystemPrompt)({
-            chartSummary,
-            transitsSummary,
-            language: userLanguage,
-            conversationHistory,
-            sessionSummary, // US-09: Add session summary for follow-up context
-            recentMessages, // US-09: Add recent messages for context
-        });
-        const messages = [
-            { role: 'system', content: systemPrompt },
-            ...conversationHistory,
-            { role: 'user', content: content.trim() },
-        ];
-        // Save user message
-        const userMessage = await prisma.chatMessage.create({
-            data: {
-                sessionId: session.id,
-                role: 'USER',
-                content: content.trim(),
-            },
-        });
-        // Update session title if it's the first message
-        if (session.messages.length === 0) {
-            const title = content.trim().substring(0, 50) + (content.length > 50 ? '...' : '');
-            await prisma.chatSession.update({
-                where: { id: session.id },
-                data: { title },
-            });
-        }
-        // Increment rate limit counter
-        await incrementRateLimit(userId);
-        // Set headers for Server-Sent Events
-        res.setHeader('Content-Type', 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
-        res.setHeader('X-Accel-Buffering', 'no'); // Disable nginx buffering
-        // Handle client disconnect — abort the stream
-        let aborted = false;
-        req.on('close', () => { aborted = true; });
-        // US-34: Get initial provider info for headers
-        const orchestratorStatus = (0, llm_1.getOrchestratorStatus)();
-        res.setHeader('X-Provider', orchestratorStatus.activeProvider);
-        // Send initial metadata
-        res.write(`event: metadata\ndata: ${JSON.stringify({
-            sessionId: session.id,
-            messageId: userMessage.id,
-            rateLimit: {
-                remaining: rateLimit.remaining - 1,
-                limit: rateLimit.limit,
-            },
-        })}\n\n`);
-        // Stream AI response
-        let fullResponse = '';
-        let assistantMessageId;
-        let hasError = false;
-        try {
-            for await (const chunk of (0, llm_1.streamChatCompletion)(messages)) {
-                if (aborted)
-                    break;
-                if (chunk.error) {
-                    hasError = true;
-                    res.write(`event: error\ndata: ${JSON.stringify({
-                        message: chunk.error
-                    })}\n\n`);
-                    break;
-                }
-                fullResponse += chunk.content;
-                // Send chunk to client
-                res.write(`event: chunk\ndata: ${JSON.stringify({
-                    content: chunk.content,
-                    done: chunk.done
-                })}\n\n`);
-                if (chunk.done) {
-                    break;
-                }
-            }
-        }
-        catch (streamError) {
-            hasError = true;
-            const errorMessage = streamError instanceof Error ? streamError.message : 'Streaming error';
-            res.write(`event: error\ndata: ${JSON.stringify({
-                message: errorMessage
-            })}\n\n`);
-        }
-        // Save assistant response if no error
-        if (!hasError && fullResponse) {
-            const assistantMessage = await prisma.chatMessage.create({
-                data: {
-                    sessionId: session.id,
-                    role: 'ASSISTANT',
-                    content: fullResponse,
-                    metadata: {
-                        model: process.env.LLM_MODEL || 'glm-5',
-                        tokensUsed: Math.ceil(fullResponse.length / 4), // Rough estimate
-                    },
-                },
-            });
-            assistantMessageId = assistantMessage.id;
-            // Update session updatedAt
-            await prisma.chatSession.update({
-                where: { id: session.id },
-                data: { updatedAt: new Date() },
-            });
-            // US-09: Update Redis session context with new messages
-            const updatedMessages = [
-                ...session.messages.map(m => ({ role: m.role.toLowerCase(), content: m.content })),
-                { role: 'user', content: content.trim() },
-                { role: 'assistant', content: fullResponse },
-            ];
-            // Get current summary from DB or Redis
-            const currentSummary = session.summary ||
-                (await (0, redis_1.getSessionContext)(session.id))?.summary || undefined;
-            // Store updated context in Redis
-            await (0, redis_1.storeSessionContext)(session.id, userId, updatedMessages, currentSummary);
-            // US-09: Generate session summary if threshold reached
-            const totalMessages = session.messages.length + 2; // +2 for new messages
-            if (totalMessages >= SUMMARY_THRESHOLD && !session.summary) {
-                // Generate summary in background (non-blocking)
-                generateAndStoreSessionSummary(session.id, userId, updatedMessages, userLanguage)
-                    .then(summary => {
-                    console.log(`[Chat] Session ${session.id} summary generated: ${summary.substring(0, 50)}...`);
-                })
-                    .catch(err => {
-                    console.error('[Chat] Failed to generate session summary:', err);
-                });
-            }
-        }
-        // Send completion event
-        const latencyMs = Date.now() - startTime;
-        const finalStatus = (0, llm_1.getOrchestratorStatus)();
-        // Message-count daily limit: increment query counter for FREE users
-        let dailyLimitReached = false;
-        if (!hasError && fullResponse && userTier === 'FREE' && !isAdmin && userId) {
-            try {
-                const [newCount, limit] = await Promise.all([
-                    (0, queryLimit_1.incrementDailyQuery)(userId),
-                    (0, queryLimit_1.getFreeTierDailyQueryLimit)(),
-                ]);
-                if (newCount >= limit) {
-                    dailyLimitReached = true;
-                }
-            }
-            catch (err) {
-                console.error('[Chat] Failed to update daily query counter (non-fatal):', err);
-            }
-        }
-        // US-34: Add latency header
-        res.setHeader('X-Latency', `${latencyMs}ms`);
-        res.setHeader('X-Provider', finalStatus.activeProvider);
-        res.write(`event: complete\ndata: ${JSON.stringify({
-            messageId: assistantMessageId,
-            content: fullResponse,
-            hasError,
-            provider: finalStatus.activeProvider,
-            latencyMs,
-            dailyLimitReached,
-        })}\n\n`);
-        res.end();
+ACTIVE TRANSITS TO NATAL CHART (sorted by orb \u2014 tightest = most powerful):
+${aspectLines || "No major aspects within orb today."}`;
+      } catch (err) {
+        console.warn("[Chat] Failed to compute active transits for system prompt:", err instanceof Error ? err.message : err);
+      }
     }
-    catch (error) {
-        console.error('[Chat] Error sending message:', error);
-        // Check if headers already sent
-        if (!res.headersSent) {
-            res.status(500).json({
-                success: false,
-                error: {
-                    code: 'INTERNAL_ERROR',
-                    message: 'An error occurred while processing your message',
-                },
-            });
-        }
-        else {
-            // Send error via SSE
-            res.write(`event: error\ndata: ${JSON.stringify({
-                message: 'An internal error occurred'
-            })}\n\n`);
-            res.end();
-        }
+    const systemPrompt = await (0, import_llm.buildSystemPrompt)({
+      chartSummary,
+      transitsSummary,
+      language: userLanguage,
+      conversationHistory,
+      sessionSummary,
+      // US-09: Add session summary for follow-up context
+      recentMessages
+      // US-09: Add recent messages for context
+    });
+    const messages = [
+      { role: "system", content: systemPrompt },
+      ...conversationHistory,
+      { role: "user", content: content.trim() }
+    ];
+    const userMessage = await prisma.chatMessage.create({
+      data: {
+        sessionId: session.id,
+        role: "USER",
+        content: content.trim()
+      }
+    });
+    if (session.messages.length === 0) {
+      const title = content.trim().substring(0, 50) + (content.length > 50 ? "..." : "");
+      await prisma.chatSession.update({
+        where: { id: session.id },
+        data: { title }
+      });
     }
-}
-/**
- * GET /api/v1/chat/sessions
- * List user's chat sessions with optional search
- * US-08: Chat History - Full-text search support
- */
-async function listSessions(req, res) {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    let aborted = false;
+    req.on("close", () => {
+      aborted = true;
+    });
+    const orchestratorStatus = (0, import_llm.getOrchestratorStatus)();
+    res.setHeader("X-Provider", orchestratorStatus.activeProvider);
+    res.write(`event: metadata
+data: ${JSON.stringify({
+      sessionId: session.id,
+      messageId: userMessage.id,
+      rateLimit: {
+        remaining: rateLimit.remaining - 1,
+        limit: rateLimit.limit
+      }
+    })}
+
+`);
+    let fullResponse = "";
+    let assistantMessageId;
+    let hasError = false;
     try {
-        const userId = req.user?.id;
-        const { page = 1, limit = 20, search } = req.query;
-        const userLanguage = req.user?.language || 'en';
-        if (!userId) {
-            res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
-            });
-            return;
+      for await (const chunk of (0, import_llm.streamChatCompletion)(messages, {
+        tier: effectiveTier,
+        userId,
+        userIp: req.ip || req.headers["x-forwarded-for"]?.split(",")[0]?.trim()
+      })) {
+        if (aborted) break;
+        if (chunk.error) {
+          hasError = true;
+          res.write(`event: error
+data: ${JSON.stringify({
+            message: chunk.error
+          })}
+
+`);
+          break;
         }
-        // Build where clause
-        let whereClause = { userId };
-        // Full-text search on message content (US-08)
-        if (search && typeof search === 'string' && search.trim().length > 0) {
-            const searchTerm = search.trim();
-            // Use PostgreSQL full-text search via Prisma raw query for better search
-            // First find session IDs that contain matching messages
-            const matchingSessions = await prisma.$queryRaw `
-        SELECT DISTINCT cm.session_id
+        fullResponse += chunk.content;
+        res.write(`event: chunk
+data: ${JSON.stringify({
+          content: chunk.content,
+          done: chunk.done
+        })}
+
+`);
+        if (chunk.done) {
+          break;
+        }
+      }
+    } catch (streamError) {
+      hasError = true;
+      const errorMessage = streamError instanceof Error ? streamError.message : "Streaming error";
+      res.write(`event: error
+data: ${JSON.stringify({
+        message: errorMessage
+      })}
+
+`);
+    }
+    if (hasError && creditDeducted) {
+      (0, import_credits.refundCredits)(userId, CREDIT_ACTION_COST[creditAction], `Auto-refund: LLM error for ${creditAction}`, "oracle_session", session.id).catch((err) => console.error("[Chat] Credit refund failed (non-fatal):", err));
+      prisma.chatSession.update({ where: { id: session.id }, data: { creditTier: null } }).catch(() => {
+      });
+    }
+    const latencyMs = Date.now() - startTime;
+    const finalStatus = (0, import_llm.getOrchestratorStatus)();
+    let dailyLimitReached = false;
+    if (!hasError && fullResponse && userTier === "FREE" && !isAdmin && userId) {
+      try {
+        const [newCount, limit] = await Promise.all([
+          (0, import_queryLimit.incrementDailyQuery)(userId),
+          (0, import_queryLimit.getFreeTierDailyQueryLimit)()
+        ]);
+        if (newCount >= limit) {
+          dailyLimitReached = true;
+        }
+      } catch (err) {
+        console.error("[Chat] Failed to update daily query counter (non-fatal):", err);
+      }
+    }
+    res.write(`event: complete
+data: ${JSON.stringify({
+      messageId: assistantMessageId,
+      content: fullResponse,
+      hasError,
+      provider: finalStatus.activeProvider,
+      latencyMs,
+      dailyLimitReached
+    })}
+
+`);
+    res.end();
+    if (!hasError && fullResponse) {
+      (async () => {
+        try {
+          const assistantMessage = await prisma.chatMessage.create({
+            data: {
+              sessionId: session.id,
+              role: "ASSISTANT",
+              content: fullResponse,
+              metadata: {
+                model: process.env.LLM_MODEL || "glm-5",
+                tokensUsed: Math.ceil(fullResponse.length / 4)
+              }
+            }
+          });
+          assistantMessageId = assistantMessage.id;
+          await prisma.chatSession.update({
+            where: { id: session.id },
+            data: { updatedAt: /* @__PURE__ */ new Date() }
+          });
+          const updatedMessages = [
+            ...session.messages.map((m) => ({ role: m.role.toLowerCase(), content: m.content })),
+            { role: "user", content: content.trim() },
+            { role: "assistant", content: fullResponse }
+          ];
+          const currentSummary = session.summary || (await (0, import_redis.getSessionContext)(session.id))?.summary || void 0;
+          await (0, import_redis.storeSessionContext)(session.id, userId, updatedMessages, currentSummary);
+          const totalMessages = session.messages.length + 2;
+          if (totalMessages >= SUMMARY_THRESHOLD && !session.summary) {
+            generateAndStoreSessionSummary(session.id, userId, updatedMessages, userLanguage).then((summary) => {
+              console.log(`[Chat] Session ${session.id} summary generated: ${summary.substring(0, 50)}...`);
+            }).catch((err) => {
+              console.error("[Chat] Failed to generate session summary:", err);
+            });
+          }
+          const modelUsed = process.env.LLM_MODEL || "unknown";
+          const today = /* @__PURE__ */ new Date();
+          today.setHours(0, 0, 0, 0);
+          const approxInput = BigInt(Math.ceil((systemPrompt?.length ?? 0) / 4));
+          const approxOutput = BigInt(Math.ceil(fullResponse.length / 4));
+          await prisma.llmUsage.upsert({
+            where: { date_tier_model: { date: today, tier: userTier, model: modelUsed } },
+            create: {
+              date: today,
+              tier: userTier,
+              model: modelUsed,
+              requestCount: 1,
+              inputTokens: approxInput,
+              outputTokens: approxOutput,
+              totalTokens: approxInput + approxOutput,
+              costUsdCents: estimateCostCents(modelUsed, Number(approxInput), Number(approxOutput))
+            },
+            update: {
+              requestCount: { increment: 1 },
+              inputTokens: { increment: approxInput },
+              outputTokens: { increment: approxOutput },
+              totalTokens: { increment: approxInput + approxOutput },
+              costUsdCents: { increment: estimateCostCents(modelUsed, Number(approxInput), Number(approxOutput)) }
+            }
+          });
+          if (userId) {
+            (0, import_streakService.updateStreak)(userId).catch(
+              (err) => console.error("[Chat] Failed to update streak (non-fatal):", err)
+            );
+          }
+        } catch (err) {
+          console.error("[Chat] Failed to persist assistant message (non-fatal):", err);
+        }
+      })();
+    }
+  } catch (error) {
+    console.error("[Chat] Error sending message:", error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: "INTERNAL_ERROR",
+          message: "An error occurred while processing your message"
+        }
+      });
+    } else {
+      res.write(`event: error
+data: ${JSON.stringify({
+        message: "An internal error occurred"
+      })}
+
+`);
+      res.end();
+    }
+  }
+}
+async function listSessions(req, res) {
+  try {
+    const userId = req.user?.id;
+    const { page = 1, limit = 20, search, archived } = req.query;
+    const userLanguage = req.user?.language || "en";
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "User not authenticated" }
+      });
+      return;
+    }
+    const showArchived = archived === "true";
+    let whereClause = { userId, isArchived: showArchived };
+    const snippetMap = /* @__PURE__ */ new Map();
+    if (search && typeof search === "string" && search.trim().length > 0) {
+      const searchTerm = search.trim();
+      const matchingSessions = await prisma.$queryRaw`
+        SELECT DISTINCT ON (cm.session_id) cm.session_id, cm.content
         FROM chat_messages cm
         INNER JOIN chat_sessions cs ON cm.session_id = cs.id
         WHERE cs.user_id = ${userId}
         AND to_tsvector('simple', cm.content) @@ plainto_tsquery('simple', ${searchTerm})
-        ORDER BY cm.session_id
+        ORDER BY cm.session_id, cm.created_at DESC
       `;
-            const sessionIds = matchingSessions.map(s => s.session_id);
-            // Also search in session titles
-            const titleMatchingSessions = await prisma.chatSession.findMany({
-                where: {
-                    userId,
-                    title: { contains: searchTerm, mode: 'insensitive' },
-                },
-                select: { id: true },
-            });
-            const titleSessionIds = titleMatchingSessions.map(s => s.id);
-            // Combine both sets
-            const allMatchingIds = [...new Set([...sessionIds, ...titleSessionIds])];
-            if (allMatchingIds.length === 0) {
-                // No matches found
-                res.json({
-                    success: true,
-                    data: {
-                        sessions: [],
-                        pagination: {
-                            page: Number(page),
-                            limit: Number(limit),
-                            total: 0,
-                            hasMore: false,
-                        },
-                        searchQuery: searchTerm,
-                    },
-                });
-                return;
-            }
-            whereClause = { userId, id: { in: allMatchingIds } };
-        }
-        const sessions = await prisma.chatSession.findMany({
-            where: whereClause,
-            orderBy: { updatedAt: 'desc' },
-            skip: (Number(page) - 1) * Number(limit),
-            take: Number(limit),
-            include: {
-                messages: {
-                    orderBy: { createdAt: 'desc' },
-                    take: 1,
-                },
-                _count: { select: { messages: true } },
-            },
-        });
-        const total = await prisma.chatSession.count({ where: whereClause });
+      for (const row of matchingSessions) {
+        snippetMap.set(row.session_id, extractSearchSnippet(row.content, searchTerm));
+      }
+      const sessionIds = matchingSessions.map((s) => s.session_id);
+      const titleMatchingSessions = await prisma.chatSession.findMany({
+        where: { userId, title: { contains: searchTerm, mode: "insensitive" } },
+        select: { id: true }
+      });
+      const allMatchingIds = [.../* @__PURE__ */ new Set([...sessionIds, ...titleMatchingSessions.map((s) => s.id)])];
+      if (allMatchingIds.length === 0) {
         res.json({
-            success: true,
-            data: {
-                sessions: sessions.map((s) => ({
-                    id: s.id,
-                    title: s.title,
-                    lastMessage: s.messages[0]?.content?.substring(0, 100),
-                    lastMessageAt: s.messages[0]?.createdAt || s.createdAt,
-                    messageCount: s._count.messages,
-                    createdAt: s.createdAt,
-                    updatedAt: s.updatedAt,
-                })),
-                pagination: {
-                    page: Number(page),
-                    limit: Number(limit),
-                    total,
-                    hasMore: total > Number(page) * Number(limit),
-                },
-                searchQuery: search || null,
-            },
+          success: true,
+          data: {
+            sessions: [],
+            pagination: { page: Number(page), limit: Number(limit), total: 0, hasMore: false },
+            searchQuery: searchTerm
+          }
         });
+        return;
+      }
+      whereClause = { userId, isArchived: showArchived, id: { in: allMatchingIds } };
     }
-    catch (error) {
-        console.error('[Chat] Error listing sessions:', error);
-        res.status(500).json({
-            success: false,
-            error: { code: 'INTERNAL_ERROR', message: 'Failed to list sessions' },
-        });
-    }
+    const sessions = await prisma.chatSession.findMany({
+      where: whereClause,
+      orderBy: { updatedAt: "desc" },
+      skip: (Number(page) - 1) * Number(limit),
+      take: Number(limit),
+      include: {
+        messages: { orderBy: { createdAt: "desc" }, take: 1 },
+        _count: { select: { messages: true } }
+      }
+    });
+    const total = await prisma.chatSession.count({ where: whereClause });
+    res.json({
+      success: true,
+      data: {
+        sessions: sessions.map((s) => ({
+          id: s.id,
+          title: s.title,
+          isPinned: s.isPinned,
+          isArchived: s.isArchived,
+          lastMessage: s.messages[0]?.content?.substring(0, 100),
+          matchSnippet: snippetMap.get(s.id) ?? null,
+          lastMessageAt: s.messages[0]?.createdAt || s.createdAt,
+          messageCount: s._count.messages,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt
+        })),
+        pagination: {
+          page: Number(page),
+          limit: Number(limit),
+          total,
+          hasMore: total > Number(page) * Number(limit)
+        },
+        searchQuery: search || null
+      }
+    });
+  } catch (error) {
+    console.error("[Chat] Error listing sessions:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "Failed to list sessions" }
+    });
+  }
 }
-/**
- * GET /api/v1/chat/sessions/:id
- * Get a specific chat session with messages
- */
 async function getSession(req, res) {
-    try {
-        const userId = req.user?.id;
-        const { id } = req.params;
-        const { before, limit = 50 } = req.query;
-        if (!userId) {
-            res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
-            });
-            return;
-        }
-        const session = await prisma.chatSession.findFirst({
-            where: { id, userId },
-            include: {
-                messages: {
-                    orderBy: { createdAt: 'asc' },
-                    take: Number(limit),
-                    ...(before ? { cursor: { id: String(before) }, skip: 1 } : {}),
-                },
-            },
-        });
-        if (!session) {
-            res.status(404).json({
-                success: false,
-                error: { code: 'NOT_FOUND', message: 'Session not found' },
-            });
-            return;
-        }
-        res.json({
-            success: true,
-            data: {
-                session: {
-                    id: session.id,
-                    title: session.title,
-                    createdAt: session.createdAt,
-                    updatedAt: session.updatedAt,
-                },
-                messages: session.messages.map((m) => ({
-                    id: m.id,
-                    role: m.role.toLowerCase(),
-                    content: m.content,
-                    metadata: m.metadata,
-                    createdAt: m.createdAt,
-                })),
-                hasMore: session.messages.length === Number(limit),
-            },
-        });
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { before, limit = 50 } = req.query;
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "User not authenticated" }
+      });
+      return;
     }
-    catch (error) {
-        console.error('[Chat] Error getting session:', error);
-        res.status(500).json({
-            success: false,
-            error: { code: 'INTERNAL_ERROR', message: 'Failed to get session' },
-        });
+    const session = await prisma.chatSession.findFirst({
+      where: { id, userId },
+      include: {
+        messages: {
+          orderBy: { createdAt: "asc" },
+          take: Number(limit),
+          ...before ? { cursor: { id: String(before) }, skip: 1 } : {}
+        }
+      }
+    });
+    if (!session) {
+      res.status(404).json({
+        success: false,
+        error: { code: "NOT_FOUND", message: "Session not found" }
+      });
+      return;
     }
+    res.json({
+      success: true,
+      data: {
+        session: {
+          id: session.id,
+          title: session.title,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt
+        },
+        messages: session.messages.map((m) => ({
+          id: m.id,
+          role: m.role.toLowerCase(),
+          content: m.content,
+          metadata: m.metadata,
+          createdAt: m.createdAt
+        })),
+        hasMore: session.messages.length === Number(limit)
+      }
+    });
+  } catch (error) {
+    console.error("[Chat] Error getting session:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "Failed to get session" }
+    });
+  }
 }
-/**
- * POST /api/v1/chat/sessions
- * Create a new chat session
- */
-async function createSession(req, res) {
-    try {
-        const userId = req.user?.id;
-        const { title, birthProfileId } = req.body;
-        if (!userId) {
-            res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
-            });
-            return;
-        }
-        const session = await prisma.chatSession.create({
-            data: {
-                userId,
-                title: title || 'Нов разговор',
-                birthProfileId,
-            },
-        });
-        res.status(201).json({
-            success: true,
-            data: {
-                session: {
-                    id: session.id,
-                    title: session.title,
-                    createdAt: session.createdAt,
-                },
-                welcomeMessage: {
-                    role: 'assistant',
-                    content: 'Здравей! Аз съм AstroLogAI, твоят личен астролог. Какво те интересува днес?',
-                },
-            },
-        });
-    }
-    catch (error) {
-        console.error('[Chat] Error creating session:', error);
-        res.status(500).json({
-            success: false,
-            error: { code: 'INTERNAL_ERROR', message: 'Failed to create session' },
-        });
-    }
-}
-/**
- * DELETE /api/v1/chat/sessions/:id
- * Delete a chat session
- */
-async function deleteSession(req, res) {
-    try {
-        const userId = req.user?.id;
-        const { id } = req.params;
-        if (!userId) {
-            res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
-            });
-            return;
-        }
-        const session = await prisma.chatSession.findFirst({
-            where: { id, userId },
-        });
-        if (!session) {
-            res.status(404).json({
-                success: false,
-                error: { code: 'NOT_FOUND', message: 'Session not found' },
-            });
-            return;
-        }
-        // US-09: Clear Redis context for this session
-        await (0, redis_1.clearSessionContext)(id);
-        await prisma.chatSession.delete({ where: { id } });
-        res.json({
-            success: true,
-            data: { message: 'Session deleted successfully' },
-        });
-    }
-    catch (error) {
-        console.error('[Chat] Error deleting session:', error);
-        res.status(500).json({
-            success: false,
-            error: { code: 'INTERNAL_ERROR', message: 'Failed to delete session' },
-        });
-    }
-}
-/**
- * POST /api/v1/chat/new
- * Start a new conversation with fresh context
- * US-09: New Conversation - clears session context
- */
-async function startNewConversation(req, res) {
-    try {
-        const userId = req.user?.id;
-        const { title, birthProfileId } = req.body;
-        const userLanguage = req.user?.language || 'en';
-        if (!userId) {
-            res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
-            });
-            return;
-        }
-        // Create a new session with fresh context
-        const session = await prisma.chatSession.create({
-            data: {
-                userId,
-                title: title || 'Нов разговор',
-                birthProfileId,
-            },
-        });
-        // US-09: Initialize Redis context for the new session
-        await (0, redis_1.storeSessionContext)(session.id, userId, [], // No previous messages
-        undefined // No summary
-        );
-        const welcomeMessage = userLanguage === 'bg'
-            ? 'Здравей! Аз съм AstroLogAI, твоят личен астролог. Какво те интересува днес?'
-            : 'Hello! I am AstroLogAI, your personal astrologer. What would you like to know today?';
-        res.status(201).json({
-            success: true,
-            data: {
-                session: {
-                    id: session.id,
-                    title: session.title,
-                    createdAt: session.createdAt,
-                },
-                welcomeMessage: {
-                    role: 'assistant',
-                    content: welcomeMessage,
-                },
-            },
-        });
-    }
-    catch (error) {
-        console.error('[Chat] Error starting new conversation:', error);
-        res.status(500).json({
-            success: false,
-            error: { code: 'INTERNAL_ERROR', message: 'Failed to start new conversation' },
-        });
-    }
-}
-/**
- * DELETE /api/v1/chat/sessions
- * Clear all chat sessions for the user
- * US-08: Chat History - Clear all history
- */
-async function clearAllSessions(req, res) {
-    try {
-        const userId = req.user?.id;
-        const userLanguage = req.user?.language || 'en';
-        if (!userId) {
-            res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
-            });
-            return;
-        }
-        // Count sessions before deletion
-        const sessionCount = await prisma.chatSession.count({ where: { userId } });
-        // Delete all sessions (cascade will delete messages)
-        await prisma.chatSession.deleteMany({ where: { userId } });
-        // Clear rate limit counters for the month
-        const month = getCurrentMonth();
-        const monthKey = `ratelimit:monthly:${userId}:${month}`;
-        await redis_1.redisClient.del(monthKey);
-        // US-09: Clear Redis session contexts
-        await (0, redis_1.clearUserSessionContexts)(userId);
-        res.json({
-            success: true,
-            data: {
-                message: userLanguage === 'bg'
-                    ? `Успешно изтрити ${sessionCount} разговори`
-                    : `Successfully deleted ${sessionCount} conversations`,
-                deletedCount: sessionCount,
-            },
-        });
-    }
-    catch (error) {
-        console.error('[Chat] Error clearing all sessions:', error);
-        res.status(500).json({
-            success: false,
-            error: { code: 'INTERNAL_ERROR', message: 'Failed to clear chat history' },
-        });
-    }
-}
-/**
- * PATCH /api/v1/chat/sessions/:id
- * Update a chat session (e.g., rename title)
- * US-08: Chat History - Rename conversation
- */
-async function updateSession(req, res) {
-    try {
-        const userId = req.user?.id;
-        const { id } = req.params;
-        const { title } = req.body;
-        if (!userId) {
-            res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
-            });
-            return;
-        }
-        if (!title || typeof title !== 'string' || title.trim().length === 0) {
-            res.status(400).json({
-                success: false,
-                error: { code: 'VALIDATION_ERROR', message: 'Title is required' },
-            });
-            return;
-        }
-        // Verify session belongs to user
-        const session = await prisma.chatSession.findFirst({
-            where: { id, userId },
-        });
-        if (!session) {
-            res.status(404).json({
-                success: false,
-                error: { code: 'NOT_FOUND', message: 'Session not found' },
-            });
-            return;
-        }
-        // Update title
-        const updated = await prisma.chatSession.update({
-            where: { id },
-            data: { title: title.trim().substring(0, 100) },
-        });
-        res.json({
-            success: true,
-            data: {
-                session: {
-                    id: updated.id,
-                    title: updated.title,
-                    updatedAt: updated.updatedAt,
-                },
-            },
-        });
-    }
-    catch (error) {
-        console.error('[Chat] Error updating session:', error);
-        res.status(500).json({
-            success: false,
-            error: { code: 'INTERNAL_ERROR', message: 'Failed to update session' },
-        });
-    }
-}
-/**
- * GET /api/v1/chat/usage
- * Get user's chat usage statistics
- */
-async function getUsage(req, res) {
-    try {
-        const userId = req.user?.id;
-        const userTier = req.user?.tier || 'FREE';
-        if (!userId) {
-            res.status(401).json({
-                success: false,
-                error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
-            });
-            return;
-        }
-        const limits = (0, subscription_tiers_1.getTierLimits)(userTier);
-        const month = getCurrentMonth();
-        const monthKey = `ratelimit:monthly:${userId}:${month}`;
-        const used = parseInt(await redis_1.redisClient.get(monthKey) || '0', 10);
-        const remaining = limits.monthlyQueries === Infinity ? Infinity : limits.monthlyQueries - used;
-        res.json({
-            success: true,
-            data: {
-                tier: userTier,
-                usage: {
-                    used,
-                    limit: limits.monthlyQueries === Infinity ? 'unlimited' : limits.monthlyQueries,
-                    remaining: remaining === Infinity ? 'unlimited' : remaining,
-                    resetAt: getMonthResetDate(),
-                },
-            },
-        });
-    }
-    catch (error) {
-        console.error('[Chat] Error getting usage:', error);
-        res.status(500).json({
-            success: false,
-            error: { code: 'INTERNAL_ERROR', message: 'Failed to get usage' },
-        });
-    }
-}
-/**
- * POST /api/v1/chat/sessions/:id/import
- * Import guest messages into an existing session
- * Used when a guest user registers to migrate their homepage chat
- */
-async function importGuestMessages(req, res) {
-    try {
-        const userId = req.user?.id;
-        const { id: sessionId } = req.params;
-        const { messages } = req.body;
-        if (!userId) {
-            res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'User not authenticated' } });
-            return;
-        }
-        if (!Array.isArray(messages) || messages.length === 0) {
-            res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'messages array required and must not be empty' } });
-            return;
-        }
-        if (messages.length > 50) {
-            res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'Cannot import more than 50 messages at once' } });
-            return;
-        }
-        // Verify session belongs to user
-        const session = await prisma.chatSession.findFirst({ where: { id: sessionId, userId } });
-        if (!session) {
-            res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Session not found' } });
-            return;
-        }
-        // Normalize: 'oracle' → 'ASSISTANT', 'user' → 'USER', skip empty
-        const normalizedMsgs = messages
-            .filter(m => m.content?.trim())
-            .map(m => ({
-            sessionId,
-            role: (m.role === 'oracle' || m.role === 'assistant') ? 'ASSISTANT' : 'USER',
-            content: m.content.trim(),
-            ...(m.timestamp ? { createdAt: new Date(m.timestamp) } : {}),
-        }));
-        if (normalizedMsgs.length === 0) {
-            res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'No valid messages to import' } });
-            return;
-        }
-        await prisma.chatMessage.createMany({ data: normalizedMsgs });
-        // Update session title if still default
-        if (!session.title || session.title === 'New conversation' || session.title === 'Нов разговор') {
-            await prisma.chatSession.update({
-                where: { id: sessionId },
-                data: { title: 'My first reading', updatedAt: new Date() },
-            });
-        }
-        console.log(`[Chat] Imported ${normalizedMsgs.length} guest messages into session ${sessionId} for user ${userId}`);
-        res.json({ success: true, data: { imported: normalizedMsgs.length, sessionId } });
-    }
-    catch (error) {
-        console.error('[Chat] Error importing guest messages:', error);
-        res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to import guest messages' } });
-    }
-}
-exports.default = {
-    sendMessage,
-    listSessions,
-    getSession,
-    createSession,
-    deleteSession,
-    getUsage,
+const ORACLE_GREETINGS = {
+  bg: [
+    "\u0417\u0434\u0440\u0430\u0432\u0435\u0439! \u0410\u0437 \u0441\u044A\u043C AstroLogAI, \u0442\u0432\u043E\u044F\u0442 \u043B\u0438\u0447\u0435\u043D \u0430\u0441\u0442\u0440\u043E\u043B\u043E\u0433. \u041A\u0430\u043A\u0432\u043E \u0442\u0435 \u0438\u043D\u0442\u0435\u0440\u0435\u0441\u0443\u0432\u0430 \u0434\u043D\u0435\u0441?",
+    "\u0414\u043E\u0431\u0440\u0435 \u0434\u043E\u0448\u044A\u043B. \u0417\u0432\u0435\u0437\u0434\u0438\u0442\u0435 \u0441\u043B\u0443\u0448\u0430\u0442 \u2014 \u043A\u0430\u043A\u0432\u043E \u0438\u0441\u043A\u0430\u0448 \u0434\u0430 \u0440\u0430\u0437\u043A\u0440\u0438\u0435\u0448?",
+    "\u041D\u0435\u0431\u0435\u0441\u043D\u0430\u0442\u0430 \u043A\u0430\u0440\u0442\u0430 \u0435 \u043E\u0442\u0432\u043E\u0440\u0435\u043D\u0430. \u041E\u0442\u043A\u044A\u0434\u0435 \u0434\u0430 \u0437\u0430\u043F\u043E\u0447\u043D\u0435\u043C?",
+    "\u041E\u0440\u0430\u043A\u0443\u043B\u044A\u0442 \u0435 \u0442\u0443\u043A. \u041F\u043E\u043F\u0438\u0442\u0430\u0439 \u043A\u0430\u043A\u0432\u043E \u043F\u0430\u0437\u044F\u0442 \u0437\u0432\u0435\u0437\u0434\u0438\u0442\u0435 \u0437\u0430 \u0442\u0435\u0431.",
+    "\u041A\u043E\u0441\u043C\u043E\u0441\u044A\u0442 \u0433\u043E\u0432\u043E\u0440\u0438 \u043D\u0430 \u0442\u0435\u0437\u0438, \u043A\u043E\u0438\u0442\u043E \u0441\u043B\u0443\u0448\u0430\u0442. \u041A\u0430\u043A\u0432\u043E \u0442\u0435 \u0432\u044A\u043B\u043D\u0443\u0432\u0430?"
+  ],
+  en: [
+    "Hello! I am AstroLogAI, your personal astrologer. What would you like to know today?",
+    "Welcome. The stars are listening \u2014 what do you wish to explore?",
+    "The celestial map is open. Where shall we begin?",
+    "The Oracle is here. Ask what the stars hold for you.",
+    "The cosmos speaks to those who listen. What is on your mind?"
+  ]
 };
-//# sourceMappingURL=chatController.js.map
+function getOracleGreeting(language) {
+  const lang = language === "bg" ? "bg" : "en";
+  const pool = ORACLE_GREETINGS[lang];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+async function createSession(req, res) {
+  try {
+    const userId = req.user?.id;
+    const { title, birthProfileId } = req.body;
+    const userLanguage = req.user?.language || "en";
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "User not authenticated" }
+      });
+      return;
+    }
+    const session = await prisma.chatSession.create({
+      data: {
+        userId,
+        title: title || (userLanguage === "bg" ? "\u041D\u043E\u0432 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440" : "New Conversation"),
+        birthProfileId
+      }
+    });
+    import_redis.redisClient.sadd(`user_sessions:${userId}`, session.id).catch(() => {
+    });
+    const welcomeMessage = getOracleGreeting(userLanguage);
+    res.status(201).json({
+      success: true,
+      data: {
+        session: {
+          id: session.id,
+          title: session.title,
+          createdAt: session.createdAt
+        },
+        welcomeMessage: {
+          role: "assistant",
+          content: welcomeMessage
+        }
+      }
+    });
+  } catch (error) {
+    console.error("[Chat] Error creating session:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "Failed to create session" }
+    });
+  }
+}
+async function deleteSession(req, res) {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "User not authenticated" }
+      });
+      return;
+    }
+    const session = await prisma.chatSession.findFirst({
+      where: { id, userId }
+    });
+    if (!session) {
+      res.status(404).json({
+        success: false,
+        error: { code: "NOT_FOUND", message: "Session not found" }
+      });
+      return;
+    }
+    await (0, import_redis.clearSessionContext)(id);
+    await prisma.chatSession.delete({ where: { id } });
+    res.json({
+      success: true,
+      data: { message: "Session deleted successfully" }
+    });
+  } catch (error) {
+    console.error("[Chat] Error deleting session:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "Failed to delete session" }
+    });
+  }
+}
+async function startNewConversation(req, res) {
+  try {
+    const userId = req.user?.id;
+    const { title, birthProfileId } = req.body;
+    const userLanguage = req.user?.language || "en";
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "User not authenticated" }
+      });
+      return;
+    }
+    const session = await prisma.chatSession.create({
+      data: {
+        userId,
+        title: title || (userLanguage === "bg" ? "\u041D\u043E\u0432 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440" : "New Conversation"),
+        birthProfileId
+      }
+    });
+    import_redis.redisClient.sadd(`user_sessions:${userId}`, session.id).catch(() => {
+    });
+    await (0, import_redis.storeSessionContext)(
+      session.id,
+      userId,
+      [],
+      // No previous messages
+      void 0
+      // No summary
+    );
+    const welcomeMessage = getOracleGreeting(userLanguage);
+    res.status(201).json({
+      success: true,
+      data: {
+        session: {
+          id: session.id,
+          title: session.title,
+          createdAt: session.createdAt
+        },
+        welcomeMessage: {
+          role: "assistant",
+          content: welcomeMessage
+        }
+      }
+    });
+  } catch (error) {
+    console.error("[Chat] Error starting new conversation:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "Failed to start new conversation" }
+    });
+  }
+}
+async function clearAllSessions(req, res) {
+  try {
+    const userId = req.user?.id;
+    const userLanguage = req.user?.language || "en";
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "User not authenticated" }
+      });
+      return;
+    }
+    const sessionCount = await prisma.chatSession.count({ where: { userId } });
+    await prisma.chatSession.deleteMany({ where: { userId } });
+    await (0, import_redis.clearUserSessionContexts)(userId);
+    res.json({
+      success: true,
+      data: {
+        message: userLanguage === "bg" ? `\u0423\u0441\u043F\u0435\u0448\u043D\u043E \u0438\u0437\u0442\u0440\u0438\u0442\u0438 ${sessionCount} \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440\u0438` : `Successfully deleted ${sessionCount} conversations`,
+        deletedCount: sessionCount
+      }
+    });
+  } catch (error) {
+    console.error("[Chat] Error clearing all sessions:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "Failed to clear chat history" }
+    });
+  }
+}
+async function updateSession(req, res) {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { title, isPinned, isArchived } = req.body;
+    if (!userId) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } });
+      return;
+    }
+    if (title === void 0 && isPinned === void 0 && isArchived === void 0) {
+      res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "No fields to update" } });
+      return;
+    }
+    const session = await prisma.chatSession.findFirst({ where: { id, userId } });
+    if (!session) {
+      res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Session not found" } });
+      return;
+    }
+    const data = {};
+    if (title !== void 0) {
+      if (typeof title !== "string" || title.trim().length === 0) {
+        res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Title must be a non-empty string" } });
+        return;
+      }
+      data.title = title.trim().substring(0, 100);
+    }
+    if (isPinned !== void 0) data.isPinned = Boolean(isPinned);
+    if (isArchived !== void 0) data.isArchived = Boolean(isArchived);
+    const updated = await prisma.chatSession.update({ where: { id }, data });
+    res.json({ success: true, data: { session: { id: updated.id, title: updated.title, isPinned: updated.isPinned, isArchived: updated.isArchived, updatedAt: updated.updatedAt } } });
+  } catch (error) {
+    console.error("[Chat] Error updating session:", error);
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Failed to update session" } });
+  }
+}
+async function shareSession(req, res) {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    if (!userId) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+    const session = await prisma.chatSession.findFirst({ where: { id, userId } });
+    if (!session) {
+      res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Session not found" } });
+      return;
+    }
+    const token = session.sharedToken ?? require("crypto").randomBytes(12).toString("hex");
+    await prisma.chatSession.update({ where: { id }, data: { sharedToken: token } });
+    const frontendUrl = process.env.FRONTEND_URL || "https://astrologa.bg";
+    res.json({ success: true, data: { shareUrl: `${frontendUrl}/share/${token}` } });
+  } catch (error) {
+    console.error("[Chat] Error sharing session:", error);
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Failed to share session" } });
+  }
+}
+async function unshareSession(req, res) {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    if (!userId) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+    const session = await prisma.chatSession.findFirst({ where: { id, userId } });
+    if (!session) {
+      res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Session not found" } });
+      return;
+    }
+    await prisma.chatSession.update({ where: { id }, data: { sharedToken: null } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[Chat] Error unsharing session:", error);
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Failed to unshare session" } });
+  }
+}
+async function getSharedSession(req, res) {
+  try {
+    const { token } = req.params;
+    const session = await prisma.chatSession.findUnique({
+      where: { sharedToken: token },
+      include: {
+        messages: { orderBy: { createdAt: "asc" } }
+      }
+    });
+    if (!session) {
+      res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Shared conversation not found" } });
+      return;
+    }
+    res.json({
+      success: true,
+      data: {
+        session: {
+          id: session.id,
+          title: session.title || "Oracle conversation",
+          createdAt: session.createdAt,
+          messages: session.messages.map((m) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            createdAt: m.createdAt
+          }))
+        }
+      }
+    });
+  } catch (error) {
+    console.error("[Chat] Error fetching shared session:", error);
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Failed to fetch shared session" } });
+  }
+}
+async function rateSession(req, res) {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { rating } = req.body;
+    if (!userId) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "Not authenticated" } });
+      return;
+    }
+    const r = parseInt(rating, 10);
+    if (!r || r < 1 || r > 5) {
+      res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Rating must be 1-5" } });
+      return;
+    }
+    const session = await prisma.chatSession.findFirst({ where: { id, userId } });
+    if (!session) {
+      res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Session not found" } });
+      return;
+    }
+    await prisma.chatSession.update({ where: { id }, data: { rating: r } });
+    res.json({ success: true });
+  } catch (error) {
+    console.error("[Chat] Error rating session:", error);
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Failed to rate session" } });
+  }
+}
+async function getUsage(req, res) {
+  try {
+    const userId = req.user?.id;
+    const userTier = req.user?.tier || "FREE";
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "User not authenticated" }
+      });
+      return;
+    }
+    const stats = await (0, import_queryLimit.getUserUsageStats)(userId, userTier);
+    res.json({
+      success: true,
+      data: {
+        tier: userTier,
+        usage: stats
+      }
+    });
+  } catch (error) {
+    console.error("[Chat] Error getting usage:", error);
+    res.status(500).json({
+      success: false,
+      error: { code: "INTERNAL_ERROR", message: "Failed to get usage" }
+    });
+  }
+}
+async function importGuestMessages(req, res) {
+  try {
+    const userId = req.user?.id;
+    const { id: sessionId } = req.params;
+    const { messages } = req.body;
+    if (!userId) {
+      res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "User not authenticated" } });
+      return;
+    }
+    if (!Array.isArray(messages) || messages.length === 0) {
+      res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "messages array required and must not be empty" } });
+      return;
+    }
+    if (messages.length > 50) {
+      res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "Cannot import more than 50 messages at once" } });
+      return;
+    }
+    const session = await prisma.chatSession.findFirst({ where: { id: sessionId, userId } });
+    if (!session) {
+      res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Session not found" } });
+      return;
+    }
+    const normalizedMsgs = messages.filter((m) => m.content?.trim()).map((m) => ({
+      sessionId,
+      role: m.role === "oracle" || m.role === "assistant" ? "ASSISTANT" : "USER",
+      content: m.content.trim(),
+      ...m.timestamp ? { createdAt: new Date(m.timestamp) } : {}
+    }));
+    if (normalizedMsgs.length === 0) {
+      res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "No valid messages to import" } });
+      return;
+    }
+    await prisma.chatMessage.createMany({ data: normalizedMsgs });
+    if (!session.title || session.title === "New conversation" || session.title === "\u041D\u043E\u0432 \u0440\u0430\u0437\u0433\u043E\u0432\u043E\u0440") {
+      await prisma.chatSession.update({
+        where: { id: sessionId },
+        data: { title: "My first reading", updatedAt: /* @__PURE__ */ new Date() }
+      });
+    }
+    console.log(`[Chat] Imported ${normalizedMsgs.length} guest messages into session ${sessionId} for user ${userId}`);
+    res.json({ success: true, data: { imported: normalizedMsgs.length, sessionId } });
+  } catch (error) {
+    console.error("[Chat] Error importing guest messages:", error);
+    res.status(500).json({ success: false, error: { code: "INTERNAL_ERROR", message: "Failed to import guest messages" } });
+  }
+}
+var chatController_default = {
+  sendMessage,
+  listSessions,
+  getSession,
+  createSession,
+  deleteSession,
+  getUsage,
+  shareSession,
+  unshareSession,
+  getSharedSession,
+  rateSession
+};
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  clearAllSessions,
+  createSession,
+  deleteSession,
+  getSession,
+  getSharedSession,
+  getUsage,
+  importGuestMessages,
+  listSessions,
+  rateSession,
+  sendMessage,
+  shareSession,
+  startNewConversation,
+  unshareSession,
+  updateSession
+});

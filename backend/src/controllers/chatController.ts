@@ -31,6 +31,7 @@ import {
 } from '../config/subscription-tiers';
 import { getUserUsageStats, incrementDailyQuery, getFreeTierDailyQueryLimit } from '../middleware/queryLimit';
 import { updateStreak } from '../services/streakService';
+import { deductCredits, refundCredits } from '../services/credits';
 import type { ChatMessage } from '../services/llm';
 
 const prisma = new PrismaClient();
@@ -155,7 +156,7 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
     // US-34: Track latency for response headers
     const startTime = Date.now();
     
-    const { content, sessionId, birthProfileId } = req.body;
+    const { content, sessionId, birthProfileId, creditAction } = req.body;
     const userId = req.user?.id;
     const userEmail = req.user?.email || '';
     const userTier = (req.user?.tier as Tier) || 'FREE';
@@ -182,6 +183,72 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
 
     // Get or create session
     const session = await getOrCreateSession(userId, sessionId, birthProfileId, userLanguage);
+
+    // FEAT-10: Determine effective tier (subscription or credit-upgraded)
+    // creditAction: 'oracle_sonnet' (2cr → PRO) or 'oracle_opus' (4cr → PREMIUM)
+    // Credits are charged once at session start (first message only).
+    // Subsequent messages in the same session inherit session.creditTier.
+    const TIER_ORDER: Record<string, number> = { FREE: 0, PRO: 1, PREMIUM: 2 };
+    const CREDIT_ACTION_TIER: Record<string, string> = {
+      oracle_sonnet: 'PRO',
+      oracle_opus:   'PREMIUM',
+    };
+    const CREDIT_ACTION_COST: Record<string, number> = {
+      oracle_sonnet: 2,
+      oracle_opus:   4,
+    };
+
+    let effectiveTier: string = userTier;
+    let creditDeducted = false;
+
+    if (session.creditTier) {
+      // Existing credit-upgraded session — use stored credit tier
+      effectiveTier = session.creditTier;
+    } else if (
+      creditAction &&
+      CREDIT_ACTION_TIER[creditAction] &&
+      session.messages.length === 0 // First message only
+    ) {
+      const requestedTier = CREDIT_ACTION_TIER[creditAction];
+      if ((TIER_ORDER[requestedTier] ?? 0) > (TIER_ORDER[userTier] ?? 0)) {
+        // Charge credits and upgrade effective tier for this session
+        try {
+          await prisma.userCredits.upsert({
+            where: { userId },
+            create: { userId },
+            update: {},
+          });
+          await deductCredits(
+            userId,
+            CREDIT_ACTION_COST[creditAction],
+            `Oracle session (${creditAction})`,
+            'oracle_session',
+            session.id
+          );
+          creditDeducted = true;
+          effectiveTier = requestedTier;
+          // Persist credit tier on session so subsequent messages use it
+          await prisma.chatSession.update({
+            where: { id: session.id },
+            data: { creditTier: requestedTier },
+          });
+        } catch (creditErr: any) {
+          if (creditErr?.code === 'INSUFFICIENT_CREDITS') {
+            res.status(402).json({
+              success: false,
+              error: {
+                code: 'INSUFFICIENT_CREDITS',
+                message: 'Insufficient credits for this Oracle session',
+                required: creditErr.required,
+                available: creditErr.available,
+              },
+            });
+            return;
+          }
+          throw creditErr;
+        }
+      }
+    }
 
     // Get user's birth chart for context
     let chartSummary: string | undefined;
@@ -318,12 +385,16 @@ ${aspectLines || 'No major aspects within orb today.'}`;
     let hasError = false;
 
     try {
-      for await (const chunk of streamChatCompletion(messages)) {
+      for await (const chunk of streamChatCompletion(messages, {
+        tier: effectiveTier,
+        userId,
+        userIp: req.ip || (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim(),
+      })) {
         if (aborted) break;
         if (chunk.error) {
           hasError = true;
-          res.write(`event: error\ndata: ${JSON.stringify({ 
-            message: chunk.error 
+          res.write(`event: error\ndata: ${JSON.stringify({
+            message: chunk.error
           })}\n\n`);
           break;
         }
@@ -331,9 +402,9 @@ ${aspectLines || 'No major aspects within orb today.'}`;
         fullResponse += chunk.content;
 
         // Send chunk to client
-        res.write(`event: chunk\ndata: ${JSON.stringify({ 
+        res.write(`event: chunk\ndata: ${JSON.stringify({
           content: chunk.content,
-          done: chunk.done 
+          done: chunk.done
         })}\n\n`);
 
         if (chunk.done) {
@@ -343,9 +414,18 @@ ${aspectLines || 'No major aspects within orb today.'}`;
     } catch (streamError) {
       hasError = true;
       const errorMessage = streamError instanceof Error ? streamError.message : 'Streaming error';
-      res.write(`event: error\ndata: ${JSON.stringify({ 
-        message: errorMessage 
+      res.write(`event: error\ndata: ${JSON.stringify({
+        message: errorMessage
       })}\n\n`);
+    }
+
+    // FEAT-10: Auto-refund credits if LLM failed and credits were deducted this request
+    if (hasError && creditDeducted) {
+      refundCredits(userId, CREDIT_ACTION_COST[creditAction], `Auto-refund: LLM error for ${creditAction}`, 'oracle_session', session.id)
+        .catch(err => console.error('[Chat] Credit refund failed (non-fatal):', err));
+      // Also clear the creditTier so the user can retry
+      prisma.chatSession.update({ where: { id: session.id }, data: { creditTier: null } })
+        .catch(() => {});
     }
 
     // Send completion event immediately — respond to client before DB ops
