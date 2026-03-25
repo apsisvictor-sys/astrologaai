@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 
 const LEFT_TABS = [
   { href: '/chart',    icon: '✦', label: 'Chart',    minTier: null  },
-  { href: '/forecast', icon: '◎', label: 'Transits', minTier: 'PRO' },
+  { href: '/best-days', icon: '☆', label: 'Best Days', minTier: null },
 ] as const;
 
 const RIGHT_TABS = [
