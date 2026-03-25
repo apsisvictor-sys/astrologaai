@@ -1,81 +1,73 @@
 "use strict";
-/**
- * Language Detection Middleware
- * US-26: Auto-Detect User Language
- *
- * Detects user's preferred language from:
- * 1. User's stored preference (if authenticated)
- * 2. Accept-Language header
- * 3. Default to Bulgarian (bg) for BG market
- */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.DEFAULT_LANGUAGE = exports.SUPPORTED_LANGUAGES = void 0;
-exports.detectLanguageFromHeader = detectLanguageFromHeader;
-exports.languageDetectionMiddleware = languageDetectionMiddleware;
-exports.getDetectedLanguage = getDetectedLanguage;
-// Supported languages
-exports.SUPPORTED_LANGUAGES = ['bg', 'en'];
-// Default language — English (Bulgarian set explicitly per-user)
-exports.DEFAULT_LANGUAGE = 'en';
-/**
- * Detect language from Accept-Language header
- *
- * Examples:
- * - "bg-BG,bg;q=0.9,en;q=0.8" -> "bg"
- * - "en-US,en;q=0.9,bg;q=0.8" -> "en"
- * - "bg" -> "bg"
- */
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var languageDetection_exports = {};
+__export(languageDetection_exports, {
+  DEFAULT_LANGUAGE: () => DEFAULT_LANGUAGE,
+  SUPPORTED_LANGUAGES: () => SUPPORTED_LANGUAGES,
+  default: () => languageDetection_default,
+  detectLanguageFromHeader: () => detectLanguageFromHeader,
+  getDetectedLanguage: () => getDetectedLanguage,
+  languageDetectionMiddleware: () => languageDetectionMiddleware
+});
+module.exports = __toCommonJS(languageDetection_exports);
+const SUPPORTED_LANGUAGES = ["bg", "en"];
+const DEFAULT_LANGUAGE = "en";
 function detectLanguageFromHeader(acceptLanguage) {
-    if (!acceptLanguage) {
-        return exports.DEFAULT_LANGUAGE;
+  if (!acceptLanguage) {
+    return DEFAULT_LANGUAGE;
+  }
+  const languages = acceptLanguage.split(",").map((lang) => {
+    const [code, qualityStr] = lang.trim().split(";");
+    const quality = qualityStr ? parseFloat(qualityStr.replace("q=", "")) : 1;
+    return {
+      code: code?.toLowerCase().split("-")[0] || "",
+      // Get language code without region
+      quality
+    };
+  });
+  languages.sort((a, b) => b.quality - a.quality);
+  for (const lang of languages) {
+    if (SUPPORTED_LANGUAGES.includes(lang.code)) {
+      return lang.code;
     }
-    // Parse Accept-Language header
-    // Format: "language-region;q=quality,language;q=quality"
-    const languages = acceptLanguage.split(',').map(lang => {
-        const [code, qualityStr] = lang.trim().split(';');
-        const quality = qualityStr ? parseFloat(qualityStr.replace('q=', '')) : 1.0;
-        return {
-            code: code?.toLowerCase().split('-')[0] || '', // Get language code without region
-            quality,
-        };
-    });
-    // Sort by quality (highest first)
-    languages.sort((a, b) => b.quality - a.quality);
-    // Find first supported language
-    for (const lang of languages) {
-        if (exports.SUPPORTED_LANGUAGES.includes(lang.code)) {
-            return lang.code;
-        }
-    }
-    // No supported language found, use default
-    return exports.DEFAULT_LANGUAGE;
+  }
+  return DEFAULT_LANGUAGE;
 }
-/**
- * Language detection middleware
- *
- * Sets req.detectedLanguage based on:
- * 1. User's stored preference (if authenticated)
- * 2. Accept-Language header
- * 3. Default (Bulgarian)
- */
 function languageDetectionMiddleware(req, res, next) {
-    // Priority 1: Use user's stored preference if authenticated
-    if (req.user?.language && exports.SUPPORTED_LANGUAGES.includes(req.user.language)) {
-        req.detectedLanguage = req.user.language;
-        next();
-        return;
-    }
-    // Priority 2: Detect from Accept-Language header
-    const acceptLanguage = req.headers['accept-language'];
-    req.detectedLanguage = detectLanguageFromHeader(acceptLanguage);
+  if (req.user?.language && SUPPORTED_LANGUAGES.includes(req.user.language)) {
+    req.detectedLanguage = req.user.language;
     next();
+    return;
+  }
+  const acceptLanguage = req.headers["accept-language"];
+  req.detectedLanguage = detectLanguageFromHeader(acceptLanguage);
+  next();
 }
-/**
- * Get detected language from request
- * Falls back to default if not set
- */
 function getDetectedLanguage(req) {
-    return req.detectedLanguage || exports.DEFAULT_LANGUAGE;
+  return req.detectedLanguage || DEFAULT_LANGUAGE;
 }
-exports.default = languageDetectionMiddleware;
-//# sourceMappingURL=languageDetection.js.map
+var languageDetection_default = languageDetectionMiddleware;
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  DEFAULT_LANGUAGE,
+  SUPPORTED_LANGUAGES,
+  detectLanguageFromHeader,
+  getDetectedLanguage,
+  languageDetectionMiddleware
+});

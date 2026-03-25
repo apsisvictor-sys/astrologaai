@@ -1,18 +1,29 @@
 "use strict";
-/**
- * Location Routes
- * US-05: Birth Data Collection
- *
- * Routes for location search (geocoding)
- */
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const rateLimiter_1 = require("../middleware/rateLimiter");
-const birthDataController_1 = require("../controllers/birthDataController");
-const router = (0, express_1.Router)();
-// GET /api/v1/locations/search - Search for locations (autocomplete)
-// No auth required — used by guest users on homepage
-// Rate limited to prevent abuse of geocoding API
-router.get('/search', (0, rateLimiter_1.rateLimiter)(20, 60), birthDataController_1.searchLocationsHandler);
-exports.default = router;
-//# sourceMappingURL=locations.js.map
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var locations_exports = {};
+__export(locations_exports, {
+  default: () => locations_default
+});
+module.exports = __toCommonJS(locations_exports);
+var import_express = require("express");
+var import_rateLimiter = require("../middleware/rateLimiter");
+var import_birthDataController = require("../controllers/birthDataController");
+const router = (0, import_express.Router)();
+router.get("/search", (0, import_rateLimiter.rateLimiter)(20, 60), import_birthDataController.searchLocationsHandler);
+var locations_default = router;

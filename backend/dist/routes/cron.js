@@ -1,124 +1,148 @@
 "use strict";
-/**
- * Cron Routes
- *
- * Endpoints for scheduled jobs (called by Railway cron or external cron services).
- * All endpoints require X-Cron-Secret header for authentication.
- *
- * Schedule (UTC):
- *   01:00 — daily-transits        (warm planetary positions cache)
- *   02:00 — daily-forecasts       (pre-generate PRO/PREMIUM horoscopes)
- *   04:00 — streak-maintenance    (revert expired PRO trials)
- *   07:00 — daily-horoscope-emails (send horoscope emails to opted-in users)
- *   daily  — email-lifecycle      (Day 1–30 lifecycle email sequence)
- */
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const cron_1 = require("../utils/cron");
-const lifecycle_1 = require("../services/email/lifecycle");
-const streakService_1 = require("../services/streakService");
-const forecast_cron_1 = require("../services/forecast-cron");
-const transits_1 = require("../services/transits");
-const horoscope_email_1 = require("../services/email/horoscope-email");
-
-const router = (0, express_1.Router)();
-
-/** Shared auth check — returns true if request is authorized */
-function authCheck(req, res) {
-    const configuredSecret = (0, cron_1.getCronSecret)();
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var cron_exports = {};
+__export(cron_exports, {
+  default: () => cron_default
+});
+module.exports = __toCommonJS(cron_exports);
+var import_express = require("express");
+var import_cron = require("../utils/cron");
+var import_lifecycle = require("../services/email/lifecycle");
+var import_streakService = require("../services/streakService");
+var import_forecast_cron = require("../services/forecast-cron");
+var import_transits = require("../services/transits");
+var import_horoscope_email = require("../services/email/horoscope-email");
+var import_morning_briefing_email = require("../services/email/morning-briefing-email");
+const router = (0, import_express.Router)();
+router.post("/email-lifecycle", async (req, res) => {
+  try {
+    const configuredSecret = (0, import_cron.getCronSecret)();
     if (!configuredSecret) {
-        res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED', message: 'Cron secret is not configured' } });
-        return false;
+      return res.status(503).json({
+        success: false,
+        error: {
+          code: "CRON_NOT_CONFIGURED",
+          message: "Cron secret is not configured on this environment"
+        }
+      });
     }
-    if (req.headers['x-cron-secret'] !== configuredSecret) {
-        res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } });
-        return false;
+    const cronSecret = req.headers["x-cron-secret"];
+    if (cronSecret !== configuredSecret) {
+      return res.status(401).json({
+        success: false,
+        error: {
+          code: "UNAUTHORIZED",
+          message: "Invalid or missing cron secret"
+        }
+      });
     }
-    return true;
-}
-
-/**
- * POST /api/v1/cron/email-lifecycle
- * Run lifecycle email sequence (Day 1–30). Call daily.
- */
-router.post('/email-lifecycle', async (req, res) => {
-    try {
-        if (!authCheck(req, res)) return;
-        const result = await (0, lifecycle_1.runLifecycleCron)();
-        return res.json({ success: true, data: result });
-    }
-    catch (error) {
-        console.error('[Cron] email-lifecycle error:', error);
-        return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Lifecycle cron failed' } });
-    }
+    const result = await (0, import_lifecycle.runLifecycleCron)();
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error("[Cron] email-lifecycle error:", error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: "CRON_ERROR",
+        message: "Lifecycle cron failed"
+      }
+    });
+  }
 });
-
-/**
- * POST /api/v1/cron/streak-maintenance
- * Revert expired PRO trials from streak rewards. Run daily at 04:00 UTC.
- */
-router.post('/streak-maintenance', async (req, res) => {
-    try {
-        if (!authCheck(req, res)) return;
-        const reverted = await (0, streakService_1.revertExpiredTrials)();
-        return res.json({ success: true, data: { trialsReverted: reverted } });
+router.post("/streak-maintenance", async (req, res) => {
+  try {
+    const configuredSecret = (0, import_cron.getCronSecret)();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: "CRON_NOT_CONFIGURED", message: "Cron secret is not configured" } });
     }
-    catch (error) {
-        console.error('[Cron] streak-maintenance error:', error);
-        return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Streak maintenance failed' } });
+    if (req.headers["x-cron-secret"] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "Invalid or missing cron secret" } });
     }
+    const reverted = await (0, import_streakService.revertExpiredTrials)();
+    return res.json({ success: true, data: { trialsReverted: reverted } });
+  } catch (error) {
+    console.error("[Cron] streak-maintenance error:", error);
+    return res.status(500).json({ success: false, error: { code: "CRON_ERROR", message: "Streak maintenance failed" } });
+  }
 });
-
-/**
- * POST /api/v1/cron/daily-transits
- * Pre-warm global planetary positions Redis cache. Run at 01:00 UTC.
- */
-router.post('/daily-transits', async (req, res) => {
-    try {
-        if (!authCheck(req, res)) return;
-        const result = await (0, transits_1.warmDailyTransitsCache)();
-        return res.json({ success: true, data: result });
+router.post("/daily-transits", async (req, res) => {
+  try {
+    const configuredSecret = (0, import_cron.getCronSecret)();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: "CRON_NOT_CONFIGURED", message: "Cron secret is not configured" } });
     }
-    catch (error) {
-        console.error('[Cron] daily-transits error:', error);
-        return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Daily transits warm-up failed' } });
+    if (req.headers["x-cron-secret"] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "Invalid or missing cron secret" } });
     }
+    const result = await (0, import_transits.warmDailyTransitsCache)();
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error("[Cron] daily-transits error:", error);
+    return res.status(500).json({ success: false, error: { code: "CRON_ERROR", message: "Daily transits warm-up failed" } });
+  }
 });
-
-/**
- * POST /api/v1/cron/daily-forecasts
- * Pre-generate horoscope + daily forecast for all PRO/PREMIUM users. Run at 02:00 UTC.
- * Fire-and-forget — returns immediately; job runs in background.
- */
-router.post('/daily-forecasts', async (req, res) => {
-    try {
-        if (!authCheck(req, res)) return;
-        // Fire-and-forget — job can take several minutes for large user bases
-        (0, forecast_cron_1.runNightlyForecastJob)().catch(err => console.error('[Cron] daily-forecasts job error:', err));
-        return res.json({ success: true, message: 'Forecast generation started' });
+router.post("/daily-forecasts", async (req, res) => {
+  try {
+    const configuredSecret = (0, import_cron.getCronSecret)();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: "CRON_NOT_CONFIGURED", message: "Cron secret is not configured" } });
     }
-    catch (error) {
-        console.error('[Cron] daily-forecasts error:', error);
-        return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Daily forecasts cron failed' } });
+    if (req.headers["x-cron-secret"] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "Invalid or missing cron secret" } });
     }
+    (0, import_forecast_cron.runNightlyForecastJob)().catch((err) => console.error("[Cron] daily-forecasts job error:", err));
+    return res.json({ success: true, message: "Forecast generation started" });
+  } catch (error) {
+    console.error("[Cron] daily-forecasts error:", error);
+    return res.status(500).json({ success: false, error: { code: "CRON_ERROR", message: "Daily forecasts cron failed" } });
+  }
 });
-
-/**
- * POST /api/v1/cron/daily-horoscope-emails
- * Send daily horoscope emails to opted-in users. Run at 07:00 UTC (09:00 Bulgaria time).
- * Runs after daily-forecasts (02:00 UTC) to ensure forecasts are available for PRO/PREMIUM.
- */
-router.post('/daily-horoscope-emails', async (req, res) => {
-    try {
-        if (!authCheck(req, res)) return;
-        const result = await (0, horoscope_email_1.sendDailyHoroscopeEmails)();
-        return res.json({ success: true, data: result });
+router.post("/daily-horoscope-emails", async (req, res) => {
+  try {
+    const configuredSecret = (0, import_cron.getCronSecret)();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: "CRON_NOT_CONFIGURED", message: "Cron secret is not configured" } });
     }
-    catch (error) {
-        console.error('[Cron] daily-horoscope-emails error:', error);
-        return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Daily horoscope emails cron failed' } });
+    if (req.headers["x-cron-secret"] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "Invalid or missing cron secret" } });
     }
+    const result = await (0, import_horoscope_email.sendDailyHoroscopeEmails)();
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error("[Cron] daily-horoscope-emails error:", error);
+    return res.status(500).json({ success: false, error: { code: "CRON_ERROR", message: "Daily horoscope emails cron failed" } });
+  }
 });
-
-exports.default = router;
-//# sourceMappingURL=cron.js.map
+router.post("/morning-briefing-emails", async (req, res) => {
+  try {
+    const configuredSecret = (0, import_cron.getCronSecret)();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: "CRON_NOT_CONFIGURED", message: "Cron secret is not configured" } });
+    }
+    if (req.headers["x-cron-secret"] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "Invalid or missing cron secret" } });
+    }
+    const result = await (0, import_morning_briefing_email.sendMorningBriefingEmails)();
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error("[Cron] morning-briefing-emails error:", error);
+    return res.status(500).json({ success: false, error: { code: "CRON_ERROR", message: "Morning briefing emails cron failed" } });
+  }
+});
+var cron_default = router;

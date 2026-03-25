@@ -1,409 +1,366 @@
 "use strict";
-/**
- * OAuth Controller
- * US-04: Social Login (Google + Apple)
- *
- * Handles OAuth authentication via Supabase Auth
- *
- * Acceptance Criteria:
- * - Google OAuth login works via Supabase
- * - Apple OAuth login works via Supabase
- * - Social login buttons displayed on login page
- * - New users are created in database with OAuth provider info
- * - Returning OAuth users can log in
- * - OAuth tokens properly handled by Supabase
- */
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.googleLogin = googleLogin;
-exports.appleLogin = appleLogin;
-exports.oauthCallback = oauthCallback;
-exports.getOAuthUrl = getOAuthUrl;
-const supabase_js_1 = require("@supabase/supabase-js");
-const client_1 = require("@prisma/client");
-const prisma_1 = __importDefault(require("../utils/prisma"));
-const bcryptjs_1 = __importDefault(require("bcryptjs"));
-const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
-// SECURITY FIX: Import validated JWT secret (no insecure fallbacks)
-const jwt_1 = require("../utils/jwt");
-// Supabase configuration
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var oauthController_exports = {};
+__export(oauthController_exports, {
+  appleLogin: () => appleLogin,
+  default: () => oauthController_default,
+  getOAuthUrl: () => getOAuthUrl,
+  googleLogin: () => googleLogin,
+  oauthCallback: () => oauthCallback
+});
+module.exports = __toCommonJS(oauthController_exports);
+var import_supabase_js = require("@supabase/supabase-js");
+var import_client = require("@prisma/client");
+var import_prisma = __toESM(require("../utils/prisma"));
+var import_bcryptjs = __toESM(require("bcryptjs"));
+var import_jsonwebtoken = __toESM(require("jsonwebtoken"));
+var import_jwt = require("../utils/jwt");
+var import_refreshTokens = require("../utils/refreshTokens");
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
-const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-/**
- * Generate access token
- */
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 function generateAccessToken(userId, email, tier) {
-    return jsonwebtoken_1.default.sign({ sub: userId, email, tier }, jwt_1.JWT_SECRET, { expiresIn: jwt_1.JWT_CONFIG.expiresIn });
+  return import_jsonwebtoken.default.sign(
+    { sub: userId, email, tier },
+    import_jwt.JWT_SECRET,
+    { expiresIn: import_jwt.JWT_CONFIG.expiresIn }
+  );
 }
-/**
- * Generate refresh token
- */
-function generateRefreshToken(userId) {
-    return jsonwebtoken_1.default.sign({ sub: userId, type: 'refresh' }, jwt_1.JWT_SECRET, { expiresIn: jwt_1.JWT_CONFIG.refreshExpiresIn });
-}
-/**
- * Initiate Google OAuth login
- * GET /api/v1/auth/google
- *
- * Redirects user to Google OAuth consent screen
- */
 async function googleLogin(req, res) {
-    try {
-        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-            res.status(500).json({
-                success: false,
-                error: {
-                    code: 'OAUTH_NOT_CONFIGURED',
-                    message: 'OAuth is not configured on the server',
-                },
-            });
-            return;
+  try {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: "OAUTH_NOT_CONFIGURED",
+          message: "OAuth is not configured on the server"
         }
-        // Create Supabase client for OAuth
-        const supabase = (0, supabase_js_1.createClient)(SUPABASE_URL, SUPABASE_ANON_KEY);
-        // Get OAuth URL from Supabase
-        const { data, error } = await supabase.auth.signInWithOAuth({
-            provider: 'google',
-            options: {
-                redirectTo: `${FRONTEND_URL}/auth/callback`,
-                queryParams: {
-                    access_type: 'offline',
-                    prompt: 'consent',
-                },
-            },
-        });
-        if (error) {
-            console.error('[OAuth] Google login error:', error);
-            res.status(400).json({
-                success: false,
-                error: {
-                    code: 'OAUTH_ERROR',
-                    message: error.message,
-                },
-            });
-            return;
+      });
+      return;
+    }
+    const supabase = (0, import_supabase_js.createClient)(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${FRONTEND_URL}/auth/callback`,
+        queryParams: {
+          access_type: "offline",
+          prompt: "consent"
         }
-        // Redirect to OAuth provider
-        res.redirect(data.url);
+      }
+    });
+    if (error) {
+      console.error("[OAuth] Google login error:", error);
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "OAUTH_ERROR",
+          message: error.message
+        }
+      });
+      return;
     }
-    catch (error) {
-        console.error('[OAuth] Google login error:', error);
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to initiate Google login',
-            },
-        });
-    }
+    res.redirect(data.url);
+  } catch (error) {
+    console.error("[OAuth] Google login error:", error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Failed to initiate Google login"
+      }
+    });
+  }
 }
-/**
- * Initiate Apple OAuth login
- * GET /api/v1/auth/apple
- *
- * Redirects user to Apple Sign In
- */
 async function appleLogin(req, res) {
-    try {
-        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-            res.status(500).json({
-                success: false,
-                error: {
-                    code: 'OAUTH_NOT_CONFIGURED',
-                    message: 'OAuth is not configured on the server',
-                },
-            });
-            return;
+  try {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: "OAUTH_NOT_CONFIGURED",
+          message: "OAuth is not configured on the server"
         }
-        // Create Supabase client for OAuth
-        const supabase = (0, supabase_js_1.createClient)(SUPABASE_URL, SUPABASE_ANON_KEY);
-        // Get OAuth URL from Supabase
-        const { data, error } = await supabase.auth.signInWithOAuth({
-            provider: 'apple',
-            options: {
-                redirectTo: `${FRONTEND_URL}/auth/callback`,
-            },
-        });
-        if (error) {
-            console.error('[OAuth] Apple login error:', error);
-            res.status(400).json({
-                success: false,
-                error: {
-                    code: 'OAUTH_ERROR',
-                    message: error.message,
-                },
-            });
-            return;
+      });
+      return;
+    }
+    const supabase = (0, import_supabase_js.createClient)(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "apple",
+      options: {
+        redirectTo: `${FRONTEND_URL}/auth/callback`
+      }
+    });
+    if (error) {
+      console.error("[OAuth] Apple login error:", error);
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "OAUTH_ERROR",
+          message: error.message
         }
-        // Redirect to OAuth provider
-        res.redirect(data.url);
+      });
+      return;
     }
-    catch (error) {
-        console.error('[OAuth] Apple login error:', error);
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to initiate Apple login',
-            },
-        });
-    }
+    res.redirect(data.url);
+  } catch (error) {
+    console.error("[OAuth] Apple login error:", error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Failed to initiate Apple login"
+      }
+    });
+  }
 }
-/**
- * Handle OAuth callback
- * POST /api/v1/auth/callback
- *
- * Exchanges OAuth code for session and creates/links user in database
- */
 async function oauthCallback(req, res, next) {
-    try {
-        const { code, provider } = req.body;
-        if (!code) {
-            res.status(400).json({
-                success: false,
-                error: {
-                    code: 'MISSING_CODE',
-                    message: 'Authorization code is required',
-                },
-            });
-            return;
+  try {
+    const { code, provider } = req.body;
+    if (!code) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "MISSING_CODE",
+          message: "Authorization code is required"
         }
-        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-            res.status(500).json({
-                success: false,
-                error: {
-                    code: 'OAUTH_NOT_CONFIGURED',
-                    message: 'OAuth is not configured on the server',
-                },
-            });
-            return;
+      });
+      return;
+    }
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: "OAUTH_NOT_CONFIGURED",
+          message: "OAuth is not configured on the server"
         }
-        // Create Supabase client
-        const supabase = (0, supabase_js_1.createClient)(SUPABASE_URL, SUPABASE_ANON_KEY);
-        // Exchange code for session
-        const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
-        if (sessionError || !sessionData.session) {
-            console.error('[OAuth] Code exchange error:', sessionError);
-            res.status(401).json({
-                success: false,
-                error: {
-                    code: 'INVALID_CODE',
-                    message: 'Failed to exchange authorization code',
-                },
-            });
-            return;
+      });
+      return;
+    }
+    const supabase = (0, import_supabase_js.createClient)(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data: sessionData, error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
+    if (sessionError || !sessionData.session) {
+      console.error("[OAuth] Code exchange error:", sessionError);
+      res.status(401).json({
+        success: false,
+        error: {
+          code: "INVALID_CODE",
+          message: "Failed to exchange authorization code"
         }
-        const { user: supabaseUser, session } = sessionData;
-        if (!supabaseUser.email) {
-            res.status(400).json({
-                success: false,
-                error: {
-                    code: 'NO_EMAIL',
-                    message: 'Email is required from OAuth provider',
-                },
-            });
-            return;
+      });
+      return;
+    }
+    const { user: supabaseUser, session } = sessionData;
+    if (!supabaseUser.email) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "NO_EMAIL",
+          message: "Email is required from OAuth provider"
         }
-        // Check if user exists in our database
-        let user = await prisma_1.default.user.findUnique({
-            where: { email: supabaseUser.email },
-            include: {
-                profile: true,
-                subscription: true,
-            },
-        });
-        // If user doesn't exist, create one
-        if (!user) {
-            // Generate a random password for OAuth users (they won't use it)
-            const randomPassword = bcryptjs_1.default.genSaltSync(32);
-            const passwordHash = await bcryptjs_1.default.hash(randomPassword, 12);
-            user = await prisma_1.default.user.create({
-                data: {
-                    email: supabaseUser.email,
-                    passwordHash,
-                    fullName: supabaseUser.user_metadata?.full_name ||
-                        supabaseUser.user_metadata?.name ||
-                        null,
-                    tier: client_1.Tier.FREE,
-                    language: 'bg',
-                    emailVerified: !!supabaseUser.email_confirmed_at,
-                    oauthProvider: provider || supabaseUser.app_metadata?.provider || 'unknown',
-                    oauthId: supabaseUser.id,
-                    avatarUrl: supabaseUser.user_metadata?.avatar_url ||
-                        supabaseUser.user_metadata?.picture ||
-                        null,
-                    // Create profile with default preferences
-                    profile: {
-                        create: {
-                            onboardingComplete: false,
-                            notificationPrefs: {
-                                daily: true,
-                                weekly: true,
-                                promotions: false,
-                            },
-                        },
-                    },
-                    // Create subscription record
-                    subscription: {
-                        create: {
-                            tier: client_1.Tier.FREE,
-                            status: 'ACTIVE',
-                        },
-                    },
-                    // Create usage record for current month
-                    usageRecords: {
-                        create: {
-                            month: getCurrentMonth(),
-                            queryCount: 0,
-                        },
-                    },
-                },
-                include: {
-                    profile: true,
-                    subscription: true,
-                },
-            });
-            console.log(`[OAuth] Created new user via ${provider}: ${user.email}`);
-        }
-        else {
-            // Update OAuth info if not already set
-            if (!user.oauthProvider) {
-                await prisma_1.default.user.update({
-                    where: { id: user.id },
-                    data: {
-                        oauthProvider: provider || supabaseUser.app_metadata?.provider || 'unknown',
-                        oauthId: supabaseUser.id,
-                        emailVerified: !!supabaseUser.email_confirmed_at,
-                        avatarUrl: supabaseUser.user_metadata?.avatar_url ||
-                            supabaseUser.user_metadata?.picture ||
-                            user.avatarUrl,
-                    },
-                });
+      });
+      return;
+    }
+    let user = await import_prisma.default.user.findUnique({
+      where: { email: supabaseUser.email },
+      include: {
+        profile: true,
+        subscription: true
+      }
+    });
+    if (!user) {
+      const randomPassword = require("crypto").randomBytes(32).toString("hex");
+      const passwordHash = await import_bcryptjs.default.hash(randomPassword, 12);
+      user = await import_prisma.default.user.create({
+        data: {
+          email: supabaseUser.email,
+          passwordHash,
+          fullName: supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || null,
+          tier: import_client.Tier.FREE,
+          language: (req.headers["accept-language"]?.split(",")[0]?.split("-")[0] || "en") === "bg" ? "bg" : "en",
+          emailVerified: !!supabaseUser.email_confirmed_at,
+          oauthProvider: provider || supabaseUser.app_metadata?.provider || "unknown",
+          oauthId: supabaseUser.id,
+          avatarUrl: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || null,
+          // Create profile with default preferences
+          profile: {
+            create: {
+              onboardingComplete: false,
+              notificationPrefs: {
+                daily: true,
+                weekly: true,
+                promotions: false
+              }
             }
+          },
+          // Create subscription record
+          subscription: {
+            create: {
+              tier: import_client.Tier.FREE,
+              status: "ACTIVE"
+            }
+          },
+          // Create usage record for current month
+          usageRecords: {
+            create: {
+              month: getCurrentMonth(),
+              queryCount: 0
+            }
+          }
+        },
+        include: {
+          profile: true,
+          subscription: true
         }
-        // Generate our JWT tokens
-        const accessToken = generateAccessToken(user.id, user.email, user.tier);
-        const refreshToken = generateRefreshToken(user.id);
-        // Set refresh token as httpOnly cookie
-        res.cookie('refreshToken', refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-            path: '/',
+      });
+      console.log(`[OAuth] Created new user via ${provider}: ${user.email}`);
+    } else {
+      if (!user.oauthProvider) {
+        await import_prisma.default.user.update({
+          where: { id: user.id },
+          data: {
+            oauthProvider: provider || supabaseUser.app_metadata?.provider || "unknown",
+            oauthId: supabaseUser.id,
+            emailVerified: !!supabaseUser.email_confirmed_at,
+            avatarUrl: supabaseUser.user_metadata?.avatar_url || supabaseUser.user_metadata?.picture || user.avatarUrl
+          }
         });
-        console.log(`[OAuth] Successful login for user: ${user.id} via ${provider}`);
-        res.status(200).json({
-            success: true,
-            data: {
-                user: {
-                    id: user.id,
-                    email: user.email,
-                    fullName: user.fullName,
-                    tier: user.tier,
-                    language: user.language,
-                    emailVerified: user.emailVerified,
-                    avatarUrl: user.avatarUrl,
-                },
-                tokens: {
-                    accessToken,
-                    refreshToken,
-                    expiresIn: jwt_1.JWT_CONFIG.expiresIn,
-                },
-                message: 'Login successful',
-            },
-        });
+      }
     }
-    catch (error) {
-        console.error('[OAuth] Callback error:', error);
-        next(error);
-    }
+    const accessToken = generateAccessToken(user.id, user.email, user.tier);
+    const refreshToken = await (0, import_refreshTokens.createRefreshToken)(user.id);
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 90 * 24 * 60 * 60 * 1e3,
+      path: "/"
+    });
+    console.log(`[OAuth] Successful login for user: ${user.id} via ${provider}`);
+    res.status(200).json({
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          fullName: user.fullName,
+          tier: user.tier,
+          language: user.language,
+          emailVerified: user.emailVerified,
+          avatarUrl: user.avatarUrl
+        },
+        tokens: {
+          accessToken,
+          expiresIn: import_jwt.JWT_CONFIG.expiresIn
+        },
+        message: "Login successful"
+      }
+    });
+  } catch (error) {
+    console.error("[OAuth] Callback error:", error);
+    next(error);
+  }
 }
-/**
- * Get OAuth login URL (for client-side redirect)
- * GET /api/v1/auth/oauth-url/:provider
- *
- * Returns the OAuth URL for the specified provider
- */
 async function getOAuthUrl(req, res) {
-    try {
-        const { provider } = req.params;
-        if (!['google', 'apple'].includes(provider)) {
-            res.status(400).json({
-                success: false,
-                error: {
-                    code: 'INVALID_PROVIDER',
-                    message: 'Provider must be "google" or "apple"',
-                },
-            });
-            return;
+  try {
+    const { provider } = req.params;
+    if (!["google", "apple"].includes(provider)) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "INVALID_PROVIDER",
+          message: 'Provider must be "google" or "apple"'
         }
-        if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-            res.status(500).json({
-                success: false,
-                error: {
-                    code: 'OAUTH_NOT_CONFIGURED',
-                    message: 'OAuth is not configured on the server',
-                },
-            });
-            return;
-        }
-        // Create Supabase client
-        const supabase = (0, supabase_js_1.createClient)(SUPABASE_URL, SUPABASE_ANON_KEY);
-        // Get OAuth URL from Supabase
-        const { data, error } = await supabase.auth.signInWithOAuth({
-            provider: provider,
-            options: {
-                redirectTo: `${FRONTEND_URL}/auth/callback`,
-                queryParams: provider === 'google'
-                    ? { access_type: 'offline', prompt: 'consent' }
-                    : undefined,
-            },
-        });
-        if (error) {
-            console.error(`[OAuth] ${provider} URL error:`, error);
-            res.status(400).json({
-                success: false,
-                error: {
-                    code: 'OAUTH_ERROR',
-                    message: error.message,
-                },
-            });
-            return;
-        }
-        res.status(200).json({
-            success: true,
-            data: {
-                url: data.url,
-                provider,
-            },
-        });
+      });
+      return;
     }
-    catch (error) {
-        console.error('[OAuth] Get URL error:', error);
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to get OAuth URL',
-            },
-        });
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      res.status(500).json({
+        success: false,
+        error: {
+          code: "OAUTH_NOT_CONFIGURED",
+          message: "OAuth is not configured on the server"
+        }
+      });
+      return;
     }
+    const supabase = (0, import_supabase_js.createClient)(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${FRONTEND_URL}/auth/callback`,
+        queryParams: provider === "google" ? { access_type: "offline", prompt: "consent" } : void 0
+      }
+    });
+    if (error) {
+      console.error(`[OAuth] ${provider} URL error:`, error);
+      res.status(400).json({
+        success: false,
+        error: {
+          code: "OAUTH_ERROR",
+          message: error.message
+        }
+      });
+      return;
+    }
+    res.status(200).json({
+      success: true,
+      data: {
+        url: data.url,
+        provider
+      }
+    });
+  } catch (error) {
+    console.error("[OAuth] Get URL error:", error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Failed to get OAuth URL"
+      }
+    });
+  }
 }
-/**
- * Helper: Get current month in YYYY-MM format
- */
 function getCurrentMonth() {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const now = /* @__PURE__ */ new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
-exports.default = {
-    googleLogin,
-    appleLogin,
-    oauthCallback,
-    getOAuthUrl,
+var oauthController_default = {
+  googleLogin,
+  appleLogin,
+  oauthCallback,
+  getOAuthUrl
 };
-//# sourceMappingURL=oauthController.js.map
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  appleLogin,
+  getOAuthUrl,
+  googleLogin,
+  oauthCallback
+});

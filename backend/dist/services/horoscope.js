@@ -1,297 +1,262 @@
 "use strict";
-/**
- * Horoscope Generation Service
- * US-15: Daily Forecast - Horoscope text generation
- *
- * Generates personalized horoscope texts based on transits and natal chart
- */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.generateDailyHoroscope = generateDailyHoroscope;
-exports.generateRecommendedActions = generateRecommendedActions;
-// ============================================
-// Constants
-// ============================================
-// Sign-based lucky number ranges
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var horoscope_exports = {};
+__export(horoscope_exports, {
+  generateDailyHoroscope: () => generateDailyHoroscope,
+  generateRecommendedActions: () => generateRecommendedActions
+});
+module.exports = __toCommonJS(horoscope_exports);
 const SIGN_LUCKY_NUMBERS = {
-    Aries: [1, 9, 17, 28],
-    Taurus: [2, 6, 15, 24],
-    Gemini: [3, 12, 18, 33],
-    Cancer: [2, 7, 16, 25],
-    Leo: [1, 5, 19, 28],
-    Virgo: [3, 14, 23, 32],
-    Libra: [4, 6, 13, 22],
-    Scorpio: [8, 11, 18, 27],
-    Sagittarius: [3, 9, 21, 30],
-    Capricorn: [4, 8, 17, 26],
-    Aquarius: [5, 11, 22, 31],
-    Pisces: [3, 7, 12, 21],
+  Aries: [1, 9, 17, 28],
+  Taurus: [2, 6, 15, 24],
+  Gemini: [3, 12, 18, 33],
+  Cancer: [2, 7, 16, 25],
+  Leo: [1, 5, 19, 28],
+  Virgo: [3, 14, 23, 32],
+  Libra: [4, 6, 13, 22],
+  Scorpio: [8, 11, 18, 27],
+  Sagittarius: [3, 9, 21, 30],
+  Capricorn: [4, 8, 17, 26],
+  Aquarius: [5, 11, 22, 31],
+  Pisces: [3, 7, 12, 21]
 };
-// Horoscope templates by influence type
 const INFLUENCE_TEMPLATES = {
-    positive: {
-        general: [
-            'Днес звездите са на твоя страна.',
-            'Хармоничните аспекти ти носят позитивна енергия.',
-            'Космическите сили те подкрепят днес.',
-            'Времето е благоприятно за нови начинания.',
-        ],
-        love: [
-            'Връзките процъфтяват под това влияние.',
-            'Любовта е в центъра на вниманието ти днес.',
-            'Романтичните енергии са силни.',
-            'Партньорството е благословено от звездите.',
-        ],
-        career: [
-            'Професионалните успехи са на достигане.',
-            'Творческата енергия тече свободно.',
-            'Време е за амбициозни ходове.',
-            'Кариерните възможности се отварят.',
-        ],
-        health: [
-            'Виталността ти е на високо ниво.',
-            'Енергията ти е балансирана и устойчива.',
-            'Тялото и умът са в хармония.',
-            'Чувстваш се свеж и мотивиран.',
-        ],
-    },
-    challenging: {
-        general: [
-            'Днес изисква търпение и мъдрост.',
-            'Предизвикателствата са възможности за растеж.',
-            'Звездите те съветват да бъдеш внимателен.',
-            'Време за вътрешна работа и рефлексия.',
-        ],
-        love: [
-            'Отношенията изискват допълнително внимание.',
-            'Комуникацията е ключова днес.',
-            'Избягвай прибързани решения в любовта.',
-            'Днес не е време за емоционални конфликти.',
-        ],
-        career: [
-            'Професионалните предизвикателства изискват фокус.',
-            'Внимавай с важни решения.',
-            'Практическостта е твоят съюзник.',
-            'Потвърди фактите преди да действаш.',
-        ],
-        health: [
-            'Обърни внимание на сигналите на тялото.',
-            'Време за почивка и възстановяване.',
-            'Избягвай прекомерното напрежение.',
-            'Балансът е от ключово значение.',
-        ],
-    },
-    neutral: {
-        general: [
-            'Денят носи смесени енергии.',
-            'Времето е подходящо за рутинни задачи.',
-            'Наблюдавай и учи от ситуацията.',
-            'Нейтрален ден за планиране.',
-        ],
-        love: [
-            'Отношенията са в стабилна фаза.',
-            'Време за спокойни моменти с близките.',
-            'Любовта не изисква спешни действия.',
-            'Приеми нещата такива, каквито са.',
-        ],
-        career: [
-            'Работата върви по инерция.',
-            'Фокусирай се на текущите проекти.',
-            'Ден за изпълнение на задачи.',
-            'Не очаквай драматични промени.',
-        ],
-        health: [
-            'Поддържай баланса в ежедневието.',
-            'Редовните навици са важни.',
-            'Средно ниво на енергия.',
-            'Слушай тялото си.',
-        ],
-    },
+  positive: {
+    general: [
+      "\u0414\u043D\u0435\u0441 \u0437\u0432\u0435\u0437\u0434\u0438\u0442\u0435 \u0441\u0430 \u043D\u0430 \u0442\u0432\u043E\u044F \u0441\u0442\u0440\u0430\u043D\u0430.",
+      "\u0425\u0430\u0440\u043C\u043E\u043D\u0438\u0447\u043D\u0438\u0442\u0435 \u0430\u0441\u043F\u0435\u043A\u0442\u0438 \u0442\u0438 \u043D\u043E\u0441\u044F\u0442 \u043F\u043E\u0437\u0438\u0442\u0438\u0432\u043D\u0430 \u0435\u043D\u0435\u0440\u0433\u0438\u044F.",
+      "\u041A\u043E\u0441\u043C\u0438\u0447\u0435\u0441\u043A\u0438\u0442\u0435 \u0441\u0438\u043B\u0438 \u0442\u0435 \u043F\u043E\u0434\u043A\u0440\u0435\u043F\u044F\u0442 \u0434\u043D\u0435\u0441.",
+      "\u0412\u0440\u0435\u043C\u0435\u0442\u043E \u0435 \u0431\u043B\u0430\u0433\u043E\u043F\u0440\u0438\u044F\u0442\u043D\u043E \u0437\u0430 \u043D\u043E\u0432\u0438 \u043D\u0430\u0447\u0438\u043D\u0430\u043D\u0438\u044F."
+    ],
+    love: [
+      "\u0412\u0440\u044A\u0437\u043A\u0438\u0442\u0435 \u043F\u0440\u043E\u0446\u044A\u0444\u0442\u044F\u0432\u0430\u0442 \u043F\u043E\u0434 \u0442\u043E\u0432\u0430 \u0432\u043B\u0438\u044F\u043D\u0438\u0435.",
+      "\u041B\u044E\u0431\u043E\u0432\u0442\u0430 \u0435 \u0432 \u0446\u0435\u043D\u0442\u044A\u0440\u0430 \u043D\u0430 \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u0435\u0442\u043E \u0442\u0438 \u0434\u043D\u0435\u0441.",
+      "\u0420\u043E\u043C\u0430\u043D\u0442\u0438\u0447\u043D\u0438\u0442\u0435 \u0435\u043D\u0435\u0440\u0433\u0438\u0438 \u0441\u0430 \u0441\u0438\u043B\u043D\u0438.",
+      "\u041F\u0430\u0440\u0442\u043D\u044C\u043E\u0440\u0441\u0442\u0432\u043E\u0442\u043E \u0435 \u0431\u043B\u0430\u0433\u043E\u0441\u043B\u043E\u0432\u0435\u043D\u043E \u043E\u0442 \u0437\u0432\u0435\u0437\u0434\u0438\u0442\u0435."
+    ],
+    career: [
+      "\u041F\u0440\u043E\u0444\u0435\u0441\u0438\u043E\u043D\u0430\u043B\u043D\u0438\u0442\u0435 \u0443\u0441\u043F\u0435\u0445\u0438 \u0441\u0430 \u043D\u0430 \u0434\u043E\u0441\u0442\u0438\u0433\u0430\u043D\u0435.",
+      "\u0422\u0432\u043E\u0440\u0447\u0435\u0441\u043A\u0430\u0442\u0430 \u0435\u043D\u0435\u0440\u0433\u0438\u044F \u0442\u0435\u0447\u0435 \u0441\u0432\u043E\u0431\u043E\u0434\u043D\u043E.",
+      "\u0412\u0440\u0435\u043C\u0435 \u0435 \u0437\u0430 \u0430\u043C\u0431\u0438\u0446\u0438\u043E\u0437\u043D\u0438 \u0445\u043E\u0434\u043E\u0432\u0435.",
+      "\u041A\u0430\u0440\u0438\u0435\u0440\u043D\u0438\u0442\u0435 \u0432\u044A\u0437\u043C\u043E\u0436\u043D\u043E\u0441\u0442\u0438 \u0441\u0435 \u043E\u0442\u0432\u0430\u0440\u044F\u0442."
+    ],
+    health: [
+      "\u0412\u0438\u0442\u0430\u043B\u043D\u043E\u0441\u0442\u0442\u0430 \u0442\u0438 \u0435 \u043D\u0430 \u0432\u0438\u0441\u043E\u043A\u043E \u043D\u0438\u0432\u043E.",
+      "\u0415\u043D\u0435\u0440\u0433\u0438\u044F\u0442\u0430 \u0442\u0438 \u0435 \u0431\u0430\u043B\u0430\u043D\u0441\u0438\u0440\u0430\u043D\u0430 \u0438 \u0443\u0441\u0442\u043E\u0439\u0447\u0438\u0432\u0430.",
+      "\u0422\u044F\u043B\u043E\u0442\u043E \u0438 \u0443\u043C\u044A\u0442 \u0441\u0430 \u0432 \u0445\u0430\u0440\u043C\u043E\u043D\u0438\u044F.",
+      "\u0427\u0443\u0432\u0441\u0442\u0432\u0430\u0448 \u0441\u0435 \u0441\u0432\u0435\u0436 \u0438 \u043C\u043E\u0442\u0438\u0432\u0438\u0440\u0430\u043D."
+    ]
+  },
+  challenging: {
+    general: [
+      "\u0414\u043D\u0435\u0441 \u0438\u0437\u0438\u0441\u043A\u0432\u0430 \u0442\u044A\u0440\u043F\u0435\u043D\u0438\u0435 \u0438 \u043C\u044A\u0434\u0440\u043E\u0441\u0442.",
+      "\u041F\u0440\u0435\u0434\u0438\u0437\u0432\u0438\u043A\u0430\u0442\u0435\u043B\u0441\u0442\u0432\u0430\u0442\u0430 \u0441\u0430 \u0432\u044A\u0437\u043C\u043E\u0436\u043D\u043E\u0441\u0442\u0438 \u0437\u0430 \u0440\u0430\u0441\u0442\u0435\u0436.",
+      "\u0417\u0432\u0435\u0437\u0434\u0438\u0442\u0435 \u0442\u0435 \u0441\u044A\u0432\u0435\u0442\u0432\u0430\u0442 \u0434\u0430 \u0431\u044A\u0434\u0435\u0448 \u0432\u043D\u0438\u043C\u0430\u0442\u0435\u043B\u0435\u043D.",
+      "\u0412\u0440\u0435\u043C\u0435 \u0437\u0430 \u0432\u044A\u0442\u0440\u0435\u0448\u043D\u0430 \u0440\u0430\u0431\u043E\u0442\u0430 \u0438 \u0440\u0435\u0444\u043B\u0435\u043A\u0441\u0438\u044F."
+    ],
+    love: [
+      "\u041E\u0442\u043D\u043E\u0448\u0435\u043D\u0438\u044F\u0442\u0430 \u0438\u0437\u0438\u0441\u043A\u0432\u0430\u0442 \u0434\u043E\u043F\u044A\u043B\u043D\u0438\u0442\u0435\u043B\u043D\u043E \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u0435.",
+      "\u041A\u043E\u043C\u0443\u043D\u0438\u043A\u0430\u0446\u0438\u044F\u0442\u0430 \u0435 \u043A\u043B\u044E\u0447\u043E\u0432\u0430 \u0434\u043D\u0435\u0441.",
+      "\u0418\u0437\u0431\u044F\u0433\u0432\u0430\u0439 \u043F\u0440\u0438\u0431\u044A\u0440\u0437\u0430\u043D\u0438 \u0440\u0435\u0448\u0435\u043D\u0438\u044F \u0432 \u043B\u044E\u0431\u043E\u0432\u0442\u0430.",
+      "\u0414\u043D\u0435\u0441 \u043D\u0435 \u0435 \u0432\u0440\u0435\u043C\u0435 \u0437\u0430 \u0435\u043C\u043E\u0446\u0438\u043E\u043D\u0430\u043B\u043D\u0438 \u043A\u043E\u043D\u0444\u043B\u0438\u043A\u0442\u0438."
+    ],
+    career: [
+      "\u041F\u0440\u043E\u0444\u0435\u0441\u0438\u043E\u043D\u0430\u043B\u043D\u0438\u0442\u0435 \u043F\u0440\u0435\u0434\u0438\u0437\u0432\u0438\u043A\u0430\u0442\u0435\u043B\u0441\u0442\u0432\u0430 \u0438\u0437\u0438\u0441\u043A\u0432\u0430\u0442 \u0444\u043E\u043A\u0443\u0441.",
+      "\u0412\u043D\u0438\u043C\u0430\u0432\u0430\u0439 \u0441 \u0432\u0430\u0436\u043D\u0438 \u0440\u0435\u0448\u0435\u043D\u0438\u044F.",
+      "\u041F\u0440\u0430\u043A\u0442\u0438\u0447\u0435\u0441\u043A\u043E\u0441\u0442\u0442\u0430 \u0435 \u0442\u0432\u043E\u044F\u0442 \u0441\u044A\u044E\u0437\u043D\u0438\u043A.",
+      "\u041F\u043E\u0442\u0432\u044A\u0440\u0434\u0438 \u0444\u0430\u043A\u0442\u0438\u0442\u0435 \u043F\u0440\u0435\u0434\u0438 \u0434\u0430 \u0434\u0435\u0439\u0441\u0442\u0432\u0430\u0448."
+    ],
+    health: [
+      "\u041E\u0431\u044A\u0440\u043D\u0438 \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u0435 \u043D\u0430 \u0441\u0438\u0433\u043D\u0430\u043B\u0438\u0442\u0435 \u043D\u0430 \u0442\u044F\u043B\u043E\u0442\u043E.",
+      "\u0412\u0440\u0435\u043C\u0435 \u0437\u0430 \u043F\u043E\u0447\u0438\u0432\u043A\u0430 \u0438 \u0432\u044A\u0437\u0441\u0442\u0430\u043D\u043E\u0432\u044F\u0432\u0430\u043D\u0435.",
+      "\u0418\u0437\u0431\u044F\u0433\u0432\u0430\u0439 \u043F\u0440\u0435\u043A\u043E\u043C\u0435\u0440\u043D\u043E\u0442\u043E \u043D\u0430\u043F\u0440\u0435\u0436\u0435\u043D\u0438\u0435.",
+      "\u0411\u0430\u043B\u0430\u043D\u0441\u044A\u0442 \u0435 \u043E\u0442 \u043A\u043B\u044E\u0447\u043E\u0432\u043E \u0437\u043D\u0430\u0447\u0435\u043D\u0438\u0435."
+    ]
+  },
+  neutral: {
+    general: [
+      "\u0414\u0435\u043D\u044F\u0442 \u043D\u043E\u0441\u0438 \u0441\u043C\u0435\u0441\u0435\u043D\u0438 \u0435\u043D\u0435\u0440\u0433\u0438\u0438.",
+      "\u0412\u0440\u0435\u043C\u0435\u0442\u043E \u0435 \u043F\u043E\u0434\u0445\u043E\u0434\u044F\u0449\u043E \u0437\u0430 \u0440\u0443\u0442\u0438\u043D\u043D\u0438 \u0437\u0430\u0434\u0430\u0447\u0438.",
+      "\u041D\u0430\u0431\u043B\u044E\u0434\u0430\u0432\u0430\u0439 \u0438 \u0443\u0447\u0438 \u043E\u0442 \u0441\u0438\u0442\u0443\u0430\u0446\u0438\u044F\u0442\u0430.",
+      "\u041D\u0435\u0439\u0442\u0440\u0430\u043B\u0435\u043D \u0434\u0435\u043D \u0437\u0430 \u043F\u043B\u0430\u043D\u0438\u0440\u0430\u043D\u0435."
+    ],
+    love: [
+      "\u041E\u0442\u043D\u043E\u0448\u0435\u043D\u0438\u044F\u0442\u0430 \u0441\u0430 \u0432 \u0441\u0442\u0430\u0431\u0438\u043B\u043D\u0430 \u0444\u0430\u0437\u0430.",
+      "\u0412\u0440\u0435\u043C\u0435 \u0437\u0430 \u0441\u043F\u043E\u043A\u043E\u0439\u043D\u0438 \u043C\u043E\u043C\u0435\u043D\u0442\u0438 \u0441 \u0431\u043B\u0438\u0437\u043A\u0438\u0442\u0435.",
+      "\u041B\u044E\u0431\u043E\u0432\u0442\u0430 \u043D\u0435 \u0438\u0437\u0438\u0441\u043A\u0432\u0430 \u0441\u043F\u0435\u0448\u043D\u0438 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F.",
+      "\u041F\u0440\u0438\u0435\u043C\u0438 \u043D\u0435\u0449\u0430\u0442\u0430 \u0442\u0430\u043A\u0438\u0432\u0430, \u043A\u0430\u043A\u0432\u0438\u0442\u043E \u0441\u0430."
+    ],
+    career: [
+      "\u0420\u0430\u0431\u043E\u0442\u0430\u0442\u0430 \u0432\u044A\u0440\u0432\u0438 \u043F\u043E \u0438\u043D\u0435\u0440\u0446\u0438\u044F.",
+      "\u0424\u043E\u043A\u0443\u0441\u0438\u0440\u0430\u0439 \u0441\u0435 \u043D\u0430 \u0442\u0435\u043A\u0443\u0449\u0438\u0442\u0435 \u043F\u0440\u043E\u0435\u043A\u0442\u0438.",
+      "\u0414\u0435\u043D \u0437\u0430 \u0438\u0437\u043F\u044A\u043B\u043D\u0435\u043D\u0438\u0435 \u043D\u0430 \u0437\u0430\u0434\u0430\u0447\u0438.",
+      "\u041D\u0435 \u043E\u0447\u0430\u043A\u0432\u0430\u0439 \u0434\u0440\u0430\u043C\u0430\u0442\u0438\u0447\u043D\u0438 \u043F\u0440\u043E\u043C\u0435\u043D\u0438."
+    ],
+    health: [
+      "\u041F\u043E\u0434\u0434\u044A\u0440\u0436\u0430\u0439 \u0431\u0430\u043B\u0430\u043D\u0441\u0430 \u0432 \u0435\u0436\u0435\u0434\u043D\u0435\u0432\u0438\u0435\u0442\u043E.",
+      "\u0420\u0435\u0434\u043E\u0432\u043D\u0438\u0442\u0435 \u043D\u0430\u0432\u0438\u0446\u0438 \u0441\u0430 \u0432\u0430\u0436\u043D\u0438.",
+      "\u0421\u0440\u0435\u0434\u043D\u043E \u043D\u0438\u0432\u043E \u043D\u0430 \u0435\u043D\u0435\u0440\u0433\u0438\u044F.",
+      "\u0421\u043B\u0443\u0448\u0430\u0439 \u0442\u044F\u043B\u043E\u0442\u043E \u0441\u0438."
+    ]
+  }
 };
-// Moon phase influences
 const MOON_PHASE_INFLUENCES = {
-    'New Moon': {
-        general: 'Новолунието е време за нови начала и поставяне на намерения.',
-        actions: ['Постави нови цели', 'Започни нов проект', 'Медитирай за яснота'],
-    },
-    'Waxing Crescent': {
-        general: 'Младият месец подкрепя растежа и развитието на намеренията.',
-        actions: ['Развивай идеите си', 'Планирай следващите стъпки', 'Бъди оптимист'],
-    },
-    'First Quarter': {
-        general: 'Първата четвърт носи енергия за действие и преодоляване на препятствия.',
-        actions: ['Действай решително', 'Преодолявай препятствия', 'Бъди настойчив'],
-    },
-    'Waxing Gibbous': {
-        general: 'Растящата луна е време за доизпипване и подготовка.',
-        actions: ['Довърши започнатото', 'Подготви се за кулминация', 'Рафинирай плановете'],
-    },
-    'Full Moon': {
-        general: 'Пълнолунието е време на кулминация, емоционална интензивност и осъзнаване.',
-        actions: ['Празнувай постиженията', 'Освободи старото', 'Бъди благодарен'],
-    },
-    'Waning Gibbous': {
-        general: 'Намаляващата луна е време за споделяне и рефлексия.',
-        actions: ['Сподели знанията си', 'Благодари на другите', 'Рефлектирай'],
-    },
-    'Last Quarter': {
-        general: 'Последната четвърт е време за освобождаване и почистване.',
-        actions: ['Освободи ненужното', 'Завърши цикли', 'Почисти живота си'],
-    },
-    'Waning Crescent': {
-        general: 'Старият месец е време за почивка и подготовка за новия цикъл.',
-        actions: ['Почивай', 'Медитирай', 'Подготви се за новото'],
-    },
+  "New Moon": {
+    general: "\u041D\u043E\u0432\u043E\u043B\u0443\u043D\u0438\u0435\u0442\u043E \u0435 \u0432\u0440\u0435\u043C\u0435 \u0437\u0430 \u043D\u043E\u0432\u0438 \u043D\u0430\u0447\u0430\u043B\u0430 \u0438 \u043F\u043E\u0441\u0442\u0430\u0432\u044F\u043D\u0435 \u043D\u0430 \u043D\u0430\u043C\u0435\u0440\u0435\u043D\u0438\u044F.",
+    actions: ["\u041F\u043E\u0441\u0442\u0430\u0432\u0438 \u043D\u043E\u0432\u0438 \u0446\u0435\u043B\u0438", "\u0417\u0430\u043F\u043E\u0447\u043D\u0438 \u043D\u043E\u0432 \u043F\u0440\u043E\u0435\u043A\u0442", "\u041C\u0435\u0434\u0438\u0442\u0438\u0440\u0430\u0439 \u0437\u0430 \u044F\u0441\u043D\u043E\u0442\u0430"]
+  },
+  "Waxing Crescent": {
+    general: "\u041C\u043B\u0430\u0434\u0438\u044F\u0442 \u043C\u0435\u0441\u0435\u0446 \u043F\u043E\u0434\u043A\u0440\u0435\u043F\u044F \u0440\u0430\u0441\u0442\u0435\u0436\u0430 \u0438 \u0440\u0430\u0437\u0432\u0438\u0442\u0438\u0435\u0442\u043E \u043D\u0430 \u043D\u0430\u043C\u0435\u0440\u0435\u043D\u0438\u044F\u0442\u0430.",
+    actions: ["\u0420\u0430\u0437\u0432\u0438\u0432\u0430\u0439 \u0438\u0434\u0435\u0438\u0442\u0435 \u0441\u0438", "\u041F\u043B\u0430\u043D\u0438\u0440\u0430\u0439 \u0441\u043B\u0435\u0434\u0432\u0430\u0449\u0438\u0442\u0435 \u0441\u0442\u044A\u043F\u043A\u0438", "\u0411\u044A\u0434\u0438 \u043E\u043F\u0442\u0438\u043C\u0438\u0441\u0442"]
+  },
+  "First Quarter": {
+    general: "\u041F\u044A\u0440\u0432\u0430\u0442\u0430 \u0447\u0435\u0442\u0432\u044A\u0440\u0442 \u043D\u043E\u0441\u0438 \u0435\u043D\u0435\u0440\u0433\u0438\u044F \u0437\u0430 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0438 \u043F\u0440\u0435\u043E\u0434\u043E\u043B\u044F\u0432\u0430\u043D\u0435 \u043D\u0430 \u043F\u0440\u0435\u043F\u044F\u0442\u0441\u0442\u0432\u0438\u044F.",
+    actions: ["\u0414\u0435\u0439\u0441\u0442\u0432\u0430\u0439 \u0440\u0435\u0448\u0438\u0442\u0435\u043B\u043D\u043E", "\u041F\u0440\u0435\u043E\u0434\u043E\u043B\u044F\u0432\u0430\u0439 \u043F\u0440\u0435\u043F\u044F\u0442\u0441\u0442\u0432\u0438\u044F", "\u0411\u044A\u0434\u0438 \u043D\u0430\u0441\u0442\u043E\u0439\u0447\u0438\u0432"]
+  },
+  "Waxing Gibbous": {
+    general: "\u0420\u0430\u0441\u0442\u044F\u0449\u0430\u0442\u0430 \u043B\u0443\u043D\u0430 \u0435 \u0432\u0440\u0435\u043C\u0435 \u0437\u0430 \u0434\u043E\u0438\u0437\u043F\u0438\u043F\u0432\u0430\u043D\u0435 \u0438 \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u043A\u0430.",
+    actions: ["\u0414\u043E\u0432\u044A\u0440\u0448\u0438 \u0437\u0430\u043F\u043E\u0447\u043D\u0430\u0442\u043E\u0442\u043E", "\u041F\u043E\u0434\u0433\u043E\u0442\u0432\u0438 \u0441\u0435 \u0437\u0430 \u043A\u0443\u043B\u043C\u0438\u043D\u0430\u0446\u0438\u044F", "\u0420\u0430\u0444\u0438\u043D\u0438\u0440\u0430\u0439 \u043F\u043B\u0430\u043D\u043E\u0432\u0435\u0442\u0435"]
+  },
+  "Full Moon": {
+    general: "\u041F\u044A\u043B\u043D\u043E\u043B\u0443\u043D\u0438\u0435\u0442\u043E \u0435 \u0432\u0440\u0435\u043C\u0435 \u043D\u0430 \u043A\u0443\u043B\u043C\u0438\u043D\u0430\u0446\u0438\u044F, \u0435\u043C\u043E\u0446\u0438\u043E\u043D\u0430\u043B\u043D\u0430 \u0438\u043D\u0442\u0435\u043D\u0437\u0438\u0432\u043D\u043E\u0441\u0442 \u0438 \u043E\u0441\u044A\u0437\u043D\u0430\u0432\u0430\u043D\u0435.",
+    actions: ["\u041F\u0440\u0430\u0437\u043D\u0443\u0432\u0430\u0439 \u043F\u043E\u0441\u0442\u0438\u0436\u0435\u043D\u0438\u044F\u0442\u0430", "\u041E\u0441\u0432\u043E\u0431\u043E\u0434\u0438 \u0441\u0442\u0430\u0440\u043E\u0442\u043E", "\u0411\u044A\u0434\u0438 \u0431\u043B\u0430\u0433\u043E\u0434\u0430\u0440\u0435\u043D"]
+  },
+  "Waning Gibbous": {
+    general: "\u041D\u0430\u043C\u0430\u043B\u044F\u0432\u0430\u0449\u0430\u0442\u0430 \u043B\u0443\u043D\u0430 \u0435 \u0432\u0440\u0435\u043C\u0435 \u0437\u0430 \u0441\u043F\u043E\u0434\u0435\u043B\u044F\u043D\u0435 \u0438 \u0440\u0435\u0444\u043B\u0435\u043A\u0441\u0438\u044F.",
+    actions: ["\u0421\u043F\u043E\u0434\u0435\u043B\u0438 \u0437\u043D\u0430\u043D\u0438\u044F\u0442\u0430 \u0441\u0438", "\u0411\u043B\u0430\u0433\u043E\u0434\u0430\u0440\u0438 \u043D\u0430 \u0434\u0440\u0443\u0433\u0438\u0442\u0435", "\u0420\u0435\u0444\u043B\u0435\u043A\u0442\u0438\u0440\u0430\u0439"]
+  },
+  "Last Quarter": {
+    general: "\u041F\u043E\u0441\u043B\u0435\u0434\u043D\u0430\u0442\u0430 \u0447\u0435\u0442\u0432\u044A\u0440\u0442 \u0435 \u0432\u0440\u0435\u043C\u0435 \u0437\u0430 \u043E\u0441\u0432\u043E\u0431\u043E\u0436\u0434\u0430\u0432\u0430\u043D\u0435 \u0438 \u043F\u043E\u0447\u0438\u0441\u0442\u0432\u0430\u043D\u0435.",
+    actions: ["\u041E\u0441\u0432\u043E\u0431\u043E\u0434\u0438 \u043D\u0435\u043D\u0443\u0436\u043D\u043E\u0442\u043E", "\u0417\u0430\u0432\u044A\u0440\u0448\u0438 \u0446\u0438\u043A\u043B\u0438", "\u041F\u043E\u0447\u0438\u0441\u0442\u0438 \u0436\u0438\u0432\u043E\u0442\u0430 \u0441\u0438"]
+  },
+  "Waning Crescent": {
+    general: "\u0421\u0442\u0430\u0440\u0438\u044F\u0442 \u043C\u0435\u0441\u0435\u0446 \u0435 \u0432\u0440\u0435\u043C\u0435 \u0437\u0430 \u043F\u043E\u0447\u0438\u0432\u043A\u0430 \u0438 \u043F\u043E\u0434\u0433\u043E\u0442\u043E\u0432\u043A\u0430 \u0437\u0430 \u043D\u043E\u0432\u0438\u044F \u0446\u0438\u043A\u044A\u043B.",
+    actions: ["\u041F\u043E\u0447\u0438\u0432\u0430\u0439", "\u041C\u0435\u0434\u0438\u0442\u0438\u0440\u0430\u0439", "\u041F\u043E\u0434\u0433\u043E\u0442\u0432\u0438 \u0441\u0435 \u0437\u0430 \u043D\u043E\u0432\u043E\u0442\u043E"]
+  }
 };
-// ============================================
-// Helper Functions
-// ============================================
-/**
- * Get random item from array
- */
 function getRandomItem(array) {
-    return array[Math.floor(Math.random() * array.length)];
+  return array[Math.floor(Math.random() * array.length)];
 }
-/**
- * Generate lucky numbers based on sun sign
- */
 function generateLuckyNumbers(sunSign) {
-    const baseNumbers = SIGN_LUCKY_NUMBERS[sunSign] || [1, 7, 11, 22];
-    // Add some randomness while keeping base numbers
-    const result = [];
-    const usedNumbers = new Set();
-    // Take 2-3 from base numbers
-    const baseCount = Math.floor(Math.random() * 2) + 2;
-    for (let i = 0; i < baseCount && i < baseNumbers.length; i++) {
-        const num = baseNumbers[i];
-        if (!usedNumbers.has(num)) {
-            result.push(num);
-            usedNumbers.add(num);
-        }
+  const baseNumbers = SIGN_LUCKY_NUMBERS[sunSign] || [1, 7, 11, 22];
+  const result = [];
+  const usedNumbers = /* @__PURE__ */ new Set();
+  const baseCount = Math.floor(Math.random() * 2) + 2;
+  for (let i = 0; i < baseCount && i < baseNumbers.length; i++) {
+    const num = baseNumbers[i];
+    if (!usedNumbers.has(num)) {
+      result.push(num);
+      usedNumbers.add(num);
     }
-    // Fill remaining with random numbers 1-36
-    while (result.length < 4) {
-        const num = Math.floor(Math.random() * 36) + 1;
-        if (!usedNumbers.has(num)) {
-            result.push(num);
-            usedNumbers.add(num);
-        }
+  }
+  while (result.length < 4) {
+    const num = Math.floor(Math.random() * 36) + 1;
+    if (!usedNumbers.has(num)) {
+      result.push(num);
+      usedNumbers.add(num);
     }
-    return result.sort((a, b) => a - b);
+  }
+  return result.sort((a, b) => a - b);
 }
-/**
- * Generate power hours based on planetary positions
- */
 function generatePowerHours(transits) {
-    // Simplified: generate 2 power hour windows based on sun position
-    const sunTransit = transits.find(t => t.planet === 'sun');
-    const moonTransit = transits.find(t => t.planet === 'moon');
-    const hours = [];
-    if (sunTransit) {
-        // Morning power hours based on sun sign
-        const morningBase = Math.floor(sunTransit.degree / 6);
-        const morningHour = (8 + morningBase) % 12;
-        hours.push(`${morningHour.toString().padStart(2, '0')}:00-${((morningHour + 2) % 12).toString().padStart(2, '0')}:00`);
-    }
-    if (moonTransit) {
-        // Afternoon power hours based on moon sign
-        const afternoonBase = Math.floor(moonTransit.degree / 6);
-        const afternoonHour = (14 + afternoonBase) % 24;
-        hours.push(`${afternoonHour.toString().padStart(2, '0')}:00-${((afternoonHour + 2) % 24).toString().padStart(2, '0')}:00`);
-    }
-    // Fallback if no hours generated
-    if (hours.length === 0) {
-        hours.push('10:00-12:00', '16:00-18:00');
-    }
-    return hours.slice(0, 2);
+  const sunTransit = transits.find((t) => t.planet === "sun");
+  const moonTransit = transits.find((t) => t.planet === "moon");
+  const hours = [];
+  if (sunTransit) {
+    const morningBase = Math.floor(sunTransit.degree / 6);
+    const morningHour = (8 + morningBase) % 12;
+    hours.push(`${morningHour.toString().padStart(2, "0")}:00-${((morningHour + 2) % 12).toString().padStart(2, "0")}:00`);
+  }
+  if (moonTransit) {
+    const afternoonBase = Math.floor(moonTransit.degree / 6);
+    const afternoonHour = (14 + afternoonBase) % 24;
+    hours.push(`${afternoonHour.toString().padStart(2, "0")}:00-${((afternoonHour + 2) % 24).toString().padStart(2, "0")}:00`);
+  }
+  if (hours.length === 0) {
+    hours.push("10:00-12:00", "16:00-18:00");
+  }
+  return hours.slice(0, 2);
 }
-/**
- * Determine dominant influence from aspects
- */
 function getDominantInfluence(aspects) {
-    const counts = { positive: 0, challenging: 0, neutral: 0 };
-    aspects.forEach(aspect => {
-        counts[aspect.influence]++;
+  const counts = { positive: 0, challenging: 0, neutral: 0 };
+  aspects.forEach((aspect) => {
+    counts[aspect.influence]++;
+  });
+  if (counts.positive > counts.challenging) return "positive";
+  if (counts.challenging > counts.positive) return "challenging";
+  return "neutral";
+}
+function generateDailyHoroscope(sunSign, moonSign, aspects, transits, moonPhase, focus = "general") {
+  const dominantInfluence = getDominantInfluence(aspects);
+  const templates = INFLUENCE_TEMPLATES[dominantInfluence];
+  const moonInfluence = MOON_PHASE_INFLUENCES[moonPhase] || MOON_PHASE_INFLUENCES["Waxing Crescent"];
+  let generalText = getRandomItem(templates.general);
+  generalText += ` ${moonInfluence.general}`;
+  const majorAspects = aspects.slice(0, 3);
+  if (majorAspects.length > 0) {
+    generalText += " ";
+    majorAspects.forEach((aspect) => {
+      generalText += `${aspect.transitPlanetBg} \u0432 ${ASPECT_BG[aspect.aspect] || aspect.aspect} \u0441 ${aspect.natalPlanetBg} \u0432\u043B\u0438\u044F\u0435 \u043D\u0430 ${aspect.description.toLowerCase()}. `;
     });
-    if (counts.positive > counts.challenging)
-        return 'positive';
-    if (counts.challenging > counts.positive)
-        return 'challenging';
-    return 'neutral';
+  }
+  const loveText = `${getRandomItem(templates.love)} \u0421 \u041B\u0443\u043D\u0430 \u0432 ${moonSign}, \u0435\u043C\u043E\u0446\u0438\u043E\u043D\u0430\u043B\u043D\u0438\u0442\u0435 \u043D\u0443\u0436\u0434\u0438 \u0441\u0430 \u043D\u0430 \u043F\u0440\u0435\u0434\u0435\u043D \u043F\u043B\u0430\u043D.`;
+  const careerText = `${getRandomItem(templates.career)} \u0421\u043B\u044A\u043D\u0446\u0435\u0442\u043E \u0432 ${sunSign} \u043F\u043E\u0434\u0447\u0435\u0440\u0442\u0430\u0432\u0430 \u0442\u0432\u043E\u0438\u0442\u0435 \u043F\u0440\u0438\u0440\u043E\u0434\u043D\u0438 \u0442\u0430\u043B\u0430\u043D\u0442\u0438.`;
+  const healthText = `${getRandomItem(templates.health)} \u0412\u043D\u0438\u043C\u0430\u0432\u0430\u0439 \u0437\u0430 \u0431\u0430\u043B\u0430\u043D\u0441 \u043C\u0435\u0436\u0434\u0443 \u0430\u043A\u0442\u0438\u0432\u043D\u043E\u0441\u0442 \u0438 \u043F\u043E\u0447\u0438\u0432\u043A\u0430.`;
+  return {
+    general: generalText.trim(),
+    love: loveText,
+    career: careerText,
+    health: healthText,
+    luckyNumbers: generateLuckyNumbers(sunSign),
+    powerHours: generatePowerHours(transits)
+  };
 }
-// ============================================
-// Main Service Functions
-// ============================================
-/**
- * Generate personalized daily horoscope
- */
-function generateDailyHoroscope(sunSign, moonSign, aspects, transits, moonPhase, focus = 'general') {
-    const dominantInfluence = getDominantInfluence(aspects);
-    const templates = INFLUENCE_TEMPLATES[dominantInfluence];
-    const moonInfluence = MOON_PHASE_INFLUENCES[moonPhase] || MOON_PHASE_INFLUENCES['Waxing Crescent'];
-    // Build general horoscope
-    let generalText = getRandomItem(templates.general);
-    // Add moon phase influence
-    generalText += ` ${moonInfluence.general}`;
-    // Add specific transit influences
-    const majorAspects = aspects.slice(0, 3);
-    if (majorAspects.length > 0) {
-        generalText += ' ';
-        majorAspects.forEach(aspect => {
-            generalText += `${aspect.transitPlanetBg} в ${ASPECT_BG[aspect.aspect] || aspect.aspect} с ${aspect.natalPlanetBg} влияе на ${aspect.description.toLowerCase()}. `;
-        });
-    }
-    // Build focus-specific horoscopes
-    const loveText = `${getRandomItem(templates.love)} С Луна в ${moonSign}, емоционалните нужди са на преден план.`;
-    const careerText = `${getRandomItem(templates.career)} Слънцето в ${sunSign} подчертава твоите природни таланти.`;
-    const healthText = `${getRandomItem(templates.health)} Внимавай за баланс между активност и почивка.`;
-    return {
-        general: generalText.trim(),
-        love: loveText,
-        career: careerText,
-        health: healthText,
-        luckyNumbers: generateLuckyNumbers(sunSign),
-        powerHours: generatePowerHours(transits),
-    };
-}
-/**
- * Generate recommended actions based on transits
- */
 function generateRecommendedActions(moonPhase, aspects, dominantInfluence) {
-    const actions = [];
-    // Add moon phase actions
-    const moonInfluence = MOON_PHASE_INFLUENCES[moonPhase];
-    if (moonInfluence) {
-        actions.push(...moonInfluence.actions.slice(0, 2));
-    }
-    // Add influence-specific actions
-    if (dominantInfluence === 'positive') {
-        actions.push('Използвай позитивната енергия', 'Действай смело');
-    }
-    else if (dominantInfluence === 'challenging') {
-        actions.push('Бъди търпелив', 'Избягвай прибързани решения');
-    }
-    else {
-        actions.push('Планирай внимателно', 'Поддържай баланса');
-    }
-    // Add aspect-based actions
-    const hasVenusAspect = aspects.some(a => a.transitPlanet === 'venus');
-    const hasMarsAspect = aspects.some(a => a.transitPlanet === 'mars');
-    const hasMercuryAspect = aspects.some(a => a.transitPlanet === 'mercury');
-    if (hasVenusAspect)
-        actions.push('Обърни внимание на отношенията');
-    if (hasMarsAspect)
-        actions.push('Насочни енергията си продуктивно');
-    if (hasMercuryAspect)
-        actions.push('Комуникирай ясно');
-    // Return unique actions, max 5
-    return [...new Set(actions)].slice(0, 5);
+  const actions = [];
+  const moonInfluence = MOON_PHASE_INFLUENCES[moonPhase];
+  if (moonInfluence) {
+    actions.push(...moonInfluence.actions.slice(0, 2));
+  }
+  if (dominantInfluence === "positive") {
+    actions.push("\u0418\u0437\u043F\u043E\u043B\u0437\u0432\u0430\u0439 \u043F\u043E\u0437\u0438\u0442\u0438\u0432\u043D\u0430\u0442\u0430 \u0435\u043D\u0435\u0440\u0433\u0438\u044F", "\u0414\u0435\u0439\u0441\u0442\u0432\u0430\u0439 \u0441\u043C\u0435\u043B\u043E");
+  } else if (dominantInfluence === "challenging") {
+    actions.push("\u0411\u044A\u0434\u0438 \u0442\u044A\u0440\u043F\u0435\u043B\u0438\u0432", "\u0418\u0437\u0431\u044F\u0433\u0432\u0430\u0439 \u043F\u0440\u0438\u0431\u044A\u0440\u0437\u0430\u043D\u0438 \u0440\u0435\u0448\u0435\u043D\u0438\u044F");
+  } else {
+    actions.push("\u041F\u043B\u0430\u043D\u0438\u0440\u0430\u0439 \u0432\u043D\u0438\u043C\u0430\u0442\u0435\u043B\u043D\u043E", "\u041F\u043E\u0434\u0434\u044A\u0440\u0436\u0430\u0439 \u0431\u0430\u043B\u0430\u043D\u0441\u0430");
+  }
+  const hasVenusAspect = aspects.some((a) => a.transitPlanet === "venus");
+  const hasMarsAspect = aspects.some((a) => a.transitPlanet === "mars");
+  const hasMercuryAspect = aspects.some((a) => a.transitPlanet === "mercury");
+  if (hasVenusAspect) actions.push("\u041E\u0431\u044A\u0440\u043D\u0438 \u0432\u043D\u0438\u043C\u0430\u043D\u0438\u0435 \u043D\u0430 \u043E\u0442\u043D\u043E\u0448\u0435\u043D\u0438\u044F\u0442\u0430");
+  if (hasMarsAspect) actions.push("\u041D\u0430\u0441\u043E\u0447\u043D\u0438 \u0435\u043D\u0435\u0440\u0433\u0438\u044F\u0442\u0430 \u0441\u0438 \u043F\u0440\u043E\u0434\u0443\u043A\u0442\u0438\u0432\u043D\u043E");
+  if (hasMercuryAspect) actions.push("\u041A\u043E\u043C\u0443\u043D\u0438\u043A\u0438\u0440\u0430\u0439 \u044F\u0441\u043D\u043E");
+  return [...new Set(actions)].slice(0, 5);
 }
-// Aspect translations for descriptions
 const ASPECT_BG = {
-    conjunction: 'съвпад',
-    sextile: 'секстил',
-    square: 'квадрат',
-    trine: 'тригон',
-    opposition: 'опозиция',
+  conjunction: "\u0441\u044A\u0432\u043F\u0430\u0434",
+  sextile: "\u0441\u0435\u043A\u0441\u0442\u0438\u043B",
+  square: "\u043A\u0432\u0430\u0434\u0440\u0430\u0442",
+  trine: "\u0442\u0440\u0438\u0433\u043E\u043D",
+  opposition: "\u043E\u043F\u043E\u0437\u0438\u0446\u0438\u044F"
 };
-//# sourceMappingURL=horoscope.js.map
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  generateDailyHoroscope,
+  generateRecommendedActions
+});

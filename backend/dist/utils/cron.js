@@ -1,26 +1,36 @@
 "use strict";
-/**
- * Cron Configuration Utilities
- *
- * Production reliability hardening:
- * - Do NOT crash whole API when CRON_SECRET is missing.
- * - Keep cron endpoints closed when secret is not configured.
- */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getCronSecret = getCronSecret;
-exports.hasCronSecret = hasCronSecret;
-/**
- * Get cron secret from environment.
- * Returns null when not configured.
- */
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var cron_exports = {};
+__export(cron_exports, {
+  getCronSecret: () => getCronSecret,
+  hasCronSecret: () => hasCronSecret
+});
+module.exports = __toCommonJS(cron_exports);
 function getCronSecret() {
-    const secret = process.env.CRON_SECRET?.trim();
-    return secret || null;
+  const secret = process.env.CRON_SECRET?.trim();
+  return secret || null;
 }
-/**
- * Whether cron authentication is configured.
- */
 function hasCronSecret() {
-    return !!getCronSecret();
+  return !!getCronSecret();
 }
-//# sourceMappingURL=cron.js.map
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  getCronSecret,
+  hasCronSecret
+});

@@ -1,322 +1,267 @@
 "use strict";
-/**
- * Language Directive Service
- * US-35: Language Layer Completeness
- *
- * Ensures language directive is properly injected in all AI-generated content.
- * This service provides language-aware prompts for:
- * - Chat responses
- * - Forecasts (daily, weekly)
- * - Transit alerts
- * - Compatibility reports
- * - Chart interpretations
- */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.getLanguageDirective = getLanguageDirective;
-exports.buildLanguageAwarePrompt = buildLanguageAwarePrompt;
-exports.getTerm = getTerm;
-exports.getAllTerms = getAllTerms;
-exports.translatePlanet = translatePlanet;
-exports.translateSign = translateSign;
-exports.translateAspect = translateAspect;
-exports.formatHouse = formatHouse;
-exports.detectLanguageFromHeader = detectLanguageFromHeader;
-exports.isValidLanguage = isValidLanguage;
-exports.normalizeLanguage = normalizeLanguage;
-exports.buildChatSystemPrompt = buildChatSystemPrompt;
-exports.buildForecastSystemPrompt = buildForecastSystemPrompt;
-exports.buildTransitAlertPrompt = buildTransitAlertPrompt;
-// Language directive configuration
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var language_directive_exports = {};
+__export(language_directive_exports, {
+  buildChatSystemPrompt: () => buildChatSystemPrompt,
+  buildForecastSystemPrompt: () => buildForecastSystemPrompt,
+  buildLanguageAwarePrompt: () => buildLanguageAwarePrompt,
+  buildTransitAlertPrompt: () => buildTransitAlertPrompt,
+  default: () => language_directive_default,
+  detectLanguageFromHeader: () => detectLanguageFromHeader,
+  formatHouse: () => formatHouse,
+  getAllTerms: () => getAllTerms,
+  getLanguageDirective: () => getLanguageDirective,
+  getTerm: () => getTerm,
+  isValidLanguage: () => isValidLanguage,
+  normalizeLanguage: () => normalizeLanguage,
+  translateAspect: () => translateAspect,
+  translatePlanet: () => translatePlanet,
+  translateSign: () => translateSign
+});
+module.exports = __toCommonJS(language_directive_exports);
 const LANGUAGE_DIRECTIVES = {
-    bg: `ВАЖНО: Винаги отговаряй на БЪЛГАРСКИ ЕЗИК с правилна българска астрологическа терминология.
+  bg: `\u0412\u0410\u0416\u041D\u041E: \u0412\u0438\u043D\u0430\u0433\u0438 \u043E\u0442\u0433\u043E\u0432\u0430\u0440\u044F\u0439 \u043D\u0430 \u0411\u042A\u041B\u0413\u0410\u0420\u0421\u041A\u0418 \u0415\u0417\u0418\u041A \u0441 \u043F\u0440\u0430\u0432\u0438\u043B\u043D\u0430 \u0431\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0430 \u0430\u0441\u0442\u0440\u043E\u043B\u043E\u0433\u0438\u0447\u0435\u0441\u043A\u0430 \u0442\u0435\u0440\u043C\u0438\u043D\u043E\u043B\u043E\u0433\u0438\u044F.
 
-Използвай следните български термини:
-- Планети: Слънце, Луна, Меркурий, Венера, Марс, Юпитер, Сатурн, Уран, Нептун, Плутон, Северен Възел, Южен Възел
-- Знаци: Овен, Телец, Близнаци, Рак, Лъв, Дева, Везни, Скорпион, Стрелец, Козирог, Водолей, Риби
-- Аспекти: съвпад, секстил, квадрат, тригон, опозиция
-- Домове: 1-ви до 12-ти дом
-- Елементи: Огън, Земя, Въздух, Вода
-- Модалности: Кардинален, Фиксиран, Мутабелен
+\u0418\u0437\u043F\u043E\u043B\u0437\u0432\u0430\u0439 \u0441\u043B\u0435\u0434\u043D\u0438\u0442\u0435 \u0431\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438 \u0442\u0435\u0440\u043C\u0438\u043D\u0438:
+- \u041F\u043B\u0430\u043D\u0435\u0442\u0438: \u0421\u043B\u044A\u043D\u0446\u0435, \u041B\u0443\u043D\u0430, \u041C\u0435\u0440\u043A\u0443\u0440\u0438\u0439, \u0412\u0435\u043D\u0435\u0440\u0430, \u041C\u0430\u0440\u0441, \u042E\u043F\u0438\u0442\u0435\u0440, \u0421\u0430\u0442\u0443\u0440\u043D, \u0423\u0440\u0430\u043D, \u041D\u0435\u043F\u0442\u0443\u043D, \u041F\u043B\u0443\u0442\u043E\u043D, \u0421\u0435\u0432\u0435\u0440\u0435\u043D \u0412\u044A\u0437\u0435\u043B, \u042E\u0436\u0435\u043D \u0412\u044A\u0437\u0435\u043B
+- \u0417\u043D\u0430\u0446\u0438: \u041E\u0432\u0435\u043D, \u0422\u0435\u043B\u0435\u0446, \u0411\u043B\u0438\u0437\u043D\u0430\u0446\u0438, \u0420\u0430\u043A, \u041B\u044A\u0432, \u0414\u0435\u0432\u0430, \u0412\u0435\u0437\u043D\u0438, \u0421\u043A\u043E\u0440\u043F\u0438\u043E\u043D, \u0421\u0442\u0440\u0435\u043B\u0435\u0446, \u041A\u043E\u0437\u0438\u0440\u043E\u0433, \u0412\u043E\u0434\u043E\u043B\u0435\u0439, \u0420\u0438\u0431\u0438
+- \u0410\u0441\u043F\u0435\u043A\u0442\u0438: \u0441\u044A\u0432\u043F\u0430\u0434, \u0441\u0435\u043A\u0441\u0442\u0438\u043B, \u043A\u0432\u0430\u0434\u0440\u0430\u0442, \u0442\u0440\u0438\u0433\u043E\u043D, \u043E\u043F\u043E\u0437\u0438\u0446\u0438\u044F
+- \u0414\u043E\u043C\u043E\u0432\u0435: 1-\u0432\u0438 \u0434\u043E 12-\u0442\u0438 \u0434\u043E\u043C
+- \u0415\u043B\u0435\u043C\u0435\u043D\u0442\u0438: \u041E\u0433\u044A\u043D, \u0417\u0435\u043C\u044F, \u0412\u044A\u0437\u0434\u0443\u0445, \u0412\u043E\u0434\u0430
+- \u041C\u043E\u0434\u0430\u043B\u043D\u043E\u0441\u0442\u0438: \u041A\u0430\u0440\u0434\u0438\u043D\u0430\u043B\u0435\u043D, \u0424\u0438\u043A\u0441\u0438\u0440\u0430\u043D, \u041C\u0443\u0442\u0430\u0431\u0435\u043B\u0435\u043D
 
-Запази професионален, топъл и съветващ тон на български език.`,
-    en: `IMPORTANT: Always respond in English with proper astrological terminology.
+\u0417\u0430\u043F\u0430\u0437\u0438 \u043F\u0440\u043E\u0444\u0435\u0441\u0438\u043E\u043D\u0430\u043B\u0435\u043D, \u0442\u043E\u043F\u044A\u043B \u0438 \u0441\u044A\u0432\u0435\u0442\u0432\u0430\u0449 \u0442\u043E\u043D \u043D\u0430 \u0431\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438 \u0435\u0437\u0438\u043A.`,
+  en: `IMPORTANT: Always respond in English with proper astrological terminology.
 
-Maintain a professional, warm, and advisory tone in English.`,
+Maintain a professional, warm, and advisory tone in English.`
 };
-// Chart terminology for context injection
 const CHART_TERMINOLOGY = {
-    bg: {
-        // Planets
-        sun: 'Слънце',
-        moon: 'Луна',
-        mercury: 'Меркурий',
-        venus: 'Венера',
-        mars: 'Марс',
-        jupiter: 'Юпитер',
-        saturn: 'Сатурн',
-        uranus: 'Уран',
-        neptune: 'Нептун',
-        pluto: 'Плутон',
-        northNode: 'Северен Възел',
-        southNode: 'Южен Възел',
-        chiron: 'Хирон',
-        // Signs
-        aries: 'Овен',
-        taurus: 'Телец',
-        gemini: 'Близнаци',
-        cancer: 'Рак',
-        leo: 'Лъв',
-        virgo: 'Дева',
-        libra: 'Везни',
-        scorpio: 'Скорпион',
-        sagittarius: 'Стрелец',
-        capricorn: 'Козирог',
-        aquarius: 'Водолей',
-        pisces: 'Риби',
-        // Aspects
-        conjunction: 'съвпад',
-        sextile: 'секстил',
-        square: 'квадрат',
-        trine: 'тригон',
-        opposition: 'опозиция',
-        // Houses
-        house: 'дом',
-        firstHouse: '1-ви дом',
-        secondHouse: '2-ри дом',
-        thirdHouse: '3-ти дом',
-        fourthHouse: '4-ти дом',
-        fifthHouse: '5-ти дом',
-        sixthHouse: '6-ти дом',
-        seventhHouse: '7-ми дом',
-        eighthHouse: '8-ми дом',
-        ninthHouse: '9-ти дом',
-        tenthHouse: '10-ти дом',
-        eleventhHouse: '11-ти дом',
-        twelfthHouse: '12-ти дом',
-        // Elements
-        fire: 'Огън',
-        earth: 'Земя',
-        air: 'Въздух',
-        water: 'Вода',
-        // Modalities
-        cardinal: 'Кардинален',
-        fixed: 'Фиксиран',
-        mutable: 'Мутабелен',
-        // Common phrases
-        retrograde: 'ретрограден',
-        direct: 'директен',
-        natalChart: 'натална карта',
-        transit: 'транзит',
-        synastry: 'синастрия',
-        ascendant: 'асцендент',
-        midheaven: 'средно небе (MC)',
-    },
-    en: {
-        // Default English terms
-        sun: 'Sun',
-        moon: 'Moon',
-        mercury: 'Mercury',
-        venus: 'Venus',
-        mars: 'Mars',
-        jupiter: 'Jupiter',
-        saturn: 'Saturn',
-        uranus: 'Uranus',
-        neptune: 'Neptune',
-        pluto: 'Pluto',
-        northNode: 'North Node',
-        southNode: 'South Node',
-        chiron: 'Chiron',
-        aries: 'Aries',
-        taurus: 'Taurus',
-        gemini: 'Gemini',
-        cancer: 'Cancer',
-        leo: 'Leo',
-        virgo: 'Virgo',
-        libra: 'Libra',
-        scorpio: 'Scorpio',
-        sagittarius: 'Sagittarius',
-        capricorn: 'Capricorn',
-        aquarius: 'Aquarius',
-        pisces: 'Pisces',
-        conjunction: 'conjunction',
-        sextile: 'sextile',
-        square: 'square',
-        trine: 'trine',
-        opposition: 'opposition',
-        house: 'house',
-        firstHouse: '1st house',
-        secondHouse: '2nd house',
-        thirdHouse: '3rd house',
-        fourthHouse: '4th house',
-        fifthHouse: '5th house',
-        sixthHouse: '6th house',
-        seventhHouse: '7th house',
-        eighthHouse: '8th house',
-        ninthHouse: '9th house',
-        tenthHouse: '10th house',
-        eleventhHouse: '11th house',
-        twelfthHouse: '12th house',
-        fire: 'Fire',
-        earth: 'Earth',
-        air: 'Air',
-        water: 'Water',
-        cardinal: 'Cardinal',
-        fixed: 'Fixed',
-        mutable: 'Mutable',
-        retrograde: 'retrograde',
-        direct: 'direct',
-        natalChart: 'natal chart',
-        transit: 'transit',
-        synastry: 'synastry',
-        ascendant: 'Ascendant',
-        midheaven: 'Midheaven (MC)',
-    },
+  bg: {
+    // Planets
+    sun: "\u0421\u043B\u044A\u043D\u0446\u0435",
+    moon: "\u041B\u0443\u043D\u0430",
+    mercury: "\u041C\u0435\u0440\u043A\u0443\u0440\u0438\u0439",
+    venus: "\u0412\u0435\u043D\u0435\u0440\u0430",
+    mars: "\u041C\u0430\u0440\u0441",
+    jupiter: "\u042E\u043F\u0438\u0442\u0435\u0440",
+    saturn: "\u0421\u0430\u0442\u0443\u0440\u043D",
+    uranus: "\u0423\u0440\u0430\u043D",
+    neptune: "\u041D\u0435\u043F\u0442\u0443\u043D",
+    pluto: "\u041F\u043B\u0443\u0442\u043E\u043D",
+    northNode: "\u0421\u0435\u0432\u0435\u0440\u0435\u043D \u0412\u044A\u0437\u0435\u043B",
+    southNode: "\u042E\u0436\u0435\u043D \u0412\u044A\u0437\u0435\u043B",
+    chiron: "\u0425\u0438\u0440\u043E\u043D",
+    // Signs
+    aries: "\u041E\u0432\u0435\u043D",
+    taurus: "\u0422\u0435\u043B\u0435\u0446",
+    gemini: "\u0411\u043B\u0438\u0437\u043D\u0430\u0446\u0438",
+    cancer: "\u0420\u0430\u043A",
+    leo: "\u041B\u044A\u0432",
+    virgo: "\u0414\u0435\u0432\u0430",
+    libra: "\u0412\u0435\u0437\u043D\u0438",
+    scorpio: "\u0421\u043A\u043E\u0440\u043F\u0438\u043E\u043D",
+    sagittarius: "\u0421\u0442\u0440\u0435\u043B\u0435\u0446",
+    capricorn: "\u041A\u043E\u0437\u0438\u0440\u043E\u0433",
+    aquarius: "\u0412\u043E\u0434\u043E\u043B\u0435\u0439",
+    pisces: "\u0420\u0438\u0431\u0438",
+    // Aspects
+    conjunction: "\u0441\u044A\u0432\u043F\u0430\u0434",
+    sextile: "\u0441\u0435\u043A\u0441\u0442\u0438\u043B",
+    square: "\u043A\u0432\u0430\u0434\u0440\u0430\u0442",
+    trine: "\u0442\u0440\u0438\u0433\u043E\u043D",
+    opposition: "\u043E\u043F\u043E\u0437\u0438\u0446\u0438\u044F",
+    // Houses
+    house: "\u0434\u043E\u043C",
+    firstHouse: "1-\u0432\u0438 \u0434\u043E\u043C",
+    secondHouse: "2-\u0440\u0438 \u0434\u043E\u043C",
+    thirdHouse: "3-\u0442\u0438 \u0434\u043E\u043C",
+    fourthHouse: "4-\u0442\u0438 \u0434\u043E\u043C",
+    fifthHouse: "5-\u0442\u0438 \u0434\u043E\u043C",
+    sixthHouse: "6-\u0442\u0438 \u0434\u043E\u043C",
+    seventhHouse: "7-\u043C\u0438 \u0434\u043E\u043C",
+    eighthHouse: "8-\u043C\u0438 \u0434\u043E\u043C",
+    ninthHouse: "9-\u0442\u0438 \u0434\u043E\u043C",
+    tenthHouse: "10-\u0442\u0438 \u0434\u043E\u043C",
+    eleventhHouse: "11-\u0442\u0438 \u0434\u043E\u043C",
+    twelfthHouse: "12-\u0442\u0438 \u0434\u043E\u043C",
+    // Elements
+    fire: "\u041E\u0433\u044A\u043D",
+    earth: "\u0417\u0435\u043C\u044F",
+    air: "\u0412\u044A\u0437\u0434\u0443\u0445",
+    water: "\u0412\u043E\u0434\u0430",
+    // Modalities
+    cardinal: "\u041A\u0430\u0440\u0434\u0438\u043D\u0430\u043B\u0435\u043D",
+    fixed: "\u0424\u0438\u043A\u0441\u0438\u0440\u0430\u043D",
+    mutable: "\u041C\u0443\u0442\u0430\u0431\u0435\u043B\u0435\u043D",
+    // Common phrases
+    retrograde: "\u0440\u0435\u0442\u0440\u043E\u0433\u0440\u0430\u0434\u0435\u043D",
+    direct: "\u0434\u0438\u0440\u0435\u043A\u0442\u0435\u043D",
+    natalChart: "\u043D\u0430\u0442\u0430\u043B\u043D\u0430 \u043A\u0430\u0440\u0442\u0430",
+    transit: "\u0442\u0440\u0430\u043D\u0437\u0438\u0442",
+    synastry: "\u0441\u0438\u043D\u0430\u0441\u0442\u0440\u0438\u044F",
+    ascendant: "\u0430\u0441\u0446\u0435\u043D\u0434\u0435\u043D\u0442",
+    midheaven: "\u0441\u0440\u0435\u0434\u043D\u043E \u043D\u0435\u0431\u0435 (MC)"
+  },
+  en: {
+    // Default English terms
+    sun: "Sun",
+    moon: "Moon",
+    mercury: "Mercury",
+    venus: "Venus",
+    mars: "Mars",
+    jupiter: "Jupiter",
+    saturn: "Saturn",
+    uranus: "Uranus",
+    neptune: "Neptune",
+    pluto: "Pluto",
+    northNode: "North Node",
+    southNode: "South Node",
+    chiron: "Chiron",
+    aries: "Aries",
+    taurus: "Taurus",
+    gemini: "Gemini",
+    cancer: "Cancer",
+    leo: "Leo",
+    virgo: "Virgo",
+    libra: "Libra",
+    scorpio: "Scorpio",
+    sagittarius: "Sagittarius",
+    capricorn: "Capricorn",
+    aquarius: "Aquarius",
+    pisces: "Pisces",
+    conjunction: "conjunction",
+    sextile: "sextile",
+    square: "square",
+    trine: "trine",
+    opposition: "opposition",
+    house: "house",
+    firstHouse: "1st house",
+    secondHouse: "2nd house",
+    thirdHouse: "3rd house",
+    fourthHouse: "4th house",
+    fifthHouse: "5th house",
+    sixthHouse: "6th house",
+    seventhHouse: "7th house",
+    eighthHouse: "8th house",
+    ninthHouse: "9th house",
+    tenthHouse: "10th house",
+    eleventhHouse: "11th house",
+    twelfthHouse: "12th house",
+    fire: "Fire",
+    earth: "Earth",
+    air: "Air",
+    water: "Water",
+    cardinal: "Cardinal",
+    fixed: "Fixed",
+    mutable: "Mutable",
+    retrograde: "retrograde",
+    direct: "direct",
+    natalChart: "natal chart",
+    transit: "transit",
+    synastry: "synastry",
+    ascendant: "Ascendant",
+    midheaven: "Midheaven (MC)"
+  }
 };
-// ============================================
-// Main Functions
-// ============================================
-/**
- * Get the language directive for AI prompts
- *
- * @param language - Target language
- * @returns Language directive string to append to system prompt
- */
 function getLanguageDirective(language) {
-    return LANGUAGE_DIRECTIVES[language] || LANGUAGE_DIRECTIVES.bg;
+  return LANGUAGE_DIRECTIVES[language] || LANGUAGE_DIRECTIVES.bg;
 }
-/**
- * Build a language-aware system prompt for AI responses
- *
- * @param basePrompt - Base system prompt content
- * @param language - Target language
- * @returns Complete system prompt with language directive
- */
 function buildLanguageAwarePrompt(basePrompt, language) {
-    const directive = getLanguageDirective(language);
-    return `${basePrompt}\n\n${directive}`;
+  const directive = getLanguageDirective(language);
+  return `${basePrompt}
+
+${directive}`;
 }
-/**
- * Get terminology translation for a given key
- *
- * @param key - Terminology key (e.g., 'sun', 'aries', 'conjunction')
- * @param language - Target language
- * @returns Translated term or original key if not found
- */
 function getTerm(key, language) {
-    return CHART_TERMINOLOGY[language]?.[key] || key;
+  return CHART_TERMINOLOGY[language]?.[key] || key;
 }
-/**
- * Get all terminology for a language
- *
- * @param language - Target language
- * @returns Complete terminology map for the language
- */
 function getAllTerms(language) {
-    return CHART_TERMINOLOGY[language] || CHART_TERMINOLOGY.en;
+  return CHART_TERMINOLOGY[language] || CHART_TERMINOLOGY.en;
 }
-/**
- * Translate a planet name
- */
 function translatePlanet(planet, language) {
-    const key = planet.toLowerCase();
-    return getTerm(key, language);
+  const key = planet.toLowerCase();
+  return getTerm(key, language);
 }
-/**
- * Translate a zodiac sign
- */
 function translateSign(sign, language) {
-    const key = sign.toLowerCase();
-    return getTerm(key, language);
+  const key = sign.toLowerCase();
+  return getTerm(key, language);
 }
-/**
- * Translate an aspect type
- */
 function translateAspect(aspect, language) {
-    const key = aspect.toLowerCase();
-    return getTerm(key, language);
+  const key = aspect.toLowerCase();
+  return getTerm(key, language);
 }
-/**
- * Format a house number in the target language
- */
 function formatHouse(houseNumber, language) {
-    if (language === 'bg') {
-        const ordinals = {
-            1: '1-ви',
-            2: '2-ри',
-            3: '3-ти',
-            4: '4-ти',
-            5: '5-ти',
-            6: '6-ти',
-            7: '7-ми',
-            8: '8-ми',
-            9: '9-ти',
-            10: '10-ти',
-            11: '11-ти',
-            12: '12-ти',
-        };
-        return `${ordinals[houseNumber] || `${houseNumber}-ти`} дом`;
-    }
-    return `${houseNumber}${getOrdinalSuffix(houseNumber)} house`;
+  if (language === "bg") {
+    const ordinals = {
+      1: "1-\u0432\u0438",
+      2: "2-\u0440\u0438",
+      3: "3-\u0442\u0438",
+      4: "4-\u0442\u0438",
+      5: "5-\u0442\u0438",
+      6: "6-\u0442\u0438",
+      7: "7-\u043C\u0438",
+      8: "8-\u043C\u0438",
+      9: "9-\u0442\u0438",
+      10: "10-\u0442\u0438",
+      11: "11-\u0442\u0438",
+      12: "12-\u0442\u0438"
+    };
+    return `${ordinals[houseNumber] || `${houseNumber}-\u0442\u0438`} \u0434\u043E\u043C`;
+  }
+  return `${houseNumber}${getOrdinalSuffix(houseNumber)} house`;
 }
 function getOrdinalSuffix(n) {
-    const s = ['th', 'st', 'nd', 'rd'];
-    const v = n % 100;
-    return s[(v - 20) % 10] || s[v] || s[0];
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return s[(v - 20) % 10] || s[v] || s[0];
 }
-/**
- * Detect language from Accept-Language header
- *
- * @param acceptLanguage - Accept-Language header value
- * @returns Detected supported language (defaults to 'bg')
- */
 function detectLanguageFromHeader(acceptLanguage) {
-    if (!acceptLanguage) {
-        return 'bg';
+  if (!acceptLanguage) {
+    return "bg";
+  }
+  const languages = acceptLanguage.split(",").map((lang) => {
+    const [code, qualityStr] = lang.trim().split(";");
+    const quality = qualityStr ? parseFloat(qualityStr.replace("q=", "")) : 1;
+    return {
+      code: code?.toLowerCase().split("-")[0] || "",
+      quality
+    };
+  });
+  languages.sort((a, b) => b.quality - a.quality);
+  for (const lang of languages) {
+    if (lang.code === "bg" || lang.code === "en") {
+      return lang.code;
     }
-    // Parse Accept-Language header
-    const languages = acceptLanguage.split(',').map(lang => {
-        const [code, qualityStr] = lang.trim().split(';');
-        const quality = qualityStr ? parseFloat(qualityStr.replace('q=', '')) : 1.0;
-        return {
-            code: code?.toLowerCase().split('-')[0] || '',
-            quality,
-        };
-    });
-    // Sort by quality (highest first)
-    languages.sort((a, b) => b.quality - a.quality);
-    // Find first supported language
-    for (const lang of languages) {
-        if (lang.code === 'bg' || lang.code === 'en') {
-            return lang.code;
-        }
-    }
-    // Default to Bulgarian for BG market
-    return 'bg';
+  }
+  return "bg";
 }
-/**
- * Validate that a language is supported
- */
 function isValidLanguage(lang) {
-    return lang === 'bg' || lang === 'en';
+  return lang === "bg" || lang === "en";
 }
-/**
- * Normalize language string to supported language
- * Defaults to 'bg' if invalid or missing
- */
 function normalizeLanguage(lang) {
-    if (isValidLanguage(lang)) {
-        return lang;
-    }
-    return 'bg';
+  if (isValidLanguage(lang)) {
+    return lang;
+  }
+  return "bg";
 }
-// ============================================
-// AI Prompt Builders
-// ============================================
-/**
- * Build chat system prompt with language directive
- */
 function buildChatSystemPrompt(chartSummary, transitsSummary, language) {
-    const basePrompt = `You are AstroLogAI, a wise and knowledgeable astrologer with deep expertise in natal chart interpretation, transits, synastry, and predictive astrology.
+  const basePrompt = `You are AstroLogAI, a wise and knowledgeable astrologer with deep expertise in natal chart interpretation, transits, synastry, and predictive astrology.
 
 YOUR CAPABILITIES:
 - Natal chart interpretation (planetary positions, aspects, houses)
@@ -341,67 +286,66 @@ RESPONSE STYLE:
 - For relationship questions, consider both charts if available
 - Keep responses focused and practical
 - End with an empowering insight when appropriate`;
-    let fullPrompt = buildLanguageAwarePrompt(basePrompt, language);
-    // Add chart context if available
-    if (chartSummary) {
-        fullPrompt += `\n\nUSER'S NATAL CHART:\n${chartSummary}`;
-    }
-    // Add transit context if available
-    if (transitsSummary) {
-        fullPrompt += `\n\nCURRENT TRANSITS:\n${transitsSummary}`;
-    }
-    return fullPrompt;
+  let fullPrompt = buildLanguageAwarePrompt(basePrompt, language);
+  if (chartSummary) {
+    fullPrompt += `
+
+USER'S NATAL CHART:
+${chartSummary}`;
+  }
+  if (transitsSummary) {
+    fullPrompt += `
+
+CURRENT TRANSITS:
+${transitsSummary}`;
+  }
+  return fullPrompt;
 }
-/**
- * Build forecast system prompt with language directive
- */
 function buildForecastSystemPrompt(type, language) {
-    if (language === 'bg') {
-        if (type === 'daily') {
-            return `Ти си AstroLogAI, експертен AI астролог. Базирай се на потребителската натална карта и текущите транзити, за да генерираш персонализирана дневна прогноза.
+  if (language === "bg") {
+    if (type === "daily") {
+      return `\u0422\u0438 \u0441\u0438 AstroLogAI, \u0435\u043A\u0441\u043F\u0435\u0440\u0442\u0435\u043D AI \u0430\u0441\u0442\u0440\u043E\u043B\u043E\u0433. \u0411\u0430\u0437\u0438\u0440\u0430\u0439 \u0441\u0435 \u043D\u0430 \u043F\u043E\u0442\u0440\u0435\u0431\u0438\u0442\u0435\u043B\u0441\u043A\u0430\u0442\u0430 \u043D\u0430\u0442\u0430\u043B\u043D\u0430 \u043A\u0430\u0440\u0442\u0430 \u0438 \u0442\u0435\u043A\u0443\u0449\u0438\u0442\u0435 \u0442\u0440\u0430\u043D\u0437\u0438\u0442\u0438, \u0437\u0430 \u0434\u0430 \u0433\u0435\u043D\u0435\u0440\u0438\u0440\u0430\u0448 \u043F\u0435\u0440\u0441\u043E\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0430\u043D\u0430 \u0434\u043D\u0435\u0432\u043D\u0430 \u043F\u0440\u043E\u0433\u043D\u043E\u0437\u0430.
 
-ВАЖНО: Винаги отговаряй на БЪЛГАРСКИ ЕЗИК с правилна българска астрологическа терминология.
+\u0412\u0410\u0416\u041D\u041E: \u0412\u0438\u043D\u0430\u0433\u0438 \u043E\u0442\u0433\u043E\u0432\u0430\u0440\u044F\u0439 \u043D\u0430 \u0411\u042A\u041B\u0413\u0410\u0420\u0421\u041A\u0418 \u0415\u0417\u0418\u041A \u0441 \u043F\u0440\u0430\u0432\u0438\u043B\u043D\u0430 \u0431\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0430 \u0430\u0441\u0442\u0440\u043E\u043B\u043E\u0433\u0438\u0447\u0435\u0441\u043A\u0430 \u0442\u0435\u0440\u043C\u0438\u043D\u043E\u043B\u043E\u0433\u0438\u044F.
 
-Използвай следните български термини:
-- Слънце, Луна, Меркурий, Венера, Марс, Юпитер, Сатурн, Уран, Нептун, Плутон
-- Овен, Телец, Близнаци, Рак, Лъв, Дева, Везни, Скорпион, Стрелец, Козирог, Водолей, Риби
-- Съвпад, Секстил, Квадрат, Тригон, Опозиция
-- 1-ви до 12-ти дом
+\u0418\u0437\u043F\u043E\u043B\u0437\u0432\u0430\u0439 \u0441\u043B\u0435\u0434\u043D\u0438\u0442\u0435 \u0431\u044A\u043B\u0433\u0430\u0440\u0441\u043A\u0438 \u0442\u0435\u0440\u043C\u0438\u043D\u0438:
+- \u0421\u043B\u044A\u043D\u0446\u0435, \u041B\u0443\u043D\u0430, \u041C\u0435\u0440\u043A\u0443\u0440\u0438\u0439, \u0412\u0435\u043D\u0435\u0440\u0430, \u041C\u0430\u0440\u0441, \u042E\u043F\u0438\u0442\u0435\u0440, \u0421\u0430\u0442\u0443\u0440\u043D, \u0423\u0440\u0430\u043D, \u041D\u0435\u043F\u0442\u0443\u043D, \u041F\u043B\u0443\u0442\u043E\u043D
+- \u041E\u0432\u0435\u043D, \u0422\u0435\u043B\u0435\u0446, \u0411\u043B\u0438\u0437\u043D\u0430\u0446\u0438, \u0420\u0430\u043A, \u041B\u044A\u0432, \u0414\u0435\u0432\u0430, \u0412\u0435\u0437\u043D\u0438, \u0421\u043A\u043E\u0440\u043F\u0438\u043E\u043D, \u0421\u0442\u0440\u0435\u043B\u0435\u0446, \u041A\u043E\u0437\u0438\u0440\u043E\u0433, \u0412\u043E\u0434\u043E\u043B\u0435\u0439, \u0420\u0438\u0431\u0438
+- \u0421\u044A\u0432\u043F\u0430\u0434, \u0421\u0435\u043A\u0441\u0442\u0438\u043B, \u041A\u0432\u0430\u0434\u0440\u0430\u0442, \u0422\u0440\u0438\u0433\u043E\u043D, \u041E\u043F\u043E\u0437\u0438\u0446\u0438\u044F
+- 1-\u0432\u0438 \u0434\u043E 12-\u0442\u0438 \u0434\u043E\u043C
 
-Генерирай прогнозата в следния JSON формат (само JSON, без допълнителен текст):
+\u0413\u0435\u043D\u0435\u0440\u0438\u0440\u0430\u0439 \u043F\u0440\u043E\u0433\u043D\u043E\u0437\u0430\u0442\u0430 \u0432 \u0441\u043B\u0435\u0434\u043D\u0438\u044F JSON \u0444\u043E\u0440\u043C\u0430\u0442 (\u0441\u0430\u043C\u043E JSON, \u0431\u0435\u0437 \u0434\u043E\u043F\u044A\u043B\u043D\u0438\u0442\u0435\u043B\u0435\u043D \u0442\u0435\u043A\u0441\u0442):
 {
-  "overallTheme": "Кратко заглавие на деня в 2-3 думи",
+  "overallTheme": "\u041A\u0440\u0430\u0442\u043A\u043E \u0437\u0430\u0433\u043B\u0430\u0432\u0438\u0435 \u043D\u0430 \u0434\u0435\u043D\u044F \u0432 2-3 \u0434\u0443\u043C\u0438",
   "horoscope": {
-    "general": "Общ преглед на деня - 2-3 изречения",
-    "love": "Любов и отношения - 2 изречения",
-    "career": "Кариера и работа - 2 изречения", 
-    "health": "Здраве и енергия - 2 изречения"
+    "general": "\u041E\u0431\u0449 \u043F\u0440\u0435\u0433\u043B\u0435\u0434 \u043D\u0430 \u0434\u0435\u043D\u044F - 2-3 \u0438\u0437\u0440\u0435\u0447\u0435\u043D\u0438\u044F",
+    "love": "\u041B\u044E\u0431\u043E\u0432 \u0438 \u043E\u0442\u043D\u043E\u0448\u0435\u043D\u0438\u044F - 2 \u0438\u0437\u0440\u0435\u0447\u0435\u043D\u0438\u044F",
+    "career": "\u041A\u0430\u0440\u0438\u0435\u0440\u0430 \u0438 \u0440\u0430\u0431\u043E\u0442\u0430 - 2 \u0438\u0437\u0440\u0435\u0447\u0435\u043D\u0438\u044F", 
+    "health": "\u0417\u0434\u0440\u0430\u0432\u0435 \u0438 \u0435\u043D\u0435\u0440\u0433\u0438\u044F - 2 \u0438\u0437\u0440\u0435\u0447\u0435\u043D\u0438\u044F"
   },
-  "recommendations": ["Препоръка 1", "Препоръка 2", "Препоръка 3"]
+  "recommendations": ["\u041F\u0440\u0435\u043F\u043E\u0440\u044A\u043A\u0430 1", "\u041F\u0440\u0435\u043F\u043E\u0440\u044A\u043A\u0430 2", "\u041F\u0440\u0435\u043F\u043E\u0440\u044A\u043A\u0430 3"]
 }`;
-        }
-        else {
-            return `Ти си AstroLogAI, експертен AI астролог. Генерирай седмична прогноза за потребителя.
+    } else {
+      return `\u0422\u0438 \u0441\u0438 AstroLogAI, \u0435\u043A\u0441\u043F\u0435\u0440\u0442\u0435\u043D AI \u0430\u0441\u0442\u0440\u043E\u043B\u043E\u0433. \u0413\u0435\u043D\u0435\u0440\u0438\u0440\u0430\u0439 \u0441\u0435\u0434\u043C\u0438\u0447\u043D\u0430 \u043F\u0440\u043E\u0433\u043D\u043E\u0437\u0430 \u0437\u0430 \u043F\u043E\u0442\u0440\u0435\u0431\u0438\u0442\u0435\u043B\u044F.
 
-ВАЖНО: Винаги отговаряй на БЪЛГАРСКИ ЕЗИК.
+\u0412\u0410\u0416\u041D\u041E: \u0412\u0438\u043D\u0430\u0433\u0438 \u043E\u0442\u0433\u043E\u0432\u0430\u0440\u044F\u0439 \u043D\u0430 \u0411\u042A\u041B\u0413\u0410\u0420\u0421\u041A\u0418 \u0415\u0417\u0418\u041A.
 
-Генерирай в JSON формат:
+\u0413\u0435\u043D\u0435\u0440\u0438\u0440\u0430\u0439 \u0432 JSON \u0444\u043E\u0440\u043C\u0430\u0442:
 {
-  "overview": "Общ преглед на седмицата - 3-4 изречения",
+  "overview": "\u041E\u0431\u0449 \u043F\u0440\u0435\u0433\u043B\u0435\u0434 \u043D\u0430 \u0441\u0435\u0434\u043C\u0438\u0446\u0430\u0442\u0430 - 3-4 \u0438\u0437\u0440\u0435\u0447\u0435\u043D\u0438\u044F",
   "dailyBreakdown": [
-    {"dayName": "Понеделник", "theme": "Тема на деня", "highlight": "Ключово събитие"},
-    // ... 7 дни
+    {"dayName": "\u041F\u043E\u043D\u0435\u0434\u0435\u043B\u043D\u0438\u043A", "theme": "\u0422\u0435\u043C\u0430 \u043D\u0430 \u0434\u0435\u043D\u044F", "highlight": "\u041A\u043B\u044E\u0447\u043E\u0432\u043E \u0441\u044A\u0431\u0438\u0442\u0438\u0435"},
+    // ... 7 \u0434\u043D\u0438
   ],
   "majorTransits": [
-    {"date": "YYYY-MM-DD", "event": "Астрологично събитие", "significance": "Значение"}
+    {"date": "YYYY-MM-DD", "event": "\u0410\u0441\u0442\u0440\u043E\u043B\u043E\u0433\u0438\u0447\u043D\u043E \u0441\u044A\u0431\u0438\u0442\u0438\u0435", "significance": "\u0417\u043D\u0430\u0447\u0435\u043D\u0438\u0435"}
   ],
   "bestDays": {"career": "yyyy-mm-dd", "love": "yyyy-mm-dd", "decisions": "yyyy-mm-dd", "selfCare": "yyyy-mm-dd"}
 }`;
-        }
     }
-    // English prompts
-    if (type === 'daily') {
-        return `You are AstroLogAI, an expert AI astrologer. Based on the user's natal chart and current transits, generate a personalized daily forecast.
+  }
+  if (type === "daily") {
+    return `You are AstroLogAI, an expert AI astrologer. Based on the user's natal chart and current transits, generate a personalized daily forecast.
 
 IMPORTANT: Always respond in English with proper astrological terminology.
 
@@ -416,8 +360,8 @@ Generate the forecast in the following JSON format (JSON only, no additional tex
   },
   "recommendations": ["Recommendation 1", "Recommendation 2", "Recommendation 3"]
 }`;
-    }
-    return `You are AstroLogAI, an expert AI astrologer. Generate a weekly forecast for the user.
+  }
+  return `You are AstroLogAI, an expert AI astrologer. Generate a weekly forecast for the user.
 
 IMPORTANT: Always respond in English.
 
@@ -433,27 +377,22 @@ Generate in JSON format:
   "bestDays": {"career": "yyyy-mm-dd", "love": "yyyy-mm-dd", "decisions": "yyyy-mm-dd", "selfCare": "yyyy-mm-dd"}
 }`;
 }
-/**
- * Build transit alert prompt with language directive
- */
 function buildTransitAlertPrompt(transit, language) {
-    const basePrompt = language === 'bg'
-        ? `Ти си AstroLogAI, експертен AI астролог. Генерирай персонализирано известие за транзит.
+  const basePrompt = language === "bg" ? `\u0422\u0438 \u0441\u0438 AstroLogAI, \u0435\u043A\u0441\u043F\u0435\u0440\u0442\u0435\u043D AI \u0430\u0441\u0442\u0440\u043E\u043B\u043E\u0433. \u0413\u0435\u043D\u0435\u0440\u0438\u0440\u0430\u0439 \u043F\u0435\u0440\u0441\u043E\u043D\u0430\u043B\u0438\u0437\u0438\u0440\u0430\u043D\u043E \u0438\u0437\u0432\u0435\u0441\u0442\u0438\u0435 \u0437\u0430 \u0442\u0440\u0430\u043D\u0437\u0438\u0442.
 
-ВАЖНО: Отговаряй само на БЪЛГАРСКИ.
+\u0412\u0410\u0416\u041D\u041E: \u041E\u0442\u0433\u043E\u0432\u0430\u0440\u044F\u0439 \u0441\u0430\u043C\u043E \u043D\u0430 \u0411\u042A\u041B\u0413\u0410\u0420\u0421\u041A\u0418.
 
-Транзит: ${transit.planet} ${transit.aspect} ${transit.natalPlanet}
-Точна дата: ${transit.exactDate}
-Влияние: ${transit.influence === 'positive' ? 'положително' : transit.influence === 'challenging' ? 'предизвикателно' : 'неутрално'}
+\u0422\u0440\u0430\u043D\u0437\u0438\u0442: ${transit.planet} ${transit.aspect} ${transit.natalPlanet}
+\u0422\u043E\u0447\u043D\u0430 \u0434\u0430\u0442\u0430: ${transit.exactDate}
+\u0412\u043B\u0438\u044F\u043D\u0438\u0435: ${transit.influence === "positive" ? "\u043F\u043E\u043B\u043E\u0436\u0438\u0442\u0435\u043B\u043D\u043E" : transit.influence === "challenging" ? "\u043F\u0440\u0435\u0434\u0438\u0437\u0432\u0438\u043A\u0430\u0442\u0435\u043B\u043D\u043E" : "\u043D\u0435\u0443\u0442\u0440\u0430\u043B\u043D\u043E"}
 
-Генерирай в JSON формат:
+\u0413\u0435\u043D\u0435\u0440\u0438\u0440\u0430\u0439 \u0432 JSON \u0444\u043E\u0440\u043C\u0430\u0442:
 {
-  "title": "Заглавие на известие (кратко)",
-  "description": "Описание на транзита - 2-3 изречения",
-  "advice": "Практически съвет за този период",
+  "title": "\u0417\u0430\u0433\u043B\u0430\u0432\u0438\u0435 \u043D\u0430 \u0438\u0437\u0432\u0435\u0441\u0442\u0438\u0435 (\u043A\u0440\u0430\u0442\u043A\u043E)",
+  "description": "\u041E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043D\u0430 \u0442\u0440\u0430\u043D\u0437\u0438\u0442\u0430 - 2-3 \u0438\u0437\u0440\u0435\u0447\u0435\u043D\u0438\u044F",
+  "advice": "\u041F\u0440\u0430\u043A\u0442\u0438\u0447\u0435\u0441\u043A\u0438 \u0441\u044A\u0432\u0435\u0442 \u0437\u0430 \u0442\u043E\u0437\u0438 \u043F\u0435\u0440\u0438\u043E\u0434",
   "intensity": "low" | "medium" | "high"
-}`
-        : `You are AstroLogAI, an expert AI astrologer. Generate a personalized transit alert.
+}` : `You are AstroLogAI, an expert AI astrologer. Generate a personalized transit alert.
 
 IMPORTANT: Respond only in English.
 
@@ -468,22 +407,38 @@ Generate in JSON format:
   "advice": "Practical advice for this period",
   "intensity": "low" | "medium" | "high"
 }`;
-    return basePrompt;
+  return basePrompt;
 }
-exports.default = {
-    getLanguageDirective,
-    buildLanguageAwarePrompt,
-    getTerm,
-    getAllTerms,
-    translatePlanet,
-    translateSign,
-    translateAspect,
-    formatHouse,
-    detectLanguageFromHeader,
-    isValidLanguage,
-    normalizeLanguage,
-    buildChatSystemPrompt,
-    buildForecastSystemPrompt,
-    buildTransitAlertPrompt,
+var language_directive_default = {
+  getLanguageDirective,
+  buildLanguageAwarePrompt,
+  getTerm,
+  getAllTerms,
+  translatePlanet,
+  translateSign,
+  translateAspect,
+  formatHouse,
+  detectLanguageFromHeader,
+  isValidLanguage,
+  normalizeLanguage,
+  buildChatSystemPrompt,
+  buildForecastSystemPrompt,
+  buildTransitAlertPrompt
 };
-//# sourceMappingURL=language-directive.js.map
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  buildChatSystemPrompt,
+  buildForecastSystemPrompt,
+  buildLanguageAwarePrompt,
+  buildTransitAlertPrompt,
+  detectLanguageFromHeader,
+  formatHouse,
+  getAllTerms,
+  getLanguageDirective,
+  getTerm,
+  isValidLanguage,
+  normalizeLanguage,
+  translateAspect,
+  translatePlanet,
+  translateSign
+});

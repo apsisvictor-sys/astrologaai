@@ -1,292 +1,233 @@
 "use strict";
-/**
- * AstroLogAI Backend API Server
- * Main entry point — v2026-03-14
- *
- * US-10: WebSocket support via Socket.io
- */
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = __importDefault(require("express"));
-const cors_1 = __importDefault(require("cors"));
-const helmet_1 = __importDefault(require("helmet"));
-const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
-const dotenv_1 = require("dotenv");
-const runtime_1 = require("./config/runtime");
-const envValidation_1 = require("./config/envValidation");
-const prisma_1 = require("./utils/prisma");
-// Import routes
-const auth_1 = __importDefault(require("./routes/auth"));
-const user_1 = __importDefault(require("./routes/user"));
-const chat_1 = __importDefault(require("./routes/chat"));
-const birthChart_1 = __importDefault(require("./routes/birthChart"));
-const birthData_1 = __importDefault(require("./routes/birthData"));
-const locations_1 = __importDefault(require("./routes/locations"));
-const forecasts_1 = __importDefault(require("./routes/forecasts"));
-const partners_1 = __importDefault(require("./routes/partners"));
-const subscription_1 = __importDefault(require("./routes/subscription"));
-const language_1 = __importDefault(require("./routes/language"));
-const llm_1 = __importDefault(require("./routes/llm")); // US-34: LLM Provider Fallback
-const compatibility_1 = __importDefault(require("./routes/compatibility")); // US-20: Compatibility Analysis
-const cron_1 = __importDefault(require("./routes/cron")); // US-36: Monthly Reset Cron
-const astrology_1 = __importDefault(require("./routes/astrology")); // US-33: Astrology API Fallback
-const admin_1 = __importDefault(require("./routes/admin")); // Step 11: Admin Dashboard
-const guestChat_1 = __importDefault(require("./routes/guestChat"));
-const credits_1 = __importDefault(require("./routes/credits")); // FEAT-10: Credits
-// US-37: Rate limit headers middleware
-const rateLimitHeaders_1 = require("./middleware/rateLimitHeaders");
-// US-30: Chart regeneration processor
-const chart_regeneration_1 = require("./services/chart-regeneration");
-const admin_defaults_1 = require("./services/admin-defaults");
-const forecast_cron_1 = require("./services/forecast-cron");
-(0, dotenv_1.config)({ override: true });
-const app = (0, express_1.default)();
-const PORT = runtime_1.runtimeConfig.port;
-// Trust Railway's proxy (required for express-rate-limit to work correctly behind Railway)
-app.set('trust proxy', 1);
-// ============================================
-// MIDDLEWARE
-// ============================================
-// Security headers
-app.use((0, helmet_1.default)());
-// CORS configuration
-app.use((0, cors_1.default)({
-    origin: (origin, callback) => {
-        const allowed = (0, runtime_1.isOriginAllowed)(origin);
-        if (!allowed) {
-            console.warn(`[CORS] Blocked origin: ${origin || 'unknown'}`);
-        }
-        return callback(null, allowed);
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language', 'X-Requested-With'],
-    optionsSuccessStatus: 204,
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var index_exports = {};
+__export(index_exports, {
+  default: () => index_default
+});
+module.exports = __toCommonJS(index_exports);
+var Sentry = __toESM(require("@sentry/node"));
+var import_express = __toESM(require("express"));
+var import_cors = __toESM(require("cors"));
+var import_helmet = __toESM(require("helmet"));
+var import_express_rate_limit = __toESM(require("express-rate-limit"));
+var import_dotenv = require("dotenv");
+var import_runtime = require("./config/runtime");
+var import_envValidation = require("./config/envValidation");
+var import_prisma = require("./utils/prisma");
+var import_auth = __toESM(require("./routes/auth"));
+var import_user = __toESM(require("./routes/user"));
+var import_chat = __toESM(require("./routes/chat"));
+var import_birthChart = __toESM(require("./routes/birthChart"));
+var import_birthData = __toESM(require("./routes/birthData"));
+var import_locations = __toESM(require("./routes/locations"));
+var import_forecasts = __toESM(require("./routes/forecasts"));
+var import_partners = __toESM(require("./routes/partners"));
+var import_subscription = __toESM(require("./routes/subscription"));
+var import_language = __toESM(require("./routes/language"));
+var import_llm = __toESM(require("./routes/llm"));
+var import_compatibility = __toESM(require("./routes/compatibility"));
+var import_cron = __toESM(require("./routes/cron"));
+var import_astrology = __toESM(require("./routes/astrology"));
+var import_admin = __toESM(require("./routes/admin"));
+var import_guestChat = __toESM(require("./routes/guestChat"));
+var import_transits = __toESM(require("./routes/transits"));
+var import_credits = __toESM(require("./routes/credits"));
+var import_rateLimitHeaders = require("./middleware/rateLimitHeaders");
+var import_chart_regeneration = require("./services/chart-regeneration");
+var import_admin_defaults = require("./services/admin-defaults");
+var import_forecast_cron = require("./services/forecast-cron");
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  environment: process.env.NODE_ENV || "production",
+  tracesSampleRate: 0.1
+});
+(0, import_dotenv.config)({ override: true });
+const app = (0, import_express.default)();
+const PORT = import_runtime.runtimeConfig.port;
+app.set("trust proxy", 1);
+app.use((0, import_helmet.default)());
+app.use((0, import_cors.default)({
+  origin: (origin, callback) => {
+    const allowed = (0, import_runtime.isOriginAllowed)(origin);
+    if (!allowed) {
+      console.warn(`[CORS] Blocked origin: ${origin || "unknown"}`);
+    }
+    return callback(null, allowed);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "Accept-Language", "X-Requested-With"],
+  optionsSuccessStatus: 204
 }));
-// Body parsing
-app.use(express_1.default.json({ limit: '10mb' }));
-app.use(express_1.default.urlencoded({ extended: true }));
-// General rate limiting
-const generalLimiter = (0, express_rate_limit_1.default)({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    standardHeaders: true,
-    legacyHeaders: false,
+app.use(import_express.default.json({ limit: "10mb" }));
+app.use(import_express.default.urlencoded({ extended: true }));
+const generalLimiter = (0, import_express_rate_limit.default)({
+  windowMs: 15 * 60 * 1e3,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false
 });
 app.use(generalLimiter);
-// US-37: Add rate limit headers to all responses
-app.use(rateLimitHeaders_1.rateLimitHeadersMiddleware);
-// US-37: Fetch rate limit status for authenticated requests
-app.use(rateLimitHeaders_1.fetchRateLimitStatus);
-// ============================================
-// ROUTES
-// ============================================
-// GET /r/:slug — Referral click tracking redirect
-app.get('/r/:slug', async (req, res) => {
-    const { slug } = req.params;
-    try {
-        await prisma_1.prisma.referralLink.update({
-            where: { slug, isActive: true },
-            data: { clicks: { increment: 1 } },
-        });
-    }
-    catch (_err) {
-        console.warn('[Referral] Click increment failed for slug:', slug, _err);
-    }
-    const frontendUrl = process.env.FRONTEND_URL || 'https://astrologa.bg';
-    res.redirect(302, `${frontendUrl}?ref=${encodeURIComponent(slug)}`);
-});
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        version: '1.0.0',
+app.use(import_rateLimitHeaders.rateLimitHeadersMiddleware);
+app.use(import_rateLimitHeaders.fetchRateLimitStatus);
+app.get("/r/:slug", async (req, res) => {
+  const { slug } = req.params;
+  try {
+    await import_prisma.prisma.referralLink.update({
+      where: { slug, isActive: true },
+      data: { clicks: { increment: 1 } }
     });
+  } catch (_err) {
+    console.warn("[Referral] Click increment failed for slug:", slug, _err);
+  }
+  const frontendUrl = process.env.FRONTEND_URL || "https://astrologa.bg";
+  res.redirect(302, `${frontendUrl}?ref=${encodeURIComponent(slug)}`);
 });
-app.get('/health/env', (_req, res) => {
-    const report = (0, envValidation_1.getEnvValidationReport)();
-    res.status(report.ok ? 200 : 503).json({
-        status: report.ok ? 'ok' : 'degraded',
-        env: report,
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+    version: "1.0.0"
+  });
+});
+app.get("/health/db", async (req, res) => {
+  try {
+    await import_prisma.prisma.$queryRaw`SELECT 1`;
+    res.json({ status: "ok", database: "connected" });
+  } catch (error) {
+    res.status(503).json({ status: "error", database: "disconnected" });
+  }
+});
+app.get("/health/redis", async (req, res) => {
+  try {
+    const { redisClient } = await import("./utils/redis");
+    await redisClient.ping();
+    res.json({ status: "ok", redis: "connected" });
+  } catch (error) {
+    res.status(503).json({ status: "error", redis: "disconnected" });
+  }
+});
+app.get("/health/astrology", async (req, res) => {
+  try {
+    const { getAstrologyOrchestrator } = await import("./services/astrology/astrology-orchestrator");
+    const orchestrator = getAstrologyOrchestrator();
+    const health = await orchestrator.checkAllHealth();
+    const status = orchestrator.getStatus();
+    const isHealthy = health.some((h) => h.status === "healthy");
+    res.status(isHealthy ? 200 : 503).json({
+      status: isHealthy ? "ok" : "degraded",
+      astrology: {
+        activeProvider: status.activeProvider
+      }
     });
+  } catch (error) {
+    res.status(503).json({ status: "error", astrology: "unavailable" });
+  }
 });
-// Health check for database
-app.get('/health/db', async (req, res) => {
-    try {
-        const { PrismaClient } = await Promise.resolve().then(() => __importStar(require('@prisma/client')));
-        const prisma = new PrismaClient();
-        await prisma.$queryRaw `SELECT 1`;
-        res.json({ status: 'ok', database: 'connected' });
-    }
-    catch (error) {
-        res.status(503).json({ status: 'error', database: 'disconnected' });
-    }
-});
-// Health check for Redis
-app.get('/health/redis', async (req, res) => {
-    try {
-        const { redisClient } = await Promise.resolve().then(() => __importStar(require('./utils/redis')));
-        await redisClient.ping();
-        res.json({ status: 'ok', redis: 'connected' });
-    }
-    catch (error) {
-        res.status(503).json({ status: 'error', redis: 'disconnected' });
-    }
-});
-// Health check for Astrology API (US-33)
-app.get('/health/astrology', async (req, res) => {
-    try {
-        const { getAstrologyOrchestrator } = await Promise.resolve().then(() => __importStar(require('./services/astrology/astrology-orchestrator')));
-        const orchestrator = getAstrologyOrchestrator();
-        const health = await orchestrator.checkAllHealth();
-        const status = orchestrator.getStatus();
-        const isHealthy = health.some((h) => h.status === 'healthy');
-        res.status(isHealthy ? 200 : 503).json({
-            status: isHealthy ? 'ok' : 'degraded',
-            astrology: {
-                activeProvider: status.activeProvider,
-            },
-        });
-    }
-    catch (error) {
-        res.status(503).json({ status: 'error', astrology: 'unavailable' });
-    }
-});
-// API routes
-app.use('/api/v1/auth', auth_1.default);
-app.use('/api/v1/user', user_1.default);
-app.use('/api/v1/chat/guest', guestChat_1.default); // Guest (unauthenticated) chat — must be before /api/v1/chat
-app.use('/api/v1/chat', chat_1.default);
-app.use('/api/v1/birth-chart', birthChart_1.default);
-app.use('/api/v1/birth-data', birthData_1.default);
-app.use('/api/v1/locations', locations_1.default);
-app.use('/api/v1/forecasts', forecasts_1.default);
-app.use('/api/v1/partners', partners_1.default);
-app.use('/api/v1/subscription', subscription_1.default);
-app.use('/api/v1/language', language_1.default);
-app.use('/api/v1/llm', llm_1.default); // US-34: LLM Provider Fallback
-app.use('/api/v1/providers', llm_1.default); // US-34: Canonical providers/status endpoint
-app.use('/api/v1/compatibility', compatibility_1.default); // US-20: Compatibility Analysis
-app.use('/api/v1/cron', cron_1.default); // US-36: Monthly Reset Cron
-app.use('/api/v1/astrology', astrology_1.default); // US-33: Astrology API Fallback
-app.use('/api/v1/admin', admin_1.default); // Step 11: Admin Dashboard
-app.use('/api/v1/credits', credits_1.default); // FEAT-10: Credits system
-// ============================================
-// ERROR HANDLING
-// ============================================
-// 404 handler
+app.use("/api/v1/auth", import_auth.default);
+app.use("/api/v1/user", import_user.default);
+app.use("/api/v1/chat/guest", import_guestChat.default);
+app.use("/api/v1/chat", import_chat.default);
+app.use("/api/v1/birth-chart", import_birthChart.default);
+app.use("/api/v1/birth-data", import_birthData.default);
+app.use("/api/v1/locations", import_locations.default);
+app.use("/api/v1/forecasts", import_forecasts.default);
+app.use("/api/v1/partners", import_partners.default);
+app.use("/api/v1/subscription", import_subscription.default);
+app.use("/api/v1/language", import_language.default);
+app.use("/api/v1/llm", import_llm.default);
+app.use("/api/v1/providers", import_llm.default);
+app.use("/api/v1/compatibility", import_compatibility.default);
+app.use("/api/v1/cron", import_cron.default);
+app.use("/api/v1/astrology", import_astrology.default);
+app.use("/api/v1/admin", import_admin.default);
+app.use("/api/v1/transits", import_transits.default);
+app.use("/api/v1/credits", import_credits.default);
 app.use((req, res) => {
-    res.status(404).json({
-        success: false,
-        error: {
-            code: 'NOT_FOUND',
-            message: `Route ${req.method} ${req.path} not found`,
-        },
-    });
+  res.status(404).json({
+    success: false,
+    error: {
+      code: "NOT_FOUND",
+      message: `Route ${req.method} ${req.path} not found`
+    }
+  });
 });
-// Global error handler
+Sentry.setupExpressErrorHandler(app);
 app.use((err, req, res, _next) => {
-    console.error('[Error]', err.stack);
-    // Check for infrastructure-related errors (database, connection, etc.)
-    const message = err.message || String(err);
-    const isInfraError = /\b(connect|connection|database|prisma|timeout|pool|P1001|P1002|P1017|ECONNREFUSED)\b/i.test(message);
-    if (isInfraError) {
-        console.error('[Error] Infrastructure error detected:', message);
-        res.status(503).json({
-            success: false,
-            error: {
-                code: 'AUTH_SERVICE_UNAVAILABLE',
-                message: process.env.NODE_ENV === 'production'
-                    ? 'Service temporarily unavailable'
-                    : message,
-            },
-        });
-        return;
-    }
-    // Check for JWT-specific errors
-    if (message.includes('JWT_SECRET')) {
-        console.error('[Error] JWT configuration error:', message);
-        res.status(503).json({
-            success: false,
-            error: {
-                code: 'AUTH_SERVICE_UNAVAILABLE',
-                message: process.env.NODE_ENV === 'production'
-                    ? 'Service temporarily unavailable'
-                    : 'JWT not configured',
-            },
-        });
-        return;
-    }
-    // Generic error handler
-    res.status(500).json({
-        success: false,
-        error: {
-            code: 'INTERNAL_ERROR',
-            message: process.env.NODE_ENV === 'production'
-                ? 'An unexpected error occurred'
-                : err.message,
-        },
+  console.error("[Error]", err.stack);
+  const message = err.message || String(err);
+  const isInfraError = /\b(connect|connection|database|prisma|timeout|pool|P1001|P1002|P1017|ECONNREFUSED)\b/i.test(message);
+  if (isInfraError) {
+    console.error("[Error] Infrastructure error detected:", message);
+    res.status(503).json({
+      success: false,
+      error: {
+        code: "AUTH_SERVICE_UNAVAILABLE",
+        message: process.env.NODE_ENV === "production" ? "Service temporarily unavailable" : message
+      }
     });
-});
-// ============================================
-// START SERVER
-// ============================================
-app.listen(PORT, () => {
-    const envReport = (0, envValidation_1.getEnvValidationReport)();
-    console.log(`🚀 AstroLogAI API running on port ${PORT}`);
-    console.log(`📚 Health check: http://localhost:${PORT}/health`);
-    console.log(`🧪 Env validation: http://localhost:${PORT}/health/env (${envReport.ok ? 'ok' : 'degraded'})`);
-    console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/v1/auth`);
-    console.log(`🌐 Allowed origins: ${runtime_1.runtimeConfig.allowedOrigins.join(', ') || '(none configured)'}`);
-    if (!envReport.ok) {
-        console.warn(`⚠️ Missing required env vars: ${envReport.missingRequired.join(', ')}`);
+    return;
+  }
+  if (message.includes("JWT_SECRET")) {
+    console.error("[Error] JWT configuration error:", message);
+    res.status(503).json({
+      success: false,
+      error: {
+        code: "AUTH_SERVICE_UNAVAILABLE",
+        message: process.env.NODE_ENV === "production" ? "Service temporarily unavailable" : "JWT not configured"
+      }
+    });
+    return;
+  }
+  res.status(500).json({
+    success: false,
+    error: {
+      code: "INTERNAL_ERROR",
+      message: process.env.NODE_ENV === "production" ? "An unexpected error occurred" : err.message
     }
-    // US-30: Start background chart regeneration processor
-    (0, chart_regeneration_1.startRegenerationProcessor)();
-    console.log(`⚡ Chart regeneration processor started`);
-    // Nightly forecast pre-generation: create table then start scheduler
-    (0, forecast_cron_1.ensureDailyForecastTable)().then(() => {
-        (0, forecast_cron_1.startForecastCron)();
-        console.log(`⚡ Nightly forecast cron started (runs daily at 02:00 UTC)`);
-    }).catch(err => console.error('[Startup] Failed to start forecast cron:', err));
-    // Seed AdminConfig defaults (model prices, alert thresholds) — skips if already set
-    (0, admin_defaults_1.seedAdminDefaults)().catch(err => console.error('[Startup] Failed to seed admin defaults:', err));
+  });
 });
-exports.default = app;
-//# sourceMappingURL=index.js.map
+app.listen(PORT, () => {
+  const envReport = (0, import_envValidation.getEnvValidationReport)();
+  console.log(`\u{1F680} AstroLogAI API running on port ${PORT}`);
+  console.log(`\u{1F4DA} Health check: http://localhost:${PORT}/health`);
+  console.log(`\u{1F510} Auth endpoints: http://localhost:${PORT}/api/v1/auth`);
+  console.log(`\u{1F310} Allowed origins: ${import_runtime.runtimeConfig.allowedOrigins.join(", ") || "(none configured)"}`);
+  if (!envReport.ok) {
+    console.warn(`\u26A0\uFE0F Missing required env vars: ${envReport.missingRequired.join(", ")}`);
+  }
+  (0, import_chart_regeneration.startRegenerationProcessor)();
+  console.log(`\u26A1 Chart regeneration processor started`);
+  (0, import_forecast_cron.ensureDailyForecastTable)().then(() => {
+    (0, import_forecast_cron.startForecastCron)();
+    console.log(`\u26A1 Nightly forecast cron started (runs daily at 02:00 UTC)`);
+  }).catch((err) => console.error("[Startup] Failed to start forecast cron:", err));
+  (0, import_admin_defaults.seedAdminDefaults)().catch((err) => console.error("[Startup] Failed to seed admin defaults:", err));
+});
+var index_default = app;

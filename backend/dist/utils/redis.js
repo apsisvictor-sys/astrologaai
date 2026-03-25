@@ -1,204 +1,197 @@
 "use strict";
-/**
- * Redis Client Singleton
- * Used for password reset tokens, session caching, and chat context
- *
- * US-34: Graceful fallback to in-memory when Redis is unavailable.
- * Connects via REDIS_URL env var (Upstash rediss:// URL).
- */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.redisClient = void 0;
-exports.isRedisConnected = isRedisConnected;
-exports.storeSessionContext = storeSessionContext;
-exports.getSessionContext = getSessionContext;
-exports.updateSessionSummary = updateSessionSummary;
-exports.clearSessionContext = clearSessionContext;
-exports.clearUserSessionContexts = clearUserSessionContexts;
-exports.storeResetToken = storeResetToken;
-exports.getResetToken = getResetToken;
-exports.invalidateResetToken = invalidateResetToken;
-exports.invalidateUserSessions = invalidateUserSessions;
-const redis_1 = require("redis");
-// In-memory fallback cache (used when Redis is unavailable)
-const memoryCache = new Map();
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var redis_exports = {};
+__export(redis_exports, {
+  clearSessionContext: () => clearSessionContext,
+  clearUserSessionContexts: () => clearUserSessionContexts,
+  default: () => redis_default,
+  getResetToken: () => getResetToken,
+  getSessionContext: () => getSessionContext,
+  invalidateResetToken: () => invalidateResetToken,
+  invalidateUserSessions: () => invalidateUserSessions,
+  isRedisConnected: () => isRedisConnected,
+  redisClient: () => redisClient,
+  storeResetToken: () => storeResetToken,
+  storeSessionContext: () => storeSessionContext,
+  updateSessionSummary: () => updateSessionSummary
+});
+module.exports = __toCommonJS(redis_exports);
+var import_redis = require("redis");
+const memoryCache = /* @__PURE__ */ new Map();
 const memoryClient = {
-    get: async (key) => {
-        const item = memoryCache.get(key);
-        if (item && item.expiresAt > Date.now())
-            return item.value;
-        memoryCache.delete(key);
-        return null;
-    },
-    setEx: async (key, ttl, value) => {
-        memoryCache.set(key, { value, expiresAt: Date.now() + ttl * 1000 });
-    },
-    del: async (...keys) => { keys.forEach(k => memoryCache.delete(k)); },
-    lPush: async (_key, _value) => { },
-    rPush: async (_key, _value) => { },
-    lPop: async (_key) => null,
-    lTrim: async (_key, _start, _stop) => { },
-    keys: async (_pattern) => [],
-    ping: async () => 'PONG',
-    on: () => { },
-    connect: async () => { },
+  get: async (key) => {
+    const item = memoryCache.get(key);
+    if (item && item.expiresAt > Date.now()) return item.value;
+    memoryCache.delete(key);
+    return null;
+  },
+  setEx: async (key, ttl, value) => {
+    memoryCache.set(key, { value, expiresAt: Date.now() + ttl * 1e3 });
+  },
+  del: async (...keys) => {
+    keys.forEach((k) => memoryCache.delete(k));
+  },
+  lPush: async (_key, _value) => {
+  },
+  rPush: async (_key, _value) => {
+  },
+  lPop: async (_key) => null,
+  lTrim: async (_key, _start, _stop) => {
+  },
+  keys: async (_pattern) => [],
+  sadd: async (_key, ..._members) => 0,
+  smembers: async (_key) => [],
+  ping: async () => "PONG",
+  on: () => {
+  },
+  connect: async () => {
+  }
 };
 let _connected = false;
-// activeClient starts as memoryClient, swaps to real Redis once connected
 let activeClient = memoryClient;
 const redisUrl = process.env.REDIS_URL;
 if (redisUrl) {
-    const realClient = (0, redis_1.createClient)({ url: redisUrl });
-    realClient.on('connect', () => {
-        _connected = true;
-        activeClient = realClient;
-        console.log('[Redis] Connected to Upstash Redis');
-    });
-    realClient.on('error', (err) => {
-        if (_connected) {
-            _connected = false;
-            activeClient = memoryClient;
-            console.error('[Redis] Lost connection, falling back to in-memory:', err.message);
-        }
-    });
-    realClient.connect().catch((err) => {
-        console.error('[Redis] ⚠️  Initial connect FAILED — cache will NOT persist across requests! All LLM forecast calls will re-run on every request. Error:', err.message);
-    });
+  const realClient = (0, import_redis.createClient)({ url: redisUrl });
+  realClient.on("connect", () => {
+    _connected = true;
+    activeClient = realClient;
+    console.log("[Redis] Connected to Upstash Redis");
+  });
+  realClient.on("error", (err) => {
+    if (_connected) {
+      _connected = false;
+      activeClient = memoryClient;
+      console.error("[Redis] Lost connection, falling back to in-memory:", err.message);
+    }
+  });
+  realClient.connect().catch((err) => {
+    console.error("[Redis] \u26A0\uFE0F  Initial connect FAILED \u2014 cache will NOT persist across requests! All LLM forecast calls will re-run on every request. Error:", err.message);
+  });
+} else {
+  console.warn("[Redis] \u26A0\uFE0F  No REDIS_URL set \u2014 using in-memory fallback. Cache lost on every restart. All LLM forecast calls will re-run after restarts.");
 }
-else {
-    console.warn('[Redis] ⚠️  No REDIS_URL set — using in-memory fallback. Cache lost on every restart. All LLM forecast calls will re-run after restarts.');
-}
-exports.redisClient = new Proxy(memoryClient, {
-    get(_target, prop) {
-        const value = activeClient[prop];
-        if (typeof value === 'function') {
-            return value.bind(activeClient);
-        }
-        return value;
-    },
+const redisClient = new Proxy(memoryClient, {
+  get(_target, prop) {
+    const value = activeClient[prop];
+    if (typeof value === "function") {
+      return value.bind(activeClient);
+    }
+    return value;
+  }
 });
 function isRedisConnected() {
-    return _connected;
+  return _connected;
 }
-// ============================================
-// Session Context Management (US-09)
-// ============================================
-const SESSION_CONTEXT_TTL = 24 * 60 * 60; // 24 hours in seconds
-const MAX_CONTEXT_MESSAGES = 10; // Last 10 messages for context
-const SUMMARY_THRESHOLD = 20; // Generate summary after 20 messages
-/**
- * Store chat session context in Redis
- * Stores last N messages for quick context retrieval. Now supports Vercel SDK CoreMessages (tool calls).
- */
-async function storeSessionContext(sessionId, userId, messages, // Changed to any to support complex CoreMessages (tool_calls, tool_results)
-summary) {
-    const key = `chat_context:${sessionId}`;
-    const context = {
-        sessionId,
-        userId,
-        recentMessages: messages.slice(-MAX_CONTEXT_MESSAGES),
-        messageCount: messages.length,
-        summary: summary || null,
-        lastUpdated: new Date().toISOString(),
-    };
-    await exports.redisClient.setEx(key, SESSION_CONTEXT_TTL, JSON.stringify(context));
+const SESSION_CONTEXT_TTL = 24 * 60 * 60;
+const MAX_CONTEXT_MESSAGES = 10;
+const SUMMARY_THRESHOLD = 20;
+async function storeSessionContext(sessionId, userId, messages, summary) {
+  const key = `chat_context:${sessionId}`;
+  const context = {
+    sessionId,
+    userId,
+    recentMessages: messages.slice(-MAX_CONTEXT_MESSAGES),
+    messageCount: messages.length,
+    summary: summary || null,
+    lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+  };
+  await redisClient.setEx(key, SESSION_CONTEXT_TTL, JSON.stringify(context));
 }
-/**
- * Get chat session context from Redis
- * Returns null if context doesn't exist or expired. Supports CoreMessage arrays.
- */
 async function getSessionContext(sessionId) {
-    const key = `chat_context:${sessionId}`;
-    const data = await exports.redisClient.get(key);
-    if (!data)
-        return null;
-    try {
-        return JSON.parse(data);
-    }
-    catch {
-        return null;
-    }
+  const key = `chat_context:${sessionId}`;
+  const data = await redisClient.get(key);
+  if (!data) return null;
+  try {
+    return JSON.parse(data);
+  } catch {
+    return null;
+  }
 }
-/**
- * Update session summary in Redis
- */
 async function updateSessionSummary(sessionId, summary) {
-    const existing = await getSessionContext(sessionId);
-    if (existing) {
-        const key = `chat_context:${sessionId}`;
-        existing.summary = summary;
-        existing.lastUpdated = new Date().toISOString();
-        await exports.redisClient.setEx(key, SESSION_CONTEXT_TTL, JSON.stringify(existing));
-    }
-}
-/**
- * Clear session context from Redis
- * Used when starting a new conversation
- */
-async function clearSessionContext(sessionId) {
+  const existing = await getSessionContext(sessionId);
+  if (existing) {
     const key = `chat_context:${sessionId}`;
-    await exports.redisClient.del(key);
+    existing.summary = summary;
+    existing.lastUpdated = (/* @__PURE__ */ new Date()).toISOString();
+    await redisClient.setEx(key, SESSION_CONTEXT_TTL, JSON.stringify(existing));
+  }
 }
-/**
- * Clear all session contexts for a user
- * Used when user requests to clear all chat history
- */
+async function clearSessionContext(sessionId) {
+  const key = `chat_context:${sessionId}`;
+  await redisClient.del(key);
+}
 async function clearUserSessionContexts(userId) {
-    const pattern = `chat_context:*`;
-    const keys = await exports.redisClient.keys(pattern);
-    // Filter keys that belong to this user
-    const userContextKeys = [];
-    for (const key of keys) {
-        const data = await exports.redisClient.get(key);
-        if (data) {
-            try {
-                const context = JSON.parse(data);
-                if (context.userId === userId) {
-                    userContextKeys.push(key);
-                }
-            }
-            catch {
-                // Skip invalid data
-            }
+  const pattern = `chat_context:*`;
+  const keys = await redisClient.keys(pattern);
+  const userContextKeys = [];
+  for (const key of keys) {
+    const data = await redisClient.get(key);
+    if (data) {
+      try {
+        const context = JSON.parse(data);
+        if (context.userId === userId) {
+          userContextKeys.push(key);
         }
+      } catch {
+      }
     }
-    if (userContextKeys.length > 0) {
-        await exports.redisClient.del(userContextKeys);
-    }
+  }
+  if (userContextKeys.length > 0) {
+    await redisClient.del(userContextKeys);
+  }
 }
-/**
- * Store password reset token
- * TTL: 24 hours (86400 seconds)
- */
 async function storeResetToken(token, userId) {
-    const key = `reset_token:${token}`;
-    await exports.redisClient.setEx(key, 86400, userId);
+  const key = `reset_token:${token}`;
+  await redisClient.setEx(key, 86400, userId);
 }
-/**
- * Get user ID from reset token
- * Returns null if token doesn't exist or expired
- */
 async function getResetToken(token) {
-    const key = `reset_token:${token}`;
-    return await exports.redisClient.get(key);
+  const key = `reset_token:${token}`;
+  return await redisClient.get(key);
 }
-/**
- * Invalidate reset token (single-use)
- */
 async function invalidateResetToken(token) {
-    const key = `reset_token:${token}`;
-    await exports.redisClient.del(key);
+  const key = `reset_token:${token}`;
+  await redisClient.del(key);
 }
-/**
- * Invalidate all user sessions
- * Used after password reset for security
- */
 async function invalidateUserSessions(userId) {
-    // Get all session keys for user
-    const pattern = `session:*:${userId}`;
-    const keys = await exports.redisClient.keys(pattern);
-    if (keys.length > 0) {
-        await exports.redisClient.del(keys);
+  try {
+    const setKey = `user_sessions:${userId}`;
+    const sessionIds = await redisClient.smembers(setKey);
+    if (sessionIds.length > 0) {
+      const contextKeys = sessionIds.map((id) => `chat_context:${id}`);
+      await redisClient.del(setKey, ...contextKeys);
     }
+  } catch (err) {
+    console.error("[Redis] invalidateUserSessions error:", err);
+  }
 }
-exports.default = exports.redisClient;
-//# sourceMappingURL=redis.js.map
+var redis_default = redisClient;
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  clearSessionContext,
+  clearUserSessionContexts,
+  getResetToken,
+  getSessionContext,
+  invalidateResetToken,
+  invalidateUserSessions,
+  isRedisConnected,
+  redisClient,
+  storeResetToken,
+  storeSessionContext,
+  updateSessionSummary
+});

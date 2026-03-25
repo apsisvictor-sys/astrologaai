@@ -1,30 +1,44 @@
 "use strict";
-/**
- * Chat Routes
- * US-07: Send Message to AI Astrologer
- * US-08: Chat History
- *
- * Handles AI chat functionality with streaming responses
- */
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const auth_1 = require("../middleware/auth");
-const queryLimit_1 = require("../middleware/queryLimit");
-const chatController_1 = require("../controllers/chatController");
-const router = (0, express_1.Router)();
-// All chat routes require authentication
-router.use(auth_1.authMiddleware);
-// Chat routes that consume queries - apply rate limiting
-router.post('/message', queryLimit_1.queryLimitMiddleware, chatController_1.sendMessage);
-router.post('/sessions', queryLimit_1.queryLimitMiddleware, chatController_1.createSession);
-router.post('/new', queryLimit_1.queryLimitMiddleware, chatController_1.startNewConversation);
-// Read-only routes - no rate limiting needed
-router.get('/sessions', chatController_1.listSessions);
-router.delete('/sessions', chatController_1.clearAllSessions);
-router.get('/sessions/:id', chatController_1.getSession);
-router.patch('/sessions/:id', chatController_1.updateSession);
-router.delete('/sessions/:id', chatController_1.deleteSession);
-router.post('/sessions/:id/import', chatController_1.importGuestMessages);
-router.get('/usage', chatController_1.getUsage);
-exports.default = router;
-//# sourceMappingURL=chat.js.map
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var chat_exports = {};
+__export(chat_exports, {
+  default: () => chat_default
+});
+module.exports = __toCommonJS(chat_exports);
+var import_express = require("express");
+var import_auth = require("../middleware/auth");
+var import_queryLimit = require("../middleware/queryLimit");
+var import_chatController = require("../controllers/chatController");
+const router = (0, import_express.Router)();
+router.get("/share/:token", import_chatController.getSharedSession);
+router.use(import_auth.authMiddleware);
+router.post("/message", import_queryLimit.queryLimitMiddleware, import_chatController.sendMessage);
+router.post("/sessions", import_queryLimit.queryLimitMiddleware, import_chatController.createSession);
+router.post("/new", import_queryLimit.queryLimitMiddleware, import_chatController.startNewConversation);
+router.get("/sessions", import_chatController.listSessions);
+router.delete("/sessions", import_chatController.clearAllSessions);
+router.get("/sessions/:id", import_chatController.getSession);
+router.patch("/sessions/:id", import_chatController.updateSession);
+router.delete("/sessions/:id", import_chatController.deleteSession);
+router.post("/sessions/:id/import", import_chatController.importGuestMessages);
+router.post("/sessions/:id/share", import_chatController.shareSession);
+router.delete("/sessions/:id/share", import_chatController.unshareSession);
+router.post("/sessions/:id/rate", import_chatController.rateSession);
+router.get("/usage", import_chatController.getUsage);
+var chat_default = router;

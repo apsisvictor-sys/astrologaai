@@ -1,253 +1,251 @@
 "use strict";
-/**
- * LLM Service (Autonomous Agent Edition)
- * Uses Vercel AI SDK with dynamic tool calling.
- * Providers: Anthropic Claude (primary) → OpenAI GPT-4o (fallback)
- */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.ASTROLOGER_SYSTEM_PROMPT = exports.buildEnhancedContext = exports.generateSessionSummary = exports.buildSystemPrompt = exports.generateChartSummary = void 0;
-exports.getModelIdForTier = getModelIdForTier;
-exports.streamChatCompletion = streamChatCompletion;
-exports.chatCompletion = chatCompletion;
-exports.getAvailableProviders = getAvailableProviders;
-exports.getProviderHealth = getProviderHealth;
-exports.getOrchestratorStatus = getOrchestratorStatus;
-exports.getSwitchHistory = getSwitchHistory;
-const ai_1 = require("ai");
-const openai_1 = require("@ai-sdk/openai");
-const anthropic_1 = require("@ai-sdk/anthropic");
-const agent_tools_1 = require("./agent-tools");
-// Re-export helpers from legacy (prompt building, chart summary, session summary)
-var llm_helpers_1 = require("./llm-helpers");
-Object.defineProperty(exports, "generateChartSummary", { enumerable: true, get: function () { return llm_helpers_1.generateChartSummary; } });
-Object.defineProperty(exports, "buildSystemPrompt", { enumerable: true, get: function () { return llm_helpers_1.buildSystemPrompt; } });
-Object.defineProperty(exports, "generateSessionSummary", { enumerable: true, get: function () { return llm_helpers_1.generateSessionSummary; } });
-Object.defineProperty(exports, "buildEnhancedContext", { enumerable: true, get: function () { return llm_helpers_1.buildEnhancedContext; } });
-Object.defineProperty(exports, "ASTROLOGER_SYSTEM_PROMPT", { enumerable: true, get: function () { return llm_helpers_1.ASTROLOGER_SYSTEM_PROMPT; } });
-const llm_helpers_2 = require("./llm-helpers");
-/**
- * Maps the legacy chat message format to Vercel AI SDK's format.
- */
-function mapToCoreMessages(messages) {
-    // If we already have complex agent loops cached in redis, return as is.
-    return messages.map((m) => {
-        if (m.toolCalls || m.toolInvocations)
-            return m;
-        if (m.role === 'system') {
-            return { role: 'system', content: m.content || '' };
-        }
-        if (m.role === 'user') {
-            return { role: 'user', content: m.content || '' };
-        }
-        return { role: 'assistant', content: m.content || '' };
-    });
-}
-/**
- * Default models per tier — override via env vars MODEL_FREE, MODEL_PRO, MODEL_PREMIUM
- */
-const TIER_DEFAULT_MODELS = {
-    FREE: 'claude-haiku-4-5-20251001',
-    PRO: 'claude-sonnet-4-6',
-    PREMIUM: 'claude-opus-4-6',
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
 };
-/**
- * Returns the resolved model ID string for a given tier (for logging/metadata).
- */
-function getModelIdForTier(tier = 'FREE') {
-    const envKey = `MODEL_${tier.toUpperCase()}`;
-    return process.env[envKey] || TIER_DEFAULT_MODELS[tier] || TIER_DEFAULT_MODELS.FREE;
-}
-/**
- * Select model for a given tier from env vars (with hardcoded defaults).
- * Provider is auto-detected from the model ID prefix:
- *   claude-* → Anthropic   |   gpt-* / o1* / o3* → OpenAI
- */
-function getProviderModel(tier = 'FREE') {
-    const envKey = `MODEL_${tier.toUpperCase()}`;
-    const modelId = process.env[envKey] || TIER_DEFAULT_MODELS[tier] || TIER_DEFAULT_MODELS.FREE;
-    if (modelId.startsWith('claude-')) {
-        if (!process.env.ANTHROPIC_API_KEY) {
-            throw new Error(`Anthropic API key required for model "${modelId}" (set ANTHROPIC_API_KEY).`);
-        }
-        return (0, anthropic_1.anthropic)(modelId);
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var llm_exports = {};
+__export(llm_exports, {
+  ASTROLOGER_SYSTEM_PROMPT: () => import_llm_helpers.ASTROLOGER_SYSTEM_PROMPT,
+  buildEnhancedContext: () => import_llm_helpers.buildEnhancedContext,
+  buildSystemPrompt: () => import_llm_helpers.buildSystemPrompt,
+  chatCompletion: () => chatCompletion,
+  default: () => llm_default,
+  generateChartSummary: () => import_llm_helpers.generateChartSummary,
+  generateSessionSummary: () => import_llm_helpers.generateSessionSummary,
+  getAvailableProviders: () => getAvailableProviders,
+  getModelIdForTier: () => getModelIdForTier,
+  getOrchestratorStatus: () => getOrchestratorStatus,
+  getProviderHealth: () => getProviderHealth,
+  getSwitchHistory: () => getSwitchHistory,
+  streamChatCompletion: () => streamChatCompletion
+});
+module.exports = __toCommonJS(llm_exports);
+var import_ai = require("ai");
+var import_openai = require("@ai-sdk/openai");
+var import_anthropic = require("@ai-sdk/anthropic");
+var import_agent_tools = require("./agent-tools");
+var import_llm_helpers = require("./llm-helpers");
+var import_llm_helpers2 = require("./llm-helpers");
+function mapToCoreMessages(messages) {
+  return messages.map((m) => {
+    if (m.toolCalls || m.toolInvocations) return m;
+    if (m.role === "system") {
+      return { role: "system", content: m.content || "" };
     }
-    if (modelId.startsWith('gpt-') || modelId.startsWith('o1') || modelId.startsWith('o3')) {
-        if (!process.env.OPENAI_API_KEY) {
-            throw new Error(`OpenAI API key required for model "${modelId}" (set OPENAI_API_KEY).`);
-        }
-        return (0, openai_1.openai)(modelId);
+    if (m.role === "user") {
+      return { role: "user", content: m.content || "" };
     }
-    throw new Error(`Unknown model provider for model ID "${modelId}". Use a claude-* or gpt-* prefix.`);
+    return { role: "assistant", content: m.content || "" };
+  });
 }
-/**
- * Stream chat completion using an Autonomous Agent Reasoning Loop via Vercel AI SDK
- */
+const TIER_DEFAULT_MODELS = {
+  FREE: "claude-haiku-4-5-20251001",
+  PRO: "claude-sonnet-4-6",
+  PREMIUM: "claude-opus-4-6"
+};
+function getModelIdForTier(tier = "FREE") {
+  const envKey = `MODEL_${tier.toUpperCase()}`;
+  return process.env[envKey] || TIER_DEFAULT_MODELS[tier] || TIER_DEFAULT_MODELS.FREE;
+}
+function getProviderModel(tier = "FREE") {
+  const envKey = `MODEL_${tier.toUpperCase()}`;
+  const modelId = process.env[envKey] || TIER_DEFAULT_MODELS[tier] || TIER_DEFAULT_MODELS.FREE;
+  if (modelId.startsWith("claude-")) {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error(`Anthropic API key required for model "${modelId}" (set ANTHROPIC_API_KEY).`);
+    }
+    return (0, import_anthropic.anthropic)(modelId);
+  }
+  if (modelId.startsWith("gpt-") || modelId.startsWith("o1") || modelId.startsWith("o3")) {
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error(`OpenAI API key required for model "${modelId}" (set OPENAI_API_KEY).`);
+    }
+    return (0, import_openai.openai)(modelId);
+  }
+  throw new Error(`Unknown model provider for model ID "${modelId}". Use a claude-* or gpt-* prefix.`);
+}
 async function* streamChatCompletion(messages, config = {}, callbacks) {
-    try {
-        const coreMessages = mapToCoreMessages(messages);
-        const tier = config.tier || 'FREE';
-        const model = getProviderModel(tier);
-        // Create tools with user context (userId + IP for solar/lunar return location)
-        const tools = (0, agent_tools_1.createAstrologyTools)({ userId: config.userId || '', userIp: config.userIp });
-        // Gating Tools based on User Subscription Tier
-        const activeTools = {};
-        // Natal chart and current transits are pre-injected into the system prompt.
-        // Tools here are for on-demand, specific user-directed queries only.
-        // PRO: solar return (year ahead) and lunar return (current month)
-        if (tier === 'PRO' || tier === 'PREMIUM') {
-            activeTools['get_solar_return'] = tools.get_solar_return;
-            activeTools['get_lunar_return'] = tools.get_lunar_return;
-        }
-        // PREMIUM: full toolkit — relationships, psychological depth, timing, astrocartography
-        if (tier === 'PREMIUM') {
-            activeTools['get_synastry'] = tools.get_synastry;
-            activeTools['get_progressions'] = tools.get_progressions;
-            activeTools['get_relocation'] = tools.get_relocation;
-            activeTools['get_composite'] = tools.get_composite;
-            activeTools['get_solar_arc'] = tools.get_solar_arc;
-        }
-        // Tier-accurate system prompt context — must exactly match the tools above
-        const systemPromptContext = tier === 'FREE'
-            ? `The user is on the FREE plan — 'The Seeker' (Търсачът).
-Your natal chart data and today's active transits are already loaded in your context above — use them directly without calling any tools.
+  try {
+    const coreMessages = mapToCoreMessages(messages);
+    const tier = config.tier || "FREE";
+    const model = getProviderModel(tier);
+    const tools = (0, import_agent_tools.createAstrologyTools)({ userId: config.userId || "", userIp: config.userIp });
+    const activeTools = {};
+    if (tier === "PRO" || tier === "PREMIUM") {
+      activeTools["get_solar_return"] = tools.get_solar_return;
+      activeTools["get_lunar_return"] = tools.get_lunar_return;
+    }
+    if (tier === "PREMIUM") {
+      activeTools["get_synastry"] = tools.get_synastry;
+      activeTools["get_progressions"] = tools.get_progressions;
+      activeTools["get_relocation"] = tools.get_relocation;
+      activeTools["get_composite"] = tools.get_composite;
+      activeTools["get_solar_arc"] = tools.get_solar_arc;
+    }
+    const suggestionRules = tier === "FREE" ? "Never suggest partner, synastry, or relationship-compatibility questions in your suggestions." : tier === "PRO" ? "Never suggest synastry, composite chart, or partner-specific questions in your suggestions." : "All topics are allowed in your suggestions including partner and relationship compatibility.";
+    const SUGGESTION_INSTRUCTION = `
+
+[CONVERSATION SUGGESTIONS]
+After EVERY response \u2014 no exceptions \u2014 append this exact block on a new line after your main text:
+[SUGGESTIONS]
+<follow-up question 1>
+<follow-up question 2>
+<follow-up question 3>
+[/SUGGESTIONS]
+
+Rules for suggestions:
+- Must be directly relevant to what was just discussed
+- Keep each question under 12 words
+- Mix simple plain-language and astrology-aware questions
+- ${suggestionRules}
+- Do not number them or add punctuation after [SUGGESTIONS]/[/SUGGESTIONS]`;
+    const systemPromptContext = (tier === "FREE" ? `The user is on the FREE plan \u2014 'The Seeker' (\u0422\u044A\u0440\u0441\u0430\u0447\u044A\u0442).
+Your natal chart data and today's active transits are already loaded in your context above \u2014 use them directly without calling any tools.
 You CANNOT access year-ahead forecasts, monthly returns, or relationship analysis on this plan.
-If the user asks about the year ahead, relationship compatibility, or specific timing — acknowledge warmly and guide them: 'За да видим какво предстои тази година и как планетите влияят на отношенията ти, можеш да преминеш към план Pro (Навигаторът).'`
-            : tier === 'PRO'
-                ? `The user is on the PRO plan — 'The Navigator' (Навигаторът).
-Your natal chart data and today's active transits are already loaded in your context above — use them directly without tool calls.
+If the user asks about the year ahead, relationship compatibility, or specific timing \u2014 acknowledge warmly and guide them: '\u0417\u0430 \u0434\u0430 \u0432\u0438\u0434\u0438\u043C \u043A\u0430\u043A\u0432\u043E \u043F\u0440\u0435\u0434\u0441\u0442\u043E\u0438 \u0442\u0430\u0437\u0438 \u0433\u043E\u0434\u0438\u043D\u0430 \u0438 \u043A\u0430\u043A \u043F\u043B\u0430\u043D\u0435\u0442\u0438\u0442\u0435 \u0432\u043B\u0438\u044F\u044F\u0442 \u043D\u0430 \u043E\u0442\u043D\u043E\u0448\u0435\u043D\u0438\u044F\u0442\u0430 \u0442\u0438, \u043C\u043E\u0436\u0435\u0448 \u0434\u0430 \u043F\u0440\u0435\u043C\u0438\u043D\u0435\u0448 \u043A\u044A\u043C \u043F\u043B\u0430\u043D Pro (\u041D\u0430\u0432\u0438\u0433\u0430\u0442\u043E\u0440\u044A\u0442).'` : tier === "PRO" ? `The user is on the PRO plan \u2014 'The Navigator' (\u041D\u0430\u0432\u0438\u0433\u0430\u0442\u043E\u0440\u044A\u0442).
+Your natal chart data and today's active transits are already loaded in your context above \u2014 use them directly without tool calls.
 You have access to TWO additional tools for specific time-based queries:
-- get_solar_return: the annual chart for the user's birthday year — use for "what does my year ahead look like?"
-- get_lunar_return: the monthly lunar cycle chart — use for "what does this month hold for me?"
+- get_solar_return: the annual chart for the user's birthday year \u2014 use for "what does my year ahead look like?"
+- get_lunar_return: the monthly lunar cycle chart \u2014 use for "what does this month hold for me?"
 You CANNOT access relationship synastry, composite charts, secondary progressions, solar arc directions, astrocartography, or Venus Return on this plan.
-If the user asks about those — guide them: 'За задълбочен анализ на взаимоотношенията и прецизно прогнозиране, можеш да преминеш към план Premium (Оракулът).'`
-                : `The user is on the PREMIUM plan — 'The Oracle' (Оракулът).
-Your natal chart data and today's active transits are already loaded in your context above — use them directly without tool calls.
+If the user asks about those \u2014 guide them: '\u0417\u0430 \u0437\u0430\u0434\u044A\u043B\u0431\u043E\u0447\u0435\u043D \u0430\u043D\u0430\u043B\u0438\u0437 \u043D\u0430 \u0432\u0437\u0430\u0438\u043C\u043E\u043E\u0442\u043D\u043E\u0448\u0435\u043D\u0438\u044F\u0442\u0430 \u0438 \u043F\u0440\u0435\u0446\u0438\u0437\u043D\u043E \u043F\u0440\u043E\u0433\u043D\u043E\u0437\u0438\u0440\u0430\u043D\u0435, \u043C\u043E\u0436\u0435\u0448 \u0434\u0430 \u043F\u0440\u0435\u043C\u0438\u043D\u0435\u0448 \u043A\u044A\u043C \u043F\u043B\u0430\u043D Premium (\u041E\u0440\u0430\u043A\u0443\u043B\u044A\u0442).'` : `The user is on the PREMIUM plan \u2014 'The Oracle' (\u041E\u0440\u0430\u043A\u0443\u043B\u044A\u0442).
+Your natal chart data and today's active transits are already loaded in your context above \u2014 use them directly without tool calls.
 You have access to seven additional tools for on-demand specific queries:
 - get_solar_return: annual solar return chart for year-ahead themes
-- get_lunar_return: monthly lunar return chart — current emotional cycle
-- get_synastry: inter-chart aspects between the user and a stored partner — relationship compatibility
-- get_progressions: secondary progressions — slow inner psychological evolution
-- get_solar_arc: solar arc directions — long-term life chapter shifts (~1° per year)
-- get_relocation: relocated natal chart — how different locations affect the chart
-- get_composite: the composite chart — the relationship as its own entity
+- get_lunar_return: monthly lunar return chart \u2014 current emotional cycle
+- get_synastry: inter-chart aspects between the user and a stored partner \u2014 relationship compatibility
+- get_progressions: secondary progressions \u2014 slow inner psychological evolution
+- get_solar_arc: solar arc directions \u2014 long-term life chapter shifts (~1\xB0 per year)
+- get_relocation: relocated natal chart \u2014 how different locations affect the chart
+- get_composite: the composite chart \u2014 the relationship as its own entity
 For synastry/composite tools, use the partner ID from the stored partners list below.
-${config.partners && config.partners.length > 0
-                    ? `Stored partners: ${config.partners.map(p => `${p.name} (id: ${p.id})`).join(', ')}. If the user refers to someone not in this list, ask them to add that person's birth data via Settings → Partners first.`
-                    : `No partners stored yet. If the user asks about relationship compatibility, invite them to add a partner's birth data via Settings → Partners.`}
-Answer every question with depth, nuance, and comprehensive multi-tool synthesis when relevant.`;
-        if (coreMessages.length > 0 && coreMessages[0].role === 'system') {
-            coreMessages[0].content += `\n\n[TIER SYSTEM INSTRUCTION]\n${systemPromptContext}`;
-        }
-        // Anthropic 2-layer prompt caching: split system message into static (Layer 1)
-        // and per-user/day (Layer 2) blocks, each marked with cache_control: ephemeral.
-        // Layer 1 (persona) is shared across ALL users → very high cache hit rate.
-        // Layer 2 (chart + transits + tier) is stable within a session → per-user hits.
-        const modelIdForCache = getModelIdForTier(tier);
-        if (modelIdForCache.startsWith('claude-') && coreMessages.length > 0 && coreMessages[0].role === 'system') {
-            const fullContent = coreMessages[0].content;
-            const dynamicPart = fullContent.substring(llm_helpers_2.ASTROLOGER_SYSTEM_PROMPT.length);
-            coreMessages[0] = {
-                role: 'system',
-                content: llm_helpers_2.ASTROLOGER_SYSTEM_PROMPT,
-                providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
-            };
-            if (dynamicPart.trim()) {
-                coreMessages.splice(1, 0, {
-                    role: 'system',
-                    content: dynamicPart,
-                    providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } },
-                });
-            }
-        }
-        const result = await (0, ai_1.streamText)({
-            model,
-            messages: coreMessages,
-            tools: activeTools,
-            temperature: config.temperature ?? 0.7,
-            onStepFinish({ text, toolCalls, toolResults }) {
-                // hook
-            }
+${config.partners && config.partners.length > 0 ? `Stored partners: ${config.partners.map((p) => `${p.name} (id: ${p.id})`).join(", ")}. If the user refers to someone not in this list, ask them to add that person's birth data via Settings \u2192 Partners first.` : `No partners stored yet. If the user asks about relationship compatibility, invite them to add a partner's birth data via Settings \u2192 Partners.`}
+Answer every question with depth, nuance, and comprehensive multi-tool synthesis when relevant.`) + SUGGESTION_INSTRUCTION;
+    if (coreMessages.length > 0 && coreMessages[0].role === "system") {
+      coreMessages[0].content += `
+
+[TIER SYSTEM INSTRUCTION]
+${systemPromptContext}`;
+    }
+    const modelIdForCache = getModelIdForTier(tier);
+    if (modelIdForCache.startsWith("claude-") && coreMessages.length > 0 && coreMessages[0].role === "system") {
+      const fullContent = coreMessages[0].content;
+      const dynamicPart = fullContent.substring(import_llm_helpers2.ASTROLOGER_SYSTEM_PROMPT.length);
+      coreMessages[0] = {
+        role: "system",
+        content: import_llm_helpers2.ASTROLOGER_SYSTEM_PROMPT,
+        providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } }
+      };
+      if (dynamicPart.trim()) {
+        coreMessages.splice(1, 0, {
+          role: "system",
+          content: dynamicPart,
+          providerOptions: { anthropic: { cacheControl: { type: "ephemeral" } } }
         });
-        for await (const chunk of result.fullStream) {
-            if (chunk.type === 'text-delta') {
-                yield { content: chunk.text || '', done: false };
-            }
-            else if (chunk.type === 'tool-call') {
-                // Build generic arguments
-                const args = chunk.args;
-                const toolName = chunk.toolName;
-                if (callbacks?.onToolCall) {
-                    callbacks.onToolCall(toolName, args);
-                }
-                yield { content: '', done: false, toolCall: { name: toolName, args: args } };
-            }
-            else if (chunk.type === 'tool-result') {
-                const resultVal = chunk.result;
-                const toolName = chunk.toolName;
-                yield { content: '', done: false, toolResult: { name: toolName, result: resultVal } };
-            }
-            else if (chunk.type === 'finish') {
-                const usage = chunk.totalUsage ?? chunk.usage;
-                yield {
-                    content: '',
-                    done: true,
-                    usage: usage ? {
-                        inputTokens: usage.inputTokens ?? usage.promptTokens ?? 0,
-                        outputTokens: usage.outputTokens ?? usage.completionTokens ?? 0,
-                        totalTokens: (usage.inputTokens ?? usage.promptTokens ?? 0) + (usage.outputTokens ?? usage.completionTokens ?? 0),
-                    } : undefined,
-                };
-            }
-        }
+      }
     }
-    catch (error) {
-        console.error('[Agent LLM Engine] Stream error:', error);
-        yield {
-            content: '',
-            done: true,
-            error: error instanceof Error ? error.message : 'Unknown streaming error'
-        };
-    }
-}
-/**
- * Non-streaming chat completion
- */
-async function chatCompletion(messages, config = {}) {
-    const coreMessages = mapToCoreMessages(messages);
-    const model = getProviderModel();
-    // No tools — this function is used for forecast/oracle generation, not chat.
-    // Passing tool schemas wastes thousands of input tokens per call.
-    const result = await (0, ai_1.generateText)({
-        model,
-        messages: coreMessages,
-        temperature: config.temperature ?? 0.7,
+    const result = await (0, import_ai.streamText)({
+      model,
+      messages: coreMessages,
+      tools: activeTools,
+      temperature: config.temperature ?? 0.7,
+      onStepFinish({ text, toolCalls, toolResults }) {
+      }
     });
-    return result.text;
+    for await (const chunk of result.fullStream) {
+      if (chunk.type === "text-delta") {
+        yield { content: chunk.text || "", done: false };
+      } else if (chunk.type === "tool-call") {
+        const args = chunk.args;
+        const toolName = chunk.toolName;
+        if (callbacks?.onToolCall) {
+          callbacks.onToolCall(toolName, args);
+        }
+        yield { content: "", done: false, toolCall: { name: toolName, args } };
+      } else if (chunk.type === "tool-result") {
+        const resultVal = chunk.result;
+        const toolName = chunk.toolName;
+        yield { content: "", done: false, toolResult: { name: toolName, result: resultVal } };
+      } else if (chunk.type === "finish") {
+        const usage = chunk.totalUsage ?? chunk.usage;
+        yield {
+          content: "",
+          done: true,
+          usage: usage ? {
+            inputTokens: usage.inputTokens ?? usage.promptTokens ?? 0,
+            outputTokens: usage.outputTokens ?? usage.completionTokens ?? 0,
+            totalTokens: (usage.inputTokens ?? usage.promptTokens ?? 0) + (usage.outputTokens ?? usage.completionTokens ?? 0)
+          } : void 0
+        };
+      }
+    }
+  } catch (error) {
+    console.error("[Agent LLM Engine] Stream error:", error);
+    yield {
+      content: "",
+      done: true,
+      error: error instanceof Error ? error.message : "Unknown streaming error"
+    };
+  }
 }
-// Stubs for backward compatibility with the orchestrator UI dashboard
+async function chatCompletion(messages, config = {}) {
+  const coreMessages = mapToCoreMessages(messages);
+  const model = getProviderModel();
+  const result = await (0, import_ai.generateText)({
+    model,
+    messages: coreMessages,
+    temperature: config.temperature ?? 0.7
+  });
+  return result.text;
+}
 function getAvailableProviders() {
-    const providers = [];
-    if (process.env.ANTHROPIC_API_KEY)
-        providers.push('Anthropic Claude');
-    if (process.env.OPENAI_API_KEY)
-        providers.push('OpenAI GPT-4o');
-    return providers;
+  const providers = [];
+  if (process.env.ANTHROPIC_API_KEY) providers.push("Anthropic Claude");
+  if (process.env.OPENAI_API_KEY) providers.push("OpenAI GPT-4o");
+  return providers;
 }
 function getProviderHealth() {
-    return { 'primary-agent': { status: 'healthy', latencyMs: 0 } };
+  return { "primary-agent": { status: "healthy", latencyMs: 0 } };
 }
 function getOrchestratorStatus() {
-    return { activeProvider: 'agent-framework', totalProviders: 2, healthyProviders: 2 };
+  return { activeProvider: "agent-framework", totalProviders: 2, healthyProviders: 2 };
 }
 function getSwitchHistory(limit = 10) {
-    return [];
+  return [];
 }
-exports.default = {
-    streamChatCompletion,
-    chatCompletion,
-    getAvailableProviders,
-    getProviderHealth,
-    getOrchestratorStatus,
-    getSwitchHistory,
+var llm_default = {
+  streamChatCompletion,
+  chatCompletion,
+  getAvailableProviders,
+  getProviderHealth,
+  getOrchestratorStatus,
+  getSwitchHistory
 };
-//# sourceMappingURL=llm.js.map
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  ASTROLOGER_SYSTEM_PROMPT,
+  buildEnhancedContext,
+  buildSystemPrompt,
+  chatCompletion,
+  generateChartSummary,
+  generateSessionSummary,
+  getAvailableProviders,
+  getModelIdForTier,
+  getOrchestratorStatus,
+  getProviderHealth,
+  getSwitchHistory,
+  streamChatCompletion
+});

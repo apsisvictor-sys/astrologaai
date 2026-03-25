@@ -1,284 +1,269 @@
 "use strict";
-/**
- * Astrology Provider Routes
- * US-33: Astrology API Fallback Strategy
- *
- * Health check and status endpoints for astrology providers
- */
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
 };
-Object.defineProperty(exports, "__esModule", { value: true });
-const express_1 = require("express");
-const astrology_orchestrator_1 = require("../services/astrology/astrology-orchestrator");
-const auth_1 = __importDefault(require("../middleware/auth"));
-const router = (0, express_1.Router)();
-/**
- * GET /api/v1/astrology/health
- * Public health check endpoint for astrology API status
- */
-router.get('/health', async (req, res) => {
-    try {
-        const orchestrator = (0, astrology_orchestrator_1.getAstrologyOrchestrator)();
-        const health = await orchestrator.checkAllHealth();
-        const status = orchestrator.getStatus();
-        const isHealthy = health.some(h => h.status === 'healthy');
-        res.status(isHealthy ? 200 : 503).json({
-            success: isHealthy,
-            data: {
-                status: isHealthy ? 'healthy' : 'degraded',
-                activeProvider: status.activeProvider,
-                providers: health.map(h => ({
-                    name: h.status,
-                    status: h.status,
-                    latencyMs: h.latencyMs,
-                    lastCheck: h.lastCheck,
-                    errorCount: h.errorCount,
-                    lastError: h.lastError,
-                })),
-                timestamp: new Date().toISOString(),
-            },
-        });
-    }
-    catch (error) {
-        console.error('[Astrology Health] Error:', error);
-        res.status(503).json({
-            success: false,
-            error: {
-                code: 'ASTROLOGY_UNAVAILABLE',
-                message: 'Astrology service unavailable',
-            },
-        });
-    }
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var astrology_exports = {};
+__export(astrology_exports, {
+  default: () => astrology_default
 });
-/**
- * GET /api/v1/astrology/status
- * Detailed status with provider metrics (requires auth)
- */
-router.get('/status', auth_1.default, async (req, res) => {
-    try {
-        const orchestrator = (0, astrology_orchestrator_1.getAstrologyOrchestrator)();
-        const metrics = orchestrator.getAllMetrics();
-        const status = orchestrator.getStatus();
-        const switchHistory = orchestrator.getSwitchHistory().slice(-10);
-        res.json({
-            success: true,
-            data: {
-                activeProvider: status.activeProvider,
-                manualOverride: status.manualOverride,
-                overrideReason: status.overrideReason,
-                lastSwitch: status.lastSwitch,
-                providers: metrics.map(m => ({
-                    name: m.providerName,
-                    type: m.type,
-                    health: m.health,
-                    totalRequests: m.totalRequests,
-                    successfulRequests: m.successfulRequests,
-                    failedRequests: m.failedRequests,
-                    averageLatencyMs: m.averageLatencyMs,
-                    circuitBreaker: orchestrator.getAllProviders().find(p => p.name === m.providerName)?.getCircuitBreakerState(),
-                })),
-                switchHistory,
-            },
-        });
-    }
-    catch (error) {
-        console.error('[Astrology Status] Error:', error);
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to get astrology status',
-            },
-        });
-    }
+module.exports = __toCommonJS(astrology_exports);
+var import_express = require("express");
+var import_astrology_orchestrator = require("../services/astrology/astrology-orchestrator");
+var import_auth = __toESM(require("../middleware/auth"));
+const router = (0, import_express.Router)();
+router.get("/health", async (req, res) => {
+  try {
+    const orchestrator = (0, import_astrology_orchestrator.getAstrologyOrchestrator)();
+    const health = await orchestrator.checkAllHealth();
+    const status = orchestrator.getStatus();
+    const isHealthy = health.some((h) => h.status === "healthy");
+    res.status(isHealthy ? 200 : 503).json({
+      success: isHealthy,
+      data: {
+        status: isHealthy ? "healthy" : "degraded",
+        activeProvider: status.activeProvider,
+        providers: health.map((h) => ({
+          name: h.status,
+          status: h.status,
+          latencyMs: h.latencyMs,
+          lastCheck: h.lastCheck,
+          errorCount: h.errorCount,
+          lastError: h.lastError
+        })),
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("[Astrology Health] Error:", error);
+    res.status(503).json({
+      success: false,
+      error: {
+        code: "ASTROLOGY_UNAVAILABLE",
+        message: "Astrology service unavailable"
+      }
+    });
+  }
 });
-/**
- * POST /api/v1/astrology/health/refresh
- * Force refresh health status (requires auth)
- */
-router.post('/health/refresh', auth_1.default, async (req, res) => {
-    try {
-        const orchestrator = (0, astrology_orchestrator_1.getAstrologyOrchestrator)();
-        const health = await orchestrator.forceRefreshHealth();
-        res.json({
-            success: true,
-            data: {
-                message: 'Health status refreshed',
-                providers: health,
-                timestamp: new Date().toISOString(),
-            },
-        });
-    }
-    catch (error) {
-        console.error('[Astrology Refresh] Error:', error);
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to refresh health status',
-            },
-        });
-    }
+router.get("/status", import_auth.default, async (req, res) => {
+  try {
+    const orchestrator = (0, import_astrology_orchestrator.getAstrologyOrchestrator)();
+    const metrics = orchestrator.getAllMetrics();
+    const status = orchestrator.getStatus();
+    const switchHistory = orchestrator.getSwitchHistory().slice(-10);
+    res.json({
+      success: true,
+      data: {
+        activeProvider: status.activeProvider,
+        manualOverride: status.manualOverride,
+        overrideReason: status.overrideReason,
+        lastSwitch: status.lastSwitch,
+        providers: metrics.map((m) => ({
+          name: m.providerName,
+          type: m.type,
+          health: m.health,
+          totalRequests: m.totalRequests,
+          successfulRequests: m.successfulRequests,
+          failedRequests: m.failedRequests,
+          averageLatencyMs: m.averageLatencyMs,
+          circuitBreaker: orchestrator.getAllProviders().find((p) => p.name === m.providerName)?.getCircuitBreakerState()
+        })),
+        switchHistory
+      }
+    });
+  } catch (error) {
+    console.error("[Astrology Status] Error:", error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Failed to get astrology status"
+      }
+    });
+  }
 });
-/**
- * POST /api/v1/astrology/override
- * Manually set active provider (requires auth)
- */
-router.post('/override', auth_1.default, async (req, res) => {
-    try {
-        const { provider, reason } = req.body;
-        if (!provider || !reason) {
-            return res.status(400).json({
-                success: false,
-                error: {
-                    code: 'VALIDATION_ERROR',
-                    message: 'Provider name and reason are required',
-                },
-            });
+router.post("/health/refresh", import_auth.default, async (req, res) => {
+  try {
+    const orchestrator = (0, import_astrology_orchestrator.getAstrologyOrchestrator)();
+    const health = await orchestrator.forceRefreshHealth();
+    res.json({
+      success: true,
+      data: {
+        message: "Health status refreshed",
+        providers: health,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("[Astrology Refresh] Error:", error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Failed to refresh health status"
+      }
+    });
+  }
+});
+router.post("/override", import_auth.default, async (req, res) => {
+  try {
+    const { provider, reason } = req.body;
+    if (!provider || !reason) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Provider name and reason are required"
         }
-        const orchestrator = (0, astrology_orchestrator_1.getAstrologyOrchestrator)();
-        // Verify provider exists
-        const providers = orchestrator.getAllProviders();
-        const targetProvider = providers.find(p => p.name === provider);
-        if (!targetProvider) {
-            return res.status(404).json({
-                success: false,
-                error: {
-                    code: 'NOT_FOUND',
-                    message: `Provider '${provider}' not found`,
-                    availableProviders: providers.map(p => p.name),
-                },
-            });
+      });
+    }
+    const orchestrator = (0, import_astrology_orchestrator.getAstrologyOrchestrator)();
+    const providers = orchestrator.getAllProviders();
+    const targetProvider = providers.find((p) => p.name === provider);
+    if (!targetProvider) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Provider '${provider}' not found`,
+          availableProviders: providers.map((p) => p.name)
         }
-        orchestrator.setActiveProvider(provider, reason);
-        res.json({
-            success: true,
-            data: {
-                message: `Active provider set to ${provider}`,
-                activeProvider: orchestrator.getActiveProvider().name,
-                reason,
-                timestamp: new Date().toISOString(),
-            },
-        });
+      });
     }
-    catch (error) {
-        console.error('[Astrology Override] Error:', error);
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: error instanceof Error ? error.message : 'Failed to set provider override',
-            },
-        });
-    }
+    orchestrator.setActiveProvider(provider, reason);
+    res.json({
+      success: true,
+      data: {
+        message: `Active provider set to ${provider}`,
+        activeProvider: orchestrator.getActiveProvider().name,
+        reason,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("[Astrology Override] Error:", error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: error instanceof Error ? error.message : "Failed to set provider override"
+      }
+    });
+  }
 });
-/**
- * DELETE /api/v1/astrology/override
- * Clear manual override (requires auth)
- */
-router.delete('/override', auth_1.default, async (req, res) => {
-    try {
-        const orchestrator = (0, astrology_orchestrator_1.getAstrologyOrchestrator)();
-        orchestrator.clearOverride();
-        res.json({
-            success: true,
-            data: {
-                message: 'Manual override cleared',
-                activeProvider: orchestrator.getActiveProvider().name,
-                timestamp: new Date().toISOString(),
-            },
-        });
-    }
-    catch (error) {
-        console.error('[Astrology Override Clear] Error:', error);
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to clear override',
-            },
-        });
-    }
+router.delete("/override", import_auth.default, async (req, res) => {
+  try {
+    const orchestrator = (0, import_astrology_orchestrator.getAstrologyOrchestrator)();
+    orchestrator.clearOverride();
+    res.json({
+      success: true,
+      data: {
+        message: "Manual override cleared",
+        activeProvider: orchestrator.getActiveProvider().name,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("[Astrology Override Clear] Error:", error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Failed to clear override"
+      }
+    });
+  }
 });
-/**
- * POST /api/v1/astrology/circuit-breaker/reset
- * Reset circuit breaker for a provider (requires auth)
- */
-router.post('/circuit-breaker/reset', auth_1.default, async (req, res) => {
-    try {
-        const { provider } = req.body;
-        if (!provider) {
-            return res.status(400).json({
-                success: false,
-                error: {
-                    code: 'VALIDATION_ERROR',
-                    message: 'Provider name is required',
-                },
-            });
+router.post("/circuit-breaker/reset", import_auth.default, async (req, res) => {
+  try {
+    const { provider } = req.body;
+    if (!provider) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: "VALIDATION_ERROR",
+          message: "Provider name is required"
         }
-        const orchestrator = (0, astrology_orchestrator_1.getAstrologyOrchestrator)();
-        const providers = orchestrator.getAllProviders();
-        const targetProvider = providers.find(p => p.name === provider);
-        if (!targetProvider) {
-            return res.status(404).json({
-                success: false,
-                error: {
-                    code: 'NOT_FOUND',
-                    message: `Provider '${provider}' not found`,
-                },
-            });
+      });
+    }
+    const orchestrator = (0, import_astrology_orchestrator.getAstrologyOrchestrator)();
+    const providers = orchestrator.getAllProviders();
+    const targetProvider = providers.find((p) => p.name === provider);
+    if (!targetProvider) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: "NOT_FOUND",
+          message: `Provider '${provider}' not found`
         }
-        targetProvider.resetCircuitBreaker();
-        res.json({
-            success: true,
-            data: {
-                message: `Circuit breaker reset for ${provider}`,
-                provider: targetProvider.name,
-                circuitBreaker: targetProvider.getCircuitBreakerState(),
-                timestamp: new Date().toISOString(),
-            },
-        });
+      });
     }
-    catch (error) {
-        console.error('[Circuit Breaker Reset] Error:', error);
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to reset circuit breaker',
-            },
-        });
-    }
+    targetProvider.resetCircuitBreaker();
+    res.json({
+      success: true,
+      data: {
+        message: `Circuit breaker reset for ${provider}`,
+        provider: targetProvider.name,
+        circuitBreaker: targetProvider.getCircuitBreakerState(),
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("[Circuit Breaker Reset] Error:", error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Failed to reset circuit breaker"
+      }
+    });
+  }
 });
-/**
- * GET /api/v1/astrology/failures
- * Get failure logs (requires auth)
- */
-router.get('/failures', auth_1.default, async (req, res) => {
-    try {
-        const limit = parseInt(req.query.limit) || 100;
-        const orchestrator = (0, astrology_orchestrator_1.getAstrologyOrchestrator)();
-        const logs = await orchestrator.getFailureLogs?.(limit) || [];
-        res.json({
-            success: true,
-            data: {
-                logs,
-                count: logs.length,
-                timestamp: new Date().toISOString(),
-            },
-        });
-    }
-    catch (error) {
-        console.error('[Astrology Failures] Error:', error);
-        res.status(500).json({
-            success: false,
-            error: {
-                code: 'INTERNAL_ERROR',
-                message: 'Failed to get failure logs',
-            },
-        });
-    }
+router.get("/failures", import_auth.default, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 100;
+    const orchestrator = (0, import_astrology_orchestrator.getAstrologyOrchestrator)();
+    const logs = await orchestrator.getFailureLogs?.(limit) || [];
+    res.json({
+      success: true,
+      data: {
+        logs,
+        count: logs.length,
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("[Astrology Failures] Error:", error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: "INTERNAL_ERROR",
+        message: "Failed to get failure logs"
+      }
+    });
+  }
 });
-exports.default = router;
-//# sourceMappingURL=astrology.js.map
+var astrology_default = router;

@@ -1,216 +1,202 @@
 "use strict";
-/**
- * Rate Limit Headers Middleware
- * US-37: API Rate-Limit Burst/Retry Behavior
- *
- * Adds standard X-RateLimit-* headers to all API responses
- * Works with both REST and WebSocket connections
- */
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.RATE_LIMIT_HEADERS = void 0;
-exports.rateLimitHeadersMiddleware = rateLimitHeadersMiddleware;
-exports.fetchRateLimitStatus = fetchRateLimitStatus;
-exports.createRateLimitErrorResponse = createRateLimitErrorResponse;
-exports.createWebSocketRateLimitError = createWebSocketRateLimitError;
-const subscription_tiers_1 = require("../config/subscription-tiers");
-const redis_1 = require("../utils/redis");
-const prisma_1 = require("../utils/prisma");
-/**
- * Rate limit header names
- */
-exports.RATE_LIMIT_HEADERS = {
-    LIMIT: 'X-RateLimit-Limit',
-    REMAINING: 'X-RateLimit-Remaining',
-    RESET: 'X-RateLimit-Reset',
-    RETRY_AFTER: 'Retry-After',
-    TIER: 'X-RateLimit-Tier',
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
 };
-/**
- * Get current month string in YYYY-MM format
- */
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+var rateLimitHeaders_exports = {};
+__export(rateLimitHeaders_exports, {
+  RATE_LIMIT_HEADERS: () => RATE_LIMIT_HEADERS,
+  createRateLimitErrorResponse: () => createRateLimitErrorResponse,
+  createWebSocketRateLimitError: () => createWebSocketRateLimitError,
+  default: () => rateLimitHeaders_default,
+  fetchRateLimitStatus: () => fetchRateLimitStatus,
+  rateLimitHeadersMiddleware: () => rateLimitHeadersMiddleware
+});
+module.exports = __toCommonJS(rateLimitHeaders_exports);
+var import_subscription_tiers = require("../config/subscription-tiers");
+var import_redis = require("../utils/redis");
+var import_prisma = require("../utils/prisma");
+const RATE_LIMIT_HEADERS = {
+  LIMIT: "X-RateLimit-Limit",
+  REMAINING: "X-RateLimit-Remaining",
+  RESET: "X-RateLimit-Reset",
+  RETRY_AFTER: "Retry-After",
+  TIER: "X-RateLimit-Tier"
+};
 function getCurrentMonth() {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const now = /* @__PURE__ */ new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
-/**
- * Get burst rate limit status from Redis
- */
 async function getBurstStatus(userId, tier) {
-    const burstLimit = (0, subscription_tiers_1.getBurstLimit)(tier);
-    // Unlimited burst
-    if (burstLimit === -1 || (0, subscription_tiers_1.isUnlimitedBurst)(tier)) {
-        return { used: 0, limit: -1, remaining: -1, resetAt: new Date(Date.now() + 60000) };
-    }
-    const burstKey = `ratelimit:burst:${userId}`;
-    const currentCount = parseInt(await redis_1.redisClient.get(burstKey) || '0', 10);
-    const ttl = await redis_1.redisClient.ttl(burstKey);
-    const resetAt = new Date(Date.now() + (ttl > 0 ? ttl : 60) * 1000);
-    return {
-        used: currentCount,
-        limit: burstLimit,
-        remaining: Math.max(0, burstLimit - currentCount),
-        resetAt,
-    };
+  const burstLimit = (0, import_subscription_tiers.getBurstLimit)(tier);
+  if (burstLimit === -1 || (0, import_subscription_tiers.isUnlimitedBurst)(tier)) {
+    return { used: 0, limit: -1, remaining: -1, resetAt: new Date(Date.now() + 6e4) };
+  }
+  const burstKey = `ratelimit:burst:${userId}`;
+  const currentCount = parseInt(await import_redis.redisClient.get(burstKey) || "0", 10);
+  const ttl = await import_redis.redisClient.ttl(burstKey);
+  const resetAt = new Date(Date.now() + (ttl > 0 ? ttl : 60) * 1e3);
+  return {
+    used: currentCount,
+    limit: burstLimit,
+    remaining: Math.max(0, burstLimit - currentCount),
+    resetAt
+  };
 }
-/**
- * Get monthly query limit status from database
- */
 async function getMonthlyStatus(userId, tier) {
-    // Unlimited tier
-    if ((0, subscription_tiers_1.isUnlimitedTier)(tier)) {
-        return { used: 0, limit: -1, remaining: -1, resetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) };
-    }
-    const monthlyLimit = (0, subscription_tiers_1.getMonthlyQueryLimit)(tier);
-    const month = getCurrentMonth();
-    const record = await prisma_1.prisma.usageRecord.findUnique({
-        where: { userId_month: { userId, month } },
-    });
-    const used = record?.queryCount ?? 0;
-    // Calculate next reset date (1st of next month)
-    const now = new Date();
-    const resetAt = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    return {
-        used,
-        limit: monthlyLimit,
-        remaining: Math.max(0, monthlyLimit - used),
-        resetAt,
-    };
+  if ((0, import_subscription_tiers.isUnlimitedTier)(tier)) {
+    return { used: 0, limit: -1, remaining: -1, resetAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1e3) };
+  }
+  const monthlyLimit = (0, import_subscription_tiers.getMonthlyQueryLimit)(tier);
+  const month = getCurrentMonth();
+  const record = await import_prisma.prisma.usageRecord.findUnique({
+    where: { userId_month: { userId, month } }
+  });
+  const used = record?.queryCount ?? 0;
+  const now = /* @__PURE__ */ new Date();
+  const resetAt = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  return {
+    used,
+    limit: monthlyLimit,
+    remaining: Math.max(0, monthlyLimit - used),
+    resetAt
+  };
 }
-/**
- * Middleware to add rate limit headers to all responses
- * Must be placed after auth middleware
- */
 async function rateLimitHeadersMiddleware(req, res, next) {
-    // Store original json function
-    const originalJson = res.json.bind(res);
-    // Override json function to add headers
-    res.json = function (body) {
-        try {
-            // Add rate limit headers if user is authenticated
-            const userId = req.user?.id;
-            const userTier = req.user?.tier || 'FREE';
-            if (userId) {
-                // Use cached rate limit info if available
-                const rateLimitInfo = req.rateLimit;
-                if (rateLimitInfo?.burst && rateLimitInfo?.monthly) {
-                    const { burst, monthly } = rateLimitInfo;
-                    // Use burst limit for immediate rate limiting
-                    const limit = burst.limit === -1 ? 'unlimited' : burst.limit;
-                    const remaining = burst.remaining === -1 ? 'unlimited' : burst.remaining;
-                    const reset = Math.floor(burst.resetAt.getTime() / 1000);
-                    res.setHeader(exports.RATE_LIMIT_HEADERS.LIMIT, limit);
-                    res.setHeader(exports.RATE_LIMIT_HEADERS.REMAINING, remaining);
-                    res.setHeader(exports.RATE_LIMIT_HEADERS.RESET, reset);
-                    res.setHeader(exports.RATE_LIMIT_HEADERS.TIER, userTier);
-                    // Add monthly info for informational purposes
-                    if (monthly.limit !== -1) {
-                        res.setHeader('X-RateLimit-Monthly-Limit', monthly.limit);
-                        res.setHeader('X-RateLimit-Monthly-Remaining', monthly.remaining);
-                    }
-                }
-            }
-        }
-        catch (err) {
-            console.error('[RateLimitHeaders] Error adding headers:', err);
-        }
-        return originalJson(body);
-    };
-    next();
-}
-/**
- * Middleware to fetch rate limit status and attach to request
- * Use this before routes that need rate limit info
- */
-async function fetchRateLimitStatus(req, res, next) {
-    const userId = req.user?.id;
-    const userTier = req.user?.tier || 'FREE';
-    if (!userId) {
-        next();
-        return;
-    }
+  const originalJson = res.json.bind(res);
+  res.json = function(body) {
     try {
-        const [burst, monthly] = await Promise.all([
-            getBurstStatus(userId, userTier),
-            getMonthlyStatus(userId, userTier),
-        ]);
-        req.rateLimit = { burst, monthly };
-        next();
+      const userId = req.user?.id;
+      const userTier = req.user?.tier || "FREE";
+      if (userId) {
+        const rateLimitInfo = req.rateLimit;
+        if (rateLimitInfo?.burst && rateLimitInfo?.monthly) {
+          const { burst, monthly } = rateLimitInfo;
+          const limit = burst.limit === -1 ? "unlimited" : burst.limit;
+          const remaining = burst.remaining === -1 ? "unlimited" : burst.remaining;
+          const reset = Math.floor(burst.resetAt.getTime() / 1e3);
+          res.setHeader(RATE_LIMIT_HEADERS.LIMIT, limit);
+          res.setHeader(RATE_LIMIT_HEADERS.REMAINING, remaining);
+          res.setHeader(RATE_LIMIT_HEADERS.RESET, reset);
+          res.setHeader(RATE_LIMIT_HEADERS.TIER, userTier);
+          if (monthly.limit !== -1) {
+            res.setHeader("X-RateLimit-Monthly-Limit", monthly.limit);
+            res.setHeader("X-RateLimit-Monthly-Remaining", monthly.remaining);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[RateLimitHeaders] Error adding headers:", err);
     }
-    catch (error) {
-        console.error('[RateLimitHeaders] Error fetching status:', error);
-        // Continue without rate limit info
-        next();
-    }
+    return originalJson(body);
+  };
+  next();
 }
-/**
- * Helper to create a 429 response with proper headers
- */
+async function fetchRateLimitStatus(req, res, next) {
+  const userId = req.user?.id;
+  const userTier = req.user?.tier || "FREE";
+  if (!userId) {
+    next();
+    return;
+  }
+  try {
+    const [burst, monthly] = await Promise.all([
+      getBurstStatus(userId, userTier),
+      getMonthlyStatus(userId, userTier)
+    ]);
+    req.rateLimit = { burst, monthly };
+    next();
+  } catch (error) {
+    console.error("[RateLimitHeaders] Error fetching status:", error);
+    next();
+  }
+}
 function createRateLimitErrorResponse(res, options) {
-    const { retryAfter, limit, remaining, resetAt, limitType, tier, language = 'bg', monthlyInfo, } = options;
-    // Set rate limit headers
-    res.setHeader(exports.RATE_LIMIT_HEADERS.LIMIT, limit);
-    res.setHeader(exports.RATE_LIMIT_HEADERS.REMAINING, remaining);
-    res.setHeader(exports.RATE_LIMIT_HEADERS.RESET, Math.floor(resetAt.getTime() / 1000));
-    res.setHeader(exports.RATE_LIMIT_HEADERS.RETRY_AFTER, retryAfter);
-    res.setHeader(exports.RATE_LIMIT_HEADERS.TIER, tier);
-    // Add monthly info if available
-    if (monthlyInfo) {
-        res.setHeader('X-RateLimit-Monthly-Limit', monthlyInfo.limit);
-        res.setHeader('X-RateLimit-Monthly-Remaining', monthlyInfo.remaining);
+  const {
+    retryAfter,
+    limit,
+    remaining,
+    resetAt,
+    limitType,
+    tier,
+    language = "bg",
+    monthlyInfo
+  } = options;
+  res.setHeader(RATE_LIMIT_HEADERS.LIMIT, limit);
+  res.setHeader(RATE_LIMIT_HEADERS.REMAINING, remaining);
+  res.setHeader(RATE_LIMIT_HEADERS.RESET, Math.floor(resetAt.getTime() / 1e3));
+  res.setHeader(RATE_LIMIT_HEADERS.RETRY_AFTER, retryAfter);
+  res.setHeader(RATE_LIMIT_HEADERS.TIER, tier);
+  if (monthlyInfo) {
+    res.setHeader("X-RateLimit-Monthly-Limit", monthlyInfo.limit);
+    res.setHeader("X-RateLimit-Monthly-Remaining", monthlyInfo.remaining);
+  }
+  const message = limitType === "burst" ? language === "bg" ? "\u0422\u0432\u044A\u0440\u0434\u0435 \u043C\u043D\u043E\u0433\u043E \u0437\u0430\u044F\u0432\u043A\u0438. \u041C\u043E\u043B\u044F, \u0438\u0437\u0447\u0430\u043A\u0430\u0439\u0442\u0435 \u043C\u0430\u043B\u043A\u043E." : "Too many requests. Please wait a moment." : language === "bg" ? `\u0414\u043E\u0441\u0442\u0438\u0433\u043D\u0430\u0445\u0442\u0435 \u043B\u0438\u043C\u0438\u0442\u0430 \u043E\u0442 ${monthlyInfo?.limit ?? limit} \u0432\u044A\u043F\u0440\u043E\u0441\u0430 \u0437\u0430 \u0442\u043E\u0437\u0438 \u043C\u0435\u0441\u0435\u0446. \u041D\u0430\u0434\u0433\u0440\u0430\u0434\u0435\u0442\u0435 \u0434\u043E Pro \u0437\u0430 \u043D\u0435\u043E\u0433\u0440\u0430\u043D\u0438\u0447\u0435\u043D\u0438 \u0432\u044A\u043F\u0440\u043E\u0441\u0438.` : `You've reached your monthly limit of ${monthlyInfo?.limit ?? limit} queries. Upgrade to Pro for unlimited queries.`;
+  res.status(429).json({
+    success: false,
+    error: {
+      code: "RATE_LIMIT_EXCEEDED",
+      message,
+      limitType,
+      retryAfter,
+      limit,
+      remaining,
+      resetAt: resetAt.toISOString(),
+      upgradeUrl: tier === "FREE" ? "/subscription/plans" : void 0
     }
-    // Create response body
-    const message = limitType === 'burst'
-        ? (language === 'bg'
-            ? 'Твърде много заявки. Моля, изчакайте малко.'
-            : 'Too many requests. Please wait a moment.')
-        : (language === 'bg'
-            ? `Достигнахте лимита от ${monthlyInfo?.limit ?? limit} въпроса за този месец. Надградете до Pro за неограничени въпроси.`
-            : `You've reached your monthly limit of ${monthlyInfo?.limit ?? limit} queries. Upgrade to Pro for unlimited queries.`);
-    res.status(429).json({
-        success: false,
-        error: {
-            code: 'RATE_LIMIT_EXCEEDED',
-            message,
-            limitType,
-            retryAfter,
-            limit,
-            remaining,
-            resetAt: resetAt.toISOString(),
-            upgradeUrl: tier === 'FREE' ? '/subscription/plans' : undefined,
-        },
-    });
+  });
 }
-/**
- * WebSocket rate limit response helper
- */
 function createWebSocketRateLimitError(options) {
-    const { retryAfter, limit, remaining, resetAt, limitType, tier, language = 'bg', conversationId, } = options;
-    const message = limitType === 'burst'
-        ? (language === 'bg'
-            ? 'Твърде много заявки. Моля, изчакайте малко.'
-            : 'Too many requests. Please wait a moment.')
-        : (language === 'bg'
-            ? `Достигнахте лимита от ${limit} въпроса за този месец.`
-            : `You've reached your monthly limit of ${limit} queries.`);
-    return {
-        type: 'chat:error',
-        payload: {
-            code: 'RATE_LIMIT_EXCEEDED',
-            message,
-            retryAfter,
-            limit,
-            remaining,
-            resetAt: resetAt.toISOString(),
-            limitType,
-            conversationId,
-        },
-    };
+  const {
+    retryAfter,
+    limit,
+    remaining,
+    resetAt,
+    limitType,
+    tier,
+    language = "bg",
+    conversationId
+  } = options;
+  const message = limitType === "burst" ? language === "bg" ? "\u0422\u0432\u044A\u0440\u0434\u0435 \u043C\u043D\u043E\u0433\u043E \u0437\u0430\u044F\u0432\u043A\u0438. \u041C\u043E\u043B\u044F, \u0438\u0437\u0447\u0430\u043A\u0430\u0439\u0442\u0435 \u043C\u0430\u043B\u043A\u043E." : "Too many requests. Please wait a moment." : language === "bg" ? `\u0414\u043E\u0441\u0442\u0438\u0433\u043D\u0430\u0445\u0442\u0435 \u043B\u0438\u043C\u0438\u0442\u0430 \u043E\u0442 ${limit} \u0432\u044A\u043F\u0440\u043E\u0441\u0430 \u0437\u0430 \u0442\u043E\u0437\u0438 \u043C\u0435\u0441\u0435\u0446.` : `You've reached your monthly limit of ${limit} queries.`;
+  return {
+    type: "chat:error",
+    payload: {
+      code: "RATE_LIMIT_EXCEEDED",
+      message,
+      retryAfter,
+      limit,
+      remaining,
+      resetAt: resetAt.toISOString(),
+      limitType,
+      conversationId
+    }
+  };
 }
-exports.default = {
-    rateLimitHeadersMiddleware,
-    fetchRateLimitStatus,
-    createRateLimitErrorResponse,
-    createWebSocketRateLimitError,
-    RATE_LIMIT_HEADERS: exports.RATE_LIMIT_HEADERS,
+var rateLimitHeaders_default = {
+  rateLimitHeadersMiddleware,
+  fetchRateLimitStatus,
+  createRateLimitErrorResponse,
+  createWebSocketRateLimitError,
+  RATE_LIMIT_HEADERS
 };
-//# sourceMappingURL=rateLimitHeaders.js.map
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  RATE_LIMIT_HEADERS,
+  createRateLimitErrorResponse,
+  createWebSocketRateLimitError,
+  fetchRateLimitStatus,
+  rateLimitHeadersMiddleware
+});
