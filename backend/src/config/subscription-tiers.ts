@@ -11,8 +11,7 @@ import { Tier } from '@prisma/client';
 export interface TierLimits {
   tier: Tier;
   name: { bg: string; en: string };
-  monthlyQueries: number; // -1 = unlimited
-  dailyQueries?: number; // Daily cap for retention loops
+  dailyQueries?: number; // Daily cap (FREE tier = 3, PRO/PREMIUM = unlimited)
   burstLimit: number; // Requests per minute, -1 = unlimited
   features: string[];
   price: {
@@ -34,7 +33,6 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
   FREE: {
     tier: 'FREE',
     name: { bg: 'Безплатен', en: 'Free' },
-    monthlyQueries: 9999, // effectively unlimited — daily cap is the binding constraint
     dailyQueries: 3,
     burstLimit: 3,
     features: [
@@ -50,7 +48,6 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
   PRO: {
     tier: 'PRO',
     name: { bg: 'Про', en: 'Pro' },
-    monthlyQueries: -1, // unlimited
     burstLimit: 10,
     features: [
       'unlimited_queries',
@@ -68,7 +65,6 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
   PREMIUM: {
     tier: 'PREMIUM',
     name: { bg: 'Премиум', en: 'Premium' },
-    monthlyQueries: -1, // unlimited
     burstLimit: 10, // 10 req/min — realistic for human use, protects against abuse
     features: [
       'everything_in_pro',
@@ -100,18 +96,10 @@ export function getTierLimits(tier: Tier): TierLimits {
 }
 
 /**
- * Check if tier has unlimited queries
+ * Check if tier has unlimited queries (PRO and PREMIUM are unlimited)
  */
 export function isUnlimitedTier(tier: Tier): boolean {
-  return TIER_CONFIG[tier]?.monthlyQueries === -1;
-}
-
-/**
- * Get monthly query limit for tier
- * Returns -1 for unlimited, or positive number for limit
- */
-export function getMonthlyQueryLimit(tier: Tier): number {
-  return TIER_CONFIG[tier]?.monthlyQueries ?? 10;
+  return tier === 'PRO' || tier === 'PREMIUM';
 }
 
 /**
@@ -138,35 +126,33 @@ export function hasFeature(tier: Tier, feature: string): boolean {
 }
 
 /**
- * Environment-based overrides (for A/B testing or promotions)
+ * Returns -1 (unlimited) for PRO/PREMIUM, or daily query limit for FREE.
+ * Used by rate limit headers and legacy callers.
  */
-export function getEffectiveMonthlyLimit(tier: Tier): number {
-  const configLimit = getMonthlyQueryLimit(tier);
-
-  // Allow environment variable override for FREE tier
-  if (tier === 'FREE' && process.env.FREE_TIER_MONTHLY_LIMIT) {
-    const envLimit = parseInt(process.env.FREE_TIER_MONTHLY_LIMIT, 10);
-    if (!isNaN(envLimit) && envLimit >= 0) {
-      return envLimit;
-    }
-  }
-
-  return configLimit;
+export function getMonthlyQueryLimit(tier: Tier): number {
+  return isUnlimitedTier(tier) ? -1 : (TIER_CONFIG[tier]?.dailyQueries ?? 3);
 }
 
 /**
- * Get the day of month when limits reset
- * Default: 1st of each month
+ * Effective query limit — same as getMonthlyQueryLimit (monthly concept removed).
+ */
+export function getEffectiveMonthlyLimit(tier: Tier): number {
+  return getMonthlyQueryLimit(tier);
+}
+
+/**
+ * Day of month when monthly DB counters reset (1st by default).
+ * Kept for monthly-reset.ts compatibility.
  */
 export function getMonthlyResetDay(): number {
   const envDay = process.env.FREE_TIER_RESET_DAY;
   if (envDay) {
     const day = parseInt(envDay, 10);
-    if (!isNaN(day) && day >= 1 && day <= 28) { // Max 28 to avoid month-end issues
+    if (!isNaN(day) && day >= 1 && day <= 28) {
       return day;
     }
   }
-  return 1; // Default: 1st of month
+  return 1;
 }
 
 export default TIER_CONFIG;

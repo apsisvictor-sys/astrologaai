@@ -44,13 +44,12 @@ export function UsageCounter({
 
   // Translations
   const texts = {
-    limited: language === 'bg' ? 'Достигнахте лимита' : 'Limit reached',
-    remaining: language === 'bg' ? 'въпроса остават' : 'questions remaining',
-    resetOn: language === 'bg' ? `Лимитът се нулира на ${resetDate}` : `Resets on ${resetDate}`,
-    perMonth: language === 'bg' ? `от ${limit} на месец` : `of ${limit} per month`,
-    upgradeText: language === 'bg' 
-      ? 'Надградете до Pro за неограничени въпроси и още функции!'
-      : 'Upgrade to Pro for unlimited questions and more features!',
+    limited: language === 'bg' ? 'Днешните въпроси са изчерпани' : "Today's questions used",
+    today: language === 'bg' ? `${used} от ${limit} въпроса днес` : `${used} of ${limit} questions today`,
+    resetOn: language === 'bg' ? `Нулира се в полунощ` : `Resets at midnight`,
+    upgradeText: language === 'bg'
+      ? 'Надградете до Pro — неограничени въпроси, по-задълбочени тълкувания и ексклузивни инструменти.'
+      : 'Upgrade to Pro — unlimited questions, deeper readings, and exclusive tools.',
     upgradeButton: language === 'bg' ? 'Надгради сега' : 'Upgrade now',
   };
 
@@ -95,33 +94,36 @@ export function UsageCounter({
           </div>
           <div>
             <div className="text-sm font-medium text-[#F8FAFC]">
-              {isLimited ? (
-                texts.limited
-              ) : (
-                `${remaining} ${texts.remaining}`
-              )}
+              {isLimited ? texts.limited : texts.today}
             </div>
             <div className="text-xs text-[#64748B]">
-              {isLimited 
-                ? texts.resetOn
-                : texts.perMonth
-              }
+              {texts.resetOn}
             </div>
           </div>
         </div>
 
-        {/* Progress bar */}
-        {!isLimited && typeof limit === 'number' && (
-          <div className="w-24 h-2 bg-[#1A1A3A] rounded-full overflow-hidden">
-            <div 
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${((limit - used) / limit) * 100}%`,
-                background: nearLimit
-                  ? 'linear-gradient(135deg, #EAB308 0%, #EF4444 100%)'
-                  : 'linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%)',
-              }}
-            />
+        {/* Dot indicators */}
+        {typeof limit === 'number' && (
+          <div className="flex items-center gap-1.5">
+            {Array.from({ length: limit }).map((_, i) => (
+              <div
+                key={i}
+                className="w-2.5 h-2.5 rounded-full"
+                style={{
+                  background: i < used
+                    ? isLimited
+                      ? '#EF4444'
+                      : nearLimit
+                        ? '#EAB308'
+                        : '#8B5CF6'
+                    : '#1A1A3A',
+                  border: '1px solid',
+                  borderColor: i < used
+                    ? isLimited ? '#EF4444' : nearLimit ? '#EAB308' : '#8B5CF6'
+                    : '#2D2D5A',
+                }}
+              />
+            ))}
           </div>
         )}
       </div>
@@ -131,8 +133,8 @@ export function UsageCounter({
         <div className="mt-3 pt-3 border-t border-yellow-500/20">
           <p className="text-xs text-yellow-400">
             {language === 'bg'
-              ? '⚠️ Приближавате месечния си лимит. Обмислете надграждане.'
-              : '⚠️ You\'re approaching your monthly limit. Consider upgrading.'}
+              ? '⚠️ Само 1 въпрос остава за днес. Обмислете надграждане.'
+              : '⚠️ Only 1 question left today. Consider upgrading.'}
           </p>
         </div>
       )}
@@ -181,17 +183,18 @@ export function UsageIndicator({
     );
   }
 
-  const text = language === 'bg' ? 'остават' : 'remaining';
+  const text = language === 'bg' ? 'днес' : 'today';
+  const usedCount = typeof remaining === 'number' && typeof remaining === 'number' ? (3 - remaining) : 0;
 
   return (
     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-      remaining === 0 
-        ? 'bg-red-500/20 text-red-400' 
-        : remaining <= 2
+      remaining === 0
+        ? 'bg-red-500/20 text-red-400'
+        : remaining <= 1
           ? 'bg-yellow-500/20 text-yellow-400'
           : 'bg-[#1A1A3A] text-[#CBD5E1]'
     }`}>
-      <span>{remaining} {text}</span>
+      <span>{remaining} / 3 {text}</span>
     </div>
   );
 }

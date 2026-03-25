@@ -29,7 +29,7 @@ import { getActiveTransitsForUser } from '../services/transits';
 import {
   getTierLimits,
 } from '../config/subscription-tiers';
-import { getUserUsageStats, incrementDailyTokens, getFreeTierDailyTokenLimit } from '../middleware/queryLimit';
+import { getUserUsageStats, incrementDailyQuery, getFreeTierDailyQueryLimit } from '../middleware/queryLimit';
 import { updateStreak } from '../services/streakService';
 import type { ChatMessage } from '../services/llm';
 
@@ -352,20 +352,19 @@ ${aspectLines || 'No major aspects within orb today.'}`;
     const latencyMs = Date.now() - startTime;
     const finalStatus = getOrchestratorStatus();
 
-    // Token-based daily limit: track usage for FREE users and flag if limit exceeded
+    // Message-count daily limit: increment query counter for FREE users
     let dailyLimitReached = false;
     if (!hasError && fullResponse && userTier === 'FREE' && !isAdmin && userId) {
       try {
-        const approxOutputTokens = Math.ceil(fullResponse.length / 4);
-        const [newTotal, tokenLimit] = await Promise.all([
-          incrementDailyTokens(userId, approxOutputTokens),
-          getFreeTierDailyTokenLimit(),
+        const [newCount, limit] = await Promise.all([
+          incrementDailyQuery(userId),
+          getFreeTierDailyQueryLimit(),
         ]);
-        if (newTotal > tokenLimit) {
+        if (newCount >= limit) {
           dailyLimitReached = true;
         }
       } catch (err) {
-        console.error('[Chat] Failed to update daily token counter (non-fatal):', err);
+        console.error('[Chat] Failed to update daily query counter (non-fatal):', err);
       }
     }
 

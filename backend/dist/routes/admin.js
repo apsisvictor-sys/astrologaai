@@ -690,6 +690,37 @@ router.put('/config/models', async (req, res) => {
         res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR' } });
     }
 });
+// ── GET /admin/config/free-tier-limits ────────────────────────────────────────
+router.get('/config/free-tier-limits', async (_req, res) => {
+    try {
+        const config = await prisma_1.prisma.adminConfig.findUnique({ where: { key: 'free_tier_daily_query_limit' } });
+        const value = config?.value ? parseInt(config.value, 10) : 3;
+        res.json({ success: true, data: { freeTierDailyQueryLimit: value } });
+    }
+    catch (err) {
+        res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR' } });
+    }
+});
+// ── PUT /admin/config/free-tier-limits ────────────────────────────────────────
+router.put('/config/free-tier-limits', async (req, res) => {
+    try {
+        const { freeTierDailyQueryLimit } = req.body;
+        const adminEmail = req.user?.email ?? 'admin';
+        const limit = parseInt(freeTierDailyQueryLimit, 10);
+        if (isNaN(limit) || limit < 1) {
+            return res.status(400).json({ success: false, error: { code: 'INVALID_VALUE', message: 'Limit must be a number >= 1' } });
+        }
+        await prisma_1.prisma.adminConfig.upsert({
+            where: { key: 'free_tier_daily_query_limit' },
+            create: { key: 'free_tier_daily_query_limit', value: String(limit), updatedBy: adminEmail },
+            update: { value: String(limit), updatedBy: adminEmail },
+        });
+        res.json({ success: true, data: { freeTierDailyQueryLimit: limit } });
+    }
+    catch (err) {
+        res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR' } });
+    }
+});
 // ── GET /admin/discounts ──────────────────────────────────────────────────────
 router.get('/discounts', async (req, res) => {
     try {

@@ -37,6 +37,8 @@ const DEFAULTS = [
     { key: 'alert_threshold_free_eur_cents', value: '200' }, // 2.00€ — flag heavy free users
     { key: 'alert_threshold_pro_eur_cents', value: '500' }, // 5.00€ — 50% of 10€ subscription
     { key: 'alert_threshold_premium_eur_cents', value: '1000' }, // 10.00€ — 50% of 20€ subscription
+    // ── FREE tier limits ────────────────────────────────────────────────────
+    { key: 'free_tier_daily_query_limit', value: '3' }, // Oracle questions per day for FREE users
 ];
 async function seedAdminDefaults() {
     const data = DEFAULTS.map(d => ({

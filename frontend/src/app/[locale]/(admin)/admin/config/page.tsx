@@ -196,8 +196,8 @@ export default function AdminConfigPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
-  // Free tier token limit
-  const [tokenLimit, setTokenLimit] = useState<number>(1500);
+  // Free tier query limit
+  const [tokenLimit, setTokenLimit] = useState<number>(3);
   const [tokenLimitSaving, setTokenLimitSaving] = useState(false);
   const [tokenLimitMsg, setTokenLimitMsg] = useState<string | null>(null);
 
@@ -209,7 +209,7 @@ export default function AdminConfigPage() {
       try {
         const [modelsData, limitsData] = await Promise.all([
           adminGet<ModelsResponse>('/config/models'),
-          adminGet<{ freeTierDailyTokenLimit: number }>('/config/free-tier-limits'),
+          adminGet<{ freeTierDailyQueryLimit: number }>('/config/free-tier-limits'),
         ]);
         setModels({
           FREE: modelsData.FREE.model,
@@ -221,7 +221,7 @@ export default function AdminConfigPage() {
           PRO: modelsData.PRO.source,
           PREMIUM: modelsData.PREMIUM.source,
         });
-        setTokenLimit(limitsData.freeTierDailyTokenLimit ?? 1500);
+        setTokenLimit(limitsData.freeTierDailyQueryLimit ?? 3);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load model config');
       } finally {
@@ -234,7 +234,7 @@ export default function AdminConfigPage() {
     setTokenLimitSaving(true);
     setTokenLimitMsg(null);
     try {
-      await adminPut('/config/free-tier-limits', { freeTierDailyTokenLimit: tokenLimit });
+      await adminPut('/config/free-tier-limits', { freeTierDailyQueryLimit: tokenLimit });
       setTokenLimitMsg('Saved!');
       setTimeout(() => setTokenLimitMsg(null), 3000);
     } catch {
@@ -323,19 +323,19 @@ export default function AdminConfigPage() {
       {!loading && (
         <div className="mb-10 max-w-xl">
           <h2 className="text-lg font-semibold text-white mb-1">Free Tier Limits</h2>
-          <p className="text-xs text-text-secondary mb-4">Daily output token limit for FREE users. Takes effect immediately — no deploy needed.</p>
+          <p className="text-xs text-text-secondary mb-4">Daily Oracle question limit for FREE users. Takes effect immediately — no deploy needed.</p>
           <div
             className="rounded-[16px] p-6"
             style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(228,26,255,0.15)' }}
           >
-            <label className="block text-sm text-white/70 mb-2">Daily token limit (FREE tier)</label>
+            <label className="block text-sm text-white/70 mb-2">Free tier daily query limit</label>
             <div className="flex items-center gap-3">
               <input
                 type="number"
-                min={100}
-                step={100}
+                min={1}
+                step={1}
                 value={tokenLimit}
-                onChange={e => setTokenLimit(parseInt(e.target.value, 10) || 1500)}
+                onChange={e => setTokenLimit(parseInt(e.target.value, 10) || 3)}
                 className="w-36 px-3 py-2 rounded-lg text-sm text-white bg-white/5 border border-white/10 focus:outline-none focus:border-primary"
               />
               <button

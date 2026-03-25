@@ -41,7 +41,7 @@ const DEFAULTS: { key: string; value: string }[] = [
   { key: 'alert_threshold_premium_eur_cents', value: '1000' }, // 10.00€ — 50% of 20€ subscription
 
   // ── FREE tier limits ────────────────────────────────────────────────────
-  { key: 'free_tier_daily_token_limit', value: '1500' }, // output tokens per day for FREE users
+  { key: 'free_tier_daily_query_limit', value: '3' }, // Oracle questions per day for FREE users
 ];
 
 export async function seedAdminDefaults(): Promise<void> {

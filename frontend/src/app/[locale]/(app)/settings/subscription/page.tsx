@@ -488,15 +488,19 @@ export default function SubscriptionManagementPage() {
             </h3>
 
             <div className="flex items-center justify-between">
-              <span style={{ color: COLORS.textPrimary }}>Oracle access</span>
+              <span style={{ color: COLORS.textPrimary }}>
+                {locale === 'bg' ? 'Дневни въпроси' : 'Daily questions'}
+              </span>
               <span style={{ color: COLORS.textSecondary }}>
-                {subscription?.tier === 'FREE' ? 'Limited cosmic intelligence' : 'Unlimited cosmic intelligence'}
+                {subscription?.tier === 'FREE'
+                  ? `${subscription.usage.queriesThisMonth ?? 0} / ${subscription.usage.queriesLimit ?? 3}`
+                  : (locale === 'bg' ? 'Неограничено' : 'Unlimited')}
               </span>
             </div>
-            
-            {subscription?.usage.resetDate && (
+
+            {subscription?.tier === 'FREE' && (
               <p className="text-xs mt-2" style={{ color: COLORS.textMuted }}>
-                {locale === 'bg' ? 'Нулиране на' : 'Resets on'} {formatDateDisplay(subscription.usage.resetDate)}
+                {locale === 'bg' ? 'Нулира се в полунощ' : 'Resets at midnight'}
               </p>
             )}
           </div>

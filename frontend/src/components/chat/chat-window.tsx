@@ -128,7 +128,7 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
           style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.18)' }}
         >
           <span className="text-xs text-pro-gold">
-            ✦ You&apos;ve reached your daily cosmic limit. The Oracle will be ready again tomorrow.
+            ✦ You&apos;ve used your 3 free questions today. Come back tomorrow or upgrade to Pro for unlimited.
           </span>
           <a
             href="/pricing"
@@ -183,7 +183,7 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
         onCancel={cancelGeneration}
         isStreaming={isStreaming}
         disabled={isLoading || dailyLimitReached}
-        placeholder={dailyLimitReached ? 'Daily cosmic limit reached — upgrade to continue' : 'Ask the Oracle...'}
+        placeholder={dailyLimitReached ? '3 free questions used today — upgrade to continue' : 'Ask the Oracle...'}
         sendError={error}
         prefill={prefillText}
         onPrefillConsumed={() => setPrefillText('')}

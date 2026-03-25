@@ -28,12 +28,10 @@ exports.TIER_CONFIG = {
     FREE: {
         tier: 'FREE',
         name: { bg: 'Безплатен', en: 'Free' },
-        monthlyQueries: 10,
-        dailyQueries: 4,
+        dailyQueries: 3,
         burstLimit: 3,
         features: [
-            '10_queries_month',
-            '4_queries_day',
+            '3_queries_day',
             'tool:get_natal_chart', // Free users can only ask about their static birth chart
         ],
         price: {
@@ -45,8 +43,7 @@ exports.TIER_CONFIG = {
     PRO: {
         tier: 'PRO',
         name: { bg: 'Про', en: 'Pro' },
-        monthlyQueries: -1, // unlimited
-        burstLimit: 30,
+        burstLimit: 10,
         features: [
             'unlimited_queries',
             'tool:get_natal_chart',
@@ -55,16 +52,15 @@ exports.TIER_CONFIG = {
             'tool:get_lunar_return', // Monthly lunar return cycle
         ],
         price: {
-            monthly: 10,
-            yearly: 96,
+            monthly: 9.99,
+            yearly: 89.88,
             currency: 'EUR',
         },
     },
     PREMIUM: {
         tier: 'PREMIUM',
         name: { bg: 'Премиум', en: 'Premium' },
-        monthlyQueries: -1, // unlimited
-        burstLimit: 60,
+        burstLimit: 10,
         features: [
             'everything_in_pro',
             'tool:get_natal_chart',
@@ -80,8 +76,8 @@ exports.TIER_CONFIG = {
             'priority_support',
         ],
         price: {
-            monthly: 20,
-            yearly: 192,
+            monthly: 19.99,
+            yearly: 179.88,
             currency: 'EUR',
         },
     },
@@ -96,14 +92,14 @@ function getTierLimits(tier) {
  * Check if tier has unlimited queries
  */
 function isUnlimitedTier(tier) {
-    return exports.TIER_CONFIG[tier]?.monthlyQueries === -1;
+    return tier === 'PRO' || tier === 'PREMIUM';
 }
 /**
- * Get monthly query limit for tier
- * Returns -1 for unlimited, or positive number for limit
+ * Returns -1 (unlimited) for PRO/PREMIUM, or daily query limit for FREE.
+ * Used by rate limit headers and legacy callers.
  */
 function getMonthlyQueryLimit(tier) {
-    return exports.TIER_CONFIG[tier]?.monthlyQueries ?? 10;
+    return isUnlimitedTier(tier) ? -1 : (exports.TIER_CONFIG[tier]?.dailyQueries ?? 3);
 }
 /**
  * Get burst limit (requests per minute) for tier
@@ -126,18 +122,10 @@ function hasFeature(tier, feature) {
     return exports.TIER_CONFIG[tier]?.features.includes(feature) ?? false;
 }
 /**
- * Environment-based overrides (for A/B testing or promotions)
+ * Effective query limit — same as getMonthlyQueryLimit (monthly concept removed).
  */
 function getEffectiveMonthlyLimit(tier) {
-    const configLimit = getMonthlyQueryLimit(tier);
-    // Allow environment variable override for FREE tier
-    if (tier === 'FREE' && process.env.FREE_TIER_MONTHLY_LIMIT) {
-        const envLimit = parseInt(process.env.FREE_TIER_MONTHLY_LIMIT, 10);
-        if (!isNaN(envLimit) && envLimit >= 0) {
-            return envLimit;
-        }
-    }
-    return configLimit;
+    return getMonthlyQueryLimit(tier);
 }
 /**
  * Get the day of month when limits reset

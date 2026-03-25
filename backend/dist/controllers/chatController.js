@@ -25,6 +25,7 @@ const redis_1 = require("../utils/redis");
 const llm_1 = require("../services/llm");
 const transits_1 = require("../services/transits");
 const subscription_tiers_1 = require("../config/subscription-tiers");
+const queryLimit_1 = require("../middleware/queryLimit");
 const prisma = new client_1.PrismaClient();
 // ============================================
 // Rate Limiting Configuration (US-36, US-37)
@@ -173,9 +174,11 @@ async function sendMessage(req, res) {
         const startTime = Date.now();
         const { content, sessionId, birthProfileId } = req.body;
         const userId = req.user?.id;
+        const userEmail = req.user?.email || '';
         const userTier = req.user?.tier || 'FREE';
         // US-25: Get from user preferences, ensure valid type
         const userLanguage = (req.user?.language === 'bg' ? 'bg' : 'en');
+        const isAdmin = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim()).includes(userEmail);
         if (!userId) {
             res.status(401).json({
                 success: false,
@@ -400,6 +403,22 @@ ${aspectLines || 'No major aspects within orb today.'}`;
         // Send completion event
         const latencyMs = Date.now() - startTime;
         const finalStatus = (0, llm_1.getOrchestratorStatus)();
+        // Message-count daily limit: increment query counter for FREE users
+        let dailyLimitReached = false;
+        if (!hasError && fullResponse && userTier === 'FREE' && !isAdmin && userId) {
+            try {
+                const [newCount, limit] = await Promise.all([
+                    (0, queryLimit_1.incrementDailyQuery)(userId),
+                    (0, queryLimit_1.getFreeTierDailyQueryLimit)(),
+                ]);
+                if (newCount >= limit) {
+                    dailyLimitReached = true;
+                }
+            }
+            catch (err) {
+                console.error('[Chat] Failed to update daily query counter (non-fatal):', err);
+            }
+        }
         // US-34: Add latency header
         res.setHeader('X-Latency', `${latencyMs}ms`);
         res.setHeader('X-Provider', finalStatus.activeProvider);
@@ -409,6 +428,7 @@ ${aspectLines || 'No major aspects within orb today.'}`;
             hasError,
             provider: finalStatus.activeProvider,
             latencyMs,
+            dailyLimitReached,
         })}\n\n`);
         res.end();
     }

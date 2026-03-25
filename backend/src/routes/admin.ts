@@ -831,9 +831,9 @@ router.put('/config/models', async (req: Request, res: Response) => {
 
 router.get('/config/free-tier-limits', async (_req: Request, res: Response) => {
   try {
-    const config = await prisma.adminConfig.findUnique({ where: { key: 'free_tier_daily_token_limit' } });
-    const value = config?.value ? parseInt(config.value, 10) : 1500;
-    res.json({ success: true, data: { freeTierDailyTokenLimit: value } });
+    const config = await prisma.adminConfig.findUnique({ where: { key: 'free_tier_daily_query_limit' } });
+    const value = config?.value ? parseInt(config.value, 10) : 3;
+    res.json({ success: true, data: { freeTierDailyQueryLimit: value } });
   } catch (err) {
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR' } });
   }
@@ -843,21 +843,21 @@ router.get('/config/free-tier-limits', async (_req: Request, res: Response) => {
 
 router.put('/config/free-tier-limits', async (req: Request, res: Response) => {
   try {
-    const { freeTierDailyTokenLimit } = req.body;
+    const { freeTierDailyQueryLimit } = req.body;
     const adminEmail = (req as any).user?.email ?? 'admin';
 
-    const limit = parseInt(freeTierDailyTokenLimit, 10);
-    if (isNaN(limit) || limit < 100) {
-      return res.status(400).json({ success: false, error: { code: 'INVALID_VALUE', message: 'Limit must be a number >= 100' } });
+    const limit = parseInt(freeTierDailyQueryLimit, 10);
+    if (isNaN(limit) || limit < 1) {
+      return res.status(400).json({ success: false, error: { code: 'INVALID_VALUE', message: 'Limit must be a number >= 1' } });
     }
 
     await prisma.adminConfig.upsert({
-      where: { key: 'free_tier_daily_token_limit' },
-      create: { key: 'free_tier_daily_token_limit', value: String(limit), updatedBy: adminEmail },
+      where: { key: 'free_tier_daily_query_limit' },
+      create: { key: 'free_tier_daily_query_limit', value: String(limit), updatedBy: adminEmail },
       update: { value: String(limit), updatedBy: adminEmail },
     });
 
-    res.json({ success: true, data: { freeTierDailyTokenLimit: limit } });
+    res.json({ success: true, data: { freeTierDailyQueryLimit: limit } });
   } catch (err) {
     res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR' } });
   }
