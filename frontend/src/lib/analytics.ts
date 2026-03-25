@@ -61,6 +61,24 @@ export function trackSubscriptionCancelled(props: { tier: string }) {
   capture('subscription_cancelled', props);
 }
 
+// ── Credits ───────────────────────────────────────────────────────────────────
+
+export function trackCreditsPurchased(props: { packId: string; credits: number; eurAmount: number }) {
+  capture('credits_purchased', props);
+}
+
+export function trackCreditsSpent(props: { action: string; cost: number; balanceAfter?: number }) {
+  capture('credits_spent', props);
+}
+
+export function trackCreditsUpsellShown(props: { spentEurLast30Days: number }) {
+  capture('credits_upsell_shown', props);
+}
+
+export function trackCreditsUpsellConverted(props: { spentEurLast30Days: number }) {
+  capture('credits_upsell_converted', props);
+}
+
 // ── Retention ────────────────────────────────────────────────────────────────
 
 export function trackQueryLimitHit(props: { tier: string }) {

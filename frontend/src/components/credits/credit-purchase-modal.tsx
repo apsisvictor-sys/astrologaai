@@ -11,6 +11,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CREDIT_PACKS, CreditPackId, initiateCreditCheckout } from '@/lib/credits-api';
+import { trackCreditsPurchased } from '@/lib/analytics';
 
 interface CreditPurchaseModalProps {
   isOpen: boolean;
@@ -41,6 +42,11 @@ export function CreditPurchaseModal({
         selectedPack,
         useBgn ? 'BGN' : 'EUR'
       );
+      trackCreditsPurchased({
+        packId: selectedPack,
+        credits: selected.credits,
+        eurAmount: selected.priceEur,
+      });
       window.location.href = checkoutUrl;
     } catch {
       setError('Payment could not be started. Please try again.');

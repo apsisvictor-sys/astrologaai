@@ -796,8 +796,9 @@ async function rewriteInOracleVoice(raw: any): Promise<any> {
 export async function getPersonalDailyHoroscope(
   userId: string,
   birthData: BirthDataInput,
+  dateOverride?: string,
 ): Promise<PersonalDailyHoroscope> {
-  const dateStr = getTodayDateString();
+  const dateStr = dateOverride ?? getTodayDateString();
 
   // 1. Check DB first (written by nightly cron or previous on-demand call)
   const stored = await getStoredForecast(userId, dateStr);
