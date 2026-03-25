@@ -253,6 +253,35 @@ export const partnersApi = {
   },
 
   /**
+   * FEAT-11: Get composite chart (PREMIUM)
+   */
+  async getComposite(partnerId: string): Promise<CompositeResponse> {
+    const token = getAuthToken();
+    if (!token) throw new PartnersAPIError('Not authenticated', 'UNAUTHORIZED', 401);
+
+    const response = await fetch(`${API_URL}/api/v1/partners/${partnerId}/composite`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new PartnersAPIError(
+        data.error?.message || 'Failed to get composite chart',
+        data.error?.code || 'API_ERROR',
+        response.status,
+        data.error
+      );
+    }
+
+    return data.data;
+  },
+
+  /**
    * US-20: Get detailed compatibility report
    */
   async getCompatibilityReport(partnerId: string, language: 'bg' | 'en' = 'bg'): Promise<CompatibilityReportResponse> {
@@ -385,6 +414,45 @@ export interface CompatibilityReport {
 
 export interface CompatibilityReportResponse {
   report: CompatibilityReport;
+  partner: {
+    id: string;
+    name: string;
+    label: string | null;
+    relationshipType: string;
+  };
+  cached: boolean;
+}
+
+// FEAT-11: Composite Chart Types
+export interface CompositePlanetPosition {
+  name: string;
+  sign: string;
+  degree: number;
+  absolute_longitude: number;
+  house?: number | null;
+  is_retrograde: boolean;
+}
+
+export interface CompositeAspect {
+  point1: string;
+  point2: string;
+  aspect_type: string;
+  orb: number;
+}
+
+export interface CompositeChartData {
+  chart_data: {
+    planetary_positions: CompositePlanetPosition[];
+    aspects: CompositeAspect[];
+    house_cusps: Array<{ number: number; sign: string; degree: number }>;
+  };
+  subject_data: {
+    composite_subject: any;
+  };
+}
+
+export interface CompositeResponse {
+  composite: CompositeChartData;
   partner: {
     id: string;
     name: string;
