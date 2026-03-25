@@ -219,7 +219,7 @@ router.get('/status', authMiddleware, async (req: Request, res: Response) => {
     // Get user's tier from User model as fallback
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { tier: true, language: true, dailyQueryCount: true, lastQueryDate: true },
+      select: { tier: true, language: true },
     });
     
     const lang = user?.language || 'bg';
@@ -227,28 +227,27 @@ router.get('/status', authMiddleware, async (req: Request, res: Response) => {
     // Determine effective tier
     const effectiveTier = subscription?.tier || user?.tier || 'FREE';
     const effectiveStatus = subscription?.status || 'ACTIVE';
-    
-    // Usage block — query counting removed, limits are hidden from users
-    const usageBlock: Record<string, unknown> = {
-      queriesThisMonth: 0,
-      queriesLimit: 'unlimited',
-      queriesRemaining: 'unlimited',
-      percentage: null,
-      resetDate: null,
-      resetType: null,
-    };
+
+    // Get real usage stats for this user
+    const usageStats = await getUserUsageStats(userId, effectiveTier);
 
     // Build response
     const response: any = {
       tier: effectiveTier,
       status: effectiveStatus,
-      usage: usageBlock,
+      usage: {
+        queriesThisMonth: usageStats.used,
+        queriesLimit: usageStats.limit,
+        queriesRemaining: usageStats.remaining,
+        percentage: usageStats.percentage,
+        resetDate: usageStats.resetAt,
+      },
       limits: {
-        monthly: 'unlimited',
+        monthly: usageStats.limit,
         burst: 10,
-        canMakeQuery: true,
-        limitReached: false,
-        nearLimit: false,
+        canMakeQuery: usageStats.remaining === 'unlimited' || (typeof usageStats.remaining === 'number' && usageStats.remaining > 0),
+        limitReached: typeof usageStats.remaining === 'number' && usageStats.remaining <= 0,
+        nearLimit: usageStats.percentage !== null && usageStats.percentage >= 67,
       },
       features: getFeaturesForTier(effectiveTier),
       tierConfig: TIER_CONFIG[effectiveTier],
