@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useLocale } from 'next-intl';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { TransitCommentaryCard } from '@/components/transits/transit-commentary-card';
 
 const COLORS = {
   backgroundPrimary: '#0D0010',
@@ -220,6 +221,9 @@ export default function ActiveTransitsPage() {
             {error}
           </div>
         )}
+
+        {/* Oracle transit commentary card — loads independently */}
+        {isAuthenticated && <TransitCommentaryCard locale={locale} />}
 
         {data && (
           <>

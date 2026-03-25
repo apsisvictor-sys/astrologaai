@@ -39,11 +39,12 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getCompatibilityReport = exports.getSynastry = exports.deletePartner = exports.updatePartner = exports.createPartner = exports.getPartner = exports.listPartners = void 0;
+exports.getCompositeChart = exports.getCompatibilityReport = exports.getSynastry = exports.deletePartner = exports.updatePartner = exports.createPartner = exports.getPartner = exports.listPartners = void 0;
 const prisma_1 = require("../utils/prisma");
 const client_1 = require("@prisma/client");
 const synastry_service_1 = require("../services/synastry.service");
 const compatibility_report_service_1 = require("../services/compatibility-report.service");
+const composite_service_1 = require("../services/composite.service");
 // Validation helpers
 const validateBirthData = (data) => {
     const errors = [];
@@ -822,4 +823,103 @@ const getCompatibilityReport = async (req, res) => {
     }
 };
 exports.getCompatibilityReport = getCompatibilityReport;
+/**
+ * GET /api/partners/:id/composite
+ * FEAT-11: Get composite chart (PREMIUM only)
+ */
+const getCompositeChart = async (req, res) => {
+    try {
+        const userId = req.user?.id;
+        const { id: partnerId } = req.params;
+        if (!userId) {
+            return res.status(401).json({
+                success: false,
+                error: { code: 'UNAUTHORIZED', message: 'User not authenticated' },
+            });
+        }
+        // PREMIUM tier check
+        const user = await prisma_1.prisma.user.findUnique({ where: { id: userId } });
+        if (!user || user.tier !== 'PREMIUM') {
+            return res.status(403).json({
+                success: false,
+                error: {
+                    code: 'PREMIUM_REQUIRED',
+                    message: 'Composite chart requires a PREMIUM subscription',
+                    upgradeRequired: true,
+                },
+            });
+        }
+        // Get user birth data
+        const userBirthData = await prisma_1.prisma.birthProfile.findFirst({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+        });
+        if (!userBirthData) {
+            return res.status(400).json({
+                success: false,
+                error: {
+                    code: 'BIRTH_DATA_REQUIRED',
+                    message: 'You need to enter your birth data first to calculate a composite chart',
+                },
+            });
+        }
+        // Get partner
+        const partner = await prisma_1.prisma.partner.findFirst({
+            where: { id: partnerId, userId },
+        });
+        if (!partner) {
+            return res.status(404).json({
+                success: false,
+                error: { code: 'NOT_FOUND', message: 'Partner not found' },
+            });
+        }
+        const userBirthDate = new Date(userBirthData.birthDate);
+        const [userHour = 12, userMinute = 0] = (userBirthData.birthTime || '12:00').split(':').map(Number);
+        const partnerBirthDate = new Date(partner.birthDate);
+        const [partnerHour = 12, partnerMinute = 0] = (partner.birthTime || '12:00').split(':').map(Number);
+        const composite = await (0, composite_service_1.calculateCompositeChart)({
+            year: userBirthDate.getFullYear(),
+            month: userBirthDate.getMonth() + 1,
+            day: userBirthDate.getDate(),
+            hour: userHour,
+            minute: userMinute,
+            latitude: userBirthData.latitude,
+            longitude: userBirthData.longitude,
+            timezone: userBirthData.timezone,
+        }, {
+            year: partnerBirthDate.getFullYear(),
+            month: partnerBirthDate.getMonth() + 1,
+            day: partnerBirthDate.getDate(),
+            hour: partnerHour,
+            minute: partnerMinute,
+            latitude: partner.latitude,
+            longitude: partner.longitude,
+            timezone: partner.timezone,
+        });
+        res.json({
+            success: true,
+            data: {
+                composite,
+                partner: {
+                    id: partner.id,
+                    name: partner.name,
+                    label: partner.label,
+                    relationshipType: partner.relationshipType.toLowerCase(),
+                },
+                cached: false,
+            },
+        });
+    }
+    catch (error) {
+        console.error('Get composite chart error:', error);
+        res.status(500).json({
+            success: false,
+            error: {
+                code: 'INTERNAL_ERROR',
+                message: 'Failed to calculate composite chart',
+            },
+        });
+    }
+};
+exports.getCompositeChart = getCompositeChart;
 //# sourceMappingURL=partnerController.js.map

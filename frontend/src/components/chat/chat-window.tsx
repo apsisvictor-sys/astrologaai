@@ -11,13 +11,14 @@ import { EmptyState } from './empty-state';
 import { OracleWelcome } from './oracle-welcome';
 import { SessionRating } from './session-rating';
 import { SuggestionChips } from './suggestion-chips';
+import { UsageCounter } from './usage-counter';
 
 interface ChatWindowProps {
   sessionId?: string;
 }
 
 export function ChatWindow({ sessionId }: ChatWindowProps) {
-  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const router = useRouter();
   const [hasBirthData, setHasBirthData] = useState<boolean | null>(null);
   const [showRating, setShowRating] = useState(false);
@@ -30,6 +31,7 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
     streamingContent,
     error,
     dailyLimitReached,
+    usage,
     hasMoreMessages,
     isLoadingMore,
     currentSession,
@@ -173,6 +175,21 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
           <SessionRating
             sessionId={currentSession.id}
             onRated={() => setShowRating(false)}
+          />
+        </div>
+      )}
+
+      {/* Proactive usage counter — shown for FREE users before limit is hit */}
+      {usage && user && !dailyLimitReached && (
+        <div className="px-4 pb-1 shrink-0">
+          <UsageCounter
+            used={usage.used}
+            limit={usage.limit}
+            remaining={usage.remaining}
+            resetAt={usage.resetAt}
+            tier={user.tier}
+            nearLimit={typeof usage.remaining === 'number' && usage.remaining === 1}
+            language={user.language === 'en' ? 'en' : 'bg'}
           />
         </div>
       )}

@@ -15,6 +15,7 @@ import {
   deletePartner,
   getSynastry,
   getCompatibilityReport,
+  getCompositeChart,
 } from '../controllers/partnerController';
 
 const router = Router();
@@ -36,6 +37,9 @@ router.get('/:id/synastry', getSynastry);
 
 // GET /api/partners/:id/report - US-20: Get compatibility report
 router.get('/:id/report', getCompatibilityReport);
+
+// GET /api/partners/:id/composite - FEAT-11: Get composite chart (PREMIUM)
+router.get('/:id/composite', getCompositeChart);
 
 // PUT /api/partners/:id - Update partner
 router.put('/:id', updatePartner);

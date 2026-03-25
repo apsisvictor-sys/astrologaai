@@ -121,6 +121,13 @@ export function PartnerCard({ partner, onEdit, onDelete, language = 'bg' }: Part
           Synastry
         </button>
         <button
+          onClick={() => router.push(`/partners/${partner.id}/composite`)}
+          className="flex-1 py-2 rounded-xl text-xs font-semibold transition-colors"
+          style={{ background: 'rgba(228,26,255,0.08)', color: '#e41aff', border: '1px solid rgba(228,26,255,0.2)' }}
+        >
+          Composite
+        </button>
+        <button
           onClick={() => onEdit(partner)}
           className="px-3 py-2 rounded-xl text-xs font-semibold transition-colors"
           style={{ background: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.5)', border: '1px solid rgba(255,255,255,0.08)' }}

@@ -12,6 +12,7 @@ import type { NatalChart } from '@/components/chart/circular-chart-wheel';
 import { Sparkles, MessageSquare, Compass, Settings, Users, ArrowRight } from 'lucide-react';
 import { apiGet } from '@/lib/api-client';
 import { DailyHoroscopeCard } from '@/components/forecast/daily-horoscope-card';
+import { MorningBriefingCard } from '@/components/dashboard/MorningBriefingCard';
 import { OracleWelcome } from '@/components/chat/oracle-welcome';
 import { CosmicEventBanner } from '@/components/dashboard/CosmicEventBanner';
 import { MoonPhaseCard } from '@/components/transits/moon-phase-card';
@@ -417,6 +418,17 @@ export default function DashboardPage({
               />
             )}
           </div>
+
+          {/* Morning Briefing card (PIX-134: FEAT-13) — above daily horoscope */}
+          {(phase === 'ready' || phase === 'no-birth-data') && (
+            <div className="lg:col-span-12 animate-fade-in-up" style={{ animationDelay: '0.16s' }}>
+              <MorningBriefingCard
+                tier={(user?.tier as 'FREE' | 'PRO' | 'PREMIUM') || 'FREE'}
+                locale={locale}
+                hasBirthData={phase === 'ready'}
+              />
+            </div>
+          )}
 
           {/* Daily Horoscope card (full width) — visible to all users with birth data */}
           {phase === 'ready' && (

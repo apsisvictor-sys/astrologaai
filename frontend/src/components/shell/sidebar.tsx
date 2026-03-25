@@ -7,9 +7,11 @@ import { ChatHistoryList } from './chat-history-list';
 import { SidebarNav } from './sidebar-nav';
 import { StreakIndicator } from './streak-indicator';
 import { TierBadge } from './tier-badge';
+import { CreditBalanceIndicator } from '../credits/credit-balance-indicator';
 
 interface SidebarProps {
   onLockedFeatureClick: (feature: string) => void;
+  onOpenCredits: () => void;
 }
 
 const MENU_ITEMS = [
@@ -19,7 +21,7 @@ const MENU_ITEMS = [
   { icon: '⚙️', label: 'Settings', href: '/settings' },
 ];
 
-export function Sidebar({ onLockedFeatureClick }: SidebarProps) {
+export function Sidebar({ onLockedFeatureClick, onOpenCredits }: SidebarProps) {
   const { user, signOut } = useAuth();
   const tier = (user?.tier || 'FREE') as 'FREE' | 'PRO' | 'PREMIUM';
   const router = useRouter();
@@ -77,6 +79,13 @@ export function Sidebar({ onLockedFeatureClick }: SidebarProps) {
 
         {/* ENH-23: Oracle streak indicator */}
         <StreakIndicator />
+
+        {/* PIX-128: Credit balance */}
+        {tier === 'FREE' && (
+          <div className="mt-2">
+            <CreditBalanceIndicator onOpenPurchase={onOpenCredits} />
+          </div>
+        )}
 
         {/* User card wrapper — relative so popover can position above it */}
         <div ref={containerRef} className="mt-3 mx-1 relative">

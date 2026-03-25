@@ -11,6 +11,8 @@
  * and stores the result so it's only ever called once per user per day.
  */
 
+import { generateText } from 'ai';
+import { anthropic } from '@ai-sdk/anthropic';
 import { prisma } from '../utils/prisma';
 import { generateDailyForecast, getPersonalDailyHoroscope } from './forecast';
 
@@ -93,6 +95,7 @@ export async function storeForecast(
 async function generateForUser(user: {
   id: string;
   language: string;
+  tier?: string;
   birthProfile: {
     birthDate: Date;
     birthTime: string | null;
@@ -106,7 +109,16 @@ async function generateForUser(user: {
   const date = todayString();
   const existing = await getStoredForecast(user.id, date);
   if (existing?.horoscope && existing?.forecast) {
-    // Already generated today — skip
+    // Already generated today — but check if PREMIUM needs oracleInsight added
+    if (user.tier === 'PREMIUM') {
+      const existingForecast = existing.forecast as any;
+      if (!existingForecast?.oracleInsight) {
+        const insight = await generateOracleInsight(existingForecast, user.language);
+        if (insight) {
+          await storeForecast(user.id, date, existing.horoscope, { ...existingForecast, oracleInsight: insight });
+        }
+      }
+    }
     return;
   }
 
@@ -138,9 +150,52 @@ async function generateForUser(user: {
     console.warn(`[ForecastCron] Forecast failed for ${user.id}:`, err);
   }
 
+  // PREMIUM: generate a one-sentence Oracle Insight using Claude Haiku (~€0.002/user/day)
+  if (user.tier === 'PREMIUM' && forecast) {
+    try {
+      const insight = await generateOracleInsight(forecast, user.language);
+      if (insight) forecast = { ...forecast, oracleInsight: insight };
+    } catch (err) {
+      console.warn(`[ForecastCron] Oracle Insight failed for ${user.id}:`, err);
+    }
+  }
+
   if (horoscope || forecast) {
     await storeForecast(user.id, date, horoscope, forecast);
-    console.log(`[ForecastCron] Generated for user ${user.id}`);
+    console.log(`[ForecastCron] Generated for user ${user.id}${user.tier === 'PREMIUM' ? ' (+ Oracle Insight)' : ''}`);
+  }
+}
+
+/**
+ * Generate a one-sentence personalized Oracle Insight using Claude Haiku.
+ * Used for PREMIUM tier users in the morning briefing.
+ * Cost: ~€0.002/user/day.
+ */
+async function generateOracleInsight(forecast: any, language: string): Promise<string | null> {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+
+  const moonPhase = forecast?.moonPhase?.phase || forecast?.moonPhase?.phaseBg || 'current moon phase';
+  const energy = forecast?.energy || 'moderate';
+  const topTransit = forecast?.transits?.[0];
+  const transitDesc = topTransit
+    ? `${topTransit.planet} in ${topTransit.sign}`
+    : 'current transits';
+
+  const prompt = language === 'bg'
+    ? `Ти си мъдър астрологичен оракул. Напиши ТОЧНО ЕДНО изречение (максимум 25 думи) — дълбоко, поетично послание за деня, вдъхновено от: луна ${moonPhase}, енергия ${energy}, ${transitDesc}. Само изречението, без встъпление.`
+    : `You are a wise astrological Oracle. Write EXACTLY ONE sentence (max 25 words) — a deep, poetic message for today inspired by: ${moonPhase} moon, ${energy} energy, ${transitDesc}. Just the sentence, no preamble.`;
+
+  try {
+    const result = await generateText({
+      model: anthropic('claude-haiku-4-5-20251001'),
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.8,
+      maxTokens: 80,
+    });
+    return result.text.trim().replace(/^["']|["']$/g, ''); // strip surrounding quotes if any
+  } catch (err) {
+    console.warn('[ForecastCron] Oracle Insight generation error:', err);
+    return null;
   }
 }
 
@@ -161,6 +216,7 @@ export async function runNightlyForecastJob(): Promise<void> {
   let users: Array<{
     id: string;
     language: string;
+    tier: string;
     birthProfile: {
       birthDate: Date;
       birthTime: string | null;
@@ -180,6 +236,7 @@ export async function runNightlyForecastJob(): Promise<void> {
       select: {
         id: true,
         language: true,
+        tier: true,
         birthProfiles: {
           orderBy: { createdAt: 'desc' },
           take: 1,
@@ -190,6 +247,7 @@ export async function runNightlyForecastJob(): Promise<void> {
     users = rawUsers.map(u => ({
       id: u.id,
       language: u.language,
+      tier: u.tier,
       birthProfile: u.birthProfiles[0] ?? null,
     }));
   } catch (err) {

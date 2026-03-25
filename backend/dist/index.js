@@ -67,6 +67,7 @@ const cron_1 = __importDefault(require("./routes/cron")); // US-36: Monthly Rese
 const astrology_1 = __importDefault(require("./routes/astrology")); // US-33: Astrology API Fallback
 const admin_1 = __importDefault(require("./routes/admin")); // Step 11: Admin Dashboard
 const guestChat_1 = __importDefault(require("./routes/guestChat"));
+const credits_1 = __importDefault(require("./routes/credits")); // FEAT-10: Credits
 // US-37: Rate limit headers middleware
 const rateLimitHeaders_1 = require("./middleware/rateLimitHeaders");
 // US-30: Chart regeneration processor
@@ -205,6 +206,7 @@ app.use('/api/v1/compatibility', compatibility_1.default); // US-20: Compatibili
 app.use('/api/v1/cron', cron_1.default); // US-36: Monthly Reset Cron
 app.use('/api/v1/astrology', astrology_1.default); // US-33: Astrology API Fallback
 app.use('/api/v1/admin', admin_1.default); // Step 11: Admin Dashboard
+app.use('/api/v1/credits', credits_1.default); // FEAT-10: Credits system
 // ============================================
 // ERROR HANDLING
 // ============================================

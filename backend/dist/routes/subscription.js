@@ -810,7 +810,12 @@ router.post('/webhook', async (req, res) => {
         switch (event.type) {
             case 'checkout.session.completed': {
                 const session = event.data.object;
-                const { userId, tier, billingPeriod = 'monthly' } = session.metadata || {};
+                const { userId, type: paymentType, tier, billingPeriod = 'monthly' } = session.metadata || {};
+                // Credits one-time purchase — handled in credits route webhook handler
+                if (paymentType === 'credits') {
+                    await handleCreditsPurchaseWebhook(session);
+                    break;
+                }
                 if (userId && tier) {
                     // Get user for email and language preference
                     const user = await prisma_1.prisma.user.findUnique({
@@ -1006,6 +1011,60 @@ function mapStripeSubscriptionStatus(status) {
         trialing: 'TRIALING',
     };
     return statusMap[status] || 'ACTIVE';
+}
+// Credits webhook helper
+async function handleCreditsPurchaseWebhook(session) {
+    const { userId, packId } = session.metadata || {};
+    if (!userId || !packId) {
+        console.error('[credits webhook] Missing userId or packId in metadata', session.id);
+        return;
+    }
+    const PACK_INFO = {
+        starter: { credits: 3, amountCents: 299 },
+        popular: { credits: 10, amountCents: 799 },
+        best_value: { credits: 25, amountCents: 1499 },
+    };
+    const pack = PACK_INFO[packId];
+    if (!pack) {
+        console.error('[credits webhook] Unknown packId:', packId);
+        return;
+    }
+    const { credits, amountCents } = pack;
+    const paymentIntentId = session.payment_intent;
+    await prisma_1.prisma.$transaction(async (tx) => {
+        if (paymentIntentId) {
+            const existing = await tx.creditTransaction.findUnique({
+                where: { stripePaymentIntentId: paymentIntentId },
+            });
+            if (existing)
+                return;
+        }
+        const current = await tx.userCredits.upsert({
+            where: { userId },
+            create: { userId, balance: 0, totalPurchased: 0, totalSpent: 0 },
+            update: {},
+        });
+        const newBalance = current.balance + credits;
+        await tx.userCredits.update({
+            where: { userId },
+            data: {
+                balance: newBalance,
+                totalPurchased: { increment: credits },
+            },
+        });
+        await tx.creditTransaction.create({
+            data: {
+                userId,
+                type: 'purchase',
+                amount: credits,
+                balanceAfter: newBalance,
+                description: `Purchased ${credits} credits (${packId})`,
+                stripePaymentIntentId: paymentIntentId ?? undefined,
+                purchaseAmountCents: amountCents,
+            },
+        });
+    });
+    console.log(`[credits] +${credits} credits for user ${userId} (pack: ${packId})`);
 }
 exports.default = router;
 //# sourceMappingURL=subscription.js.map

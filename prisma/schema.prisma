@@ -63,6 +63,8 @@ model User {
   dailyForecasts    DailyForecast[]
   refreshTokens     RefreshToken[]
   streak            UserStreak?
+  userCredits       UserCredits?
+  creditTransactions CreditTransaction[]
 
   @@map("users")
 }
@@ -163,6 +165,7 @@ model ChatSession {
   isArchived        Boolean   @default(false) @map("is_archived")
   sharedToken       String?   @unique @map("shared_token") // ENH-12: public share link token
   rating            Int?      // ENH-25: 1-5 star session rating
+  creditTier        String?   @map("credit_tier")         // FEAT-10: effective tier if started with credits ('PRO'|'PREMIUM')
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
@@ -307,6 +310,7 @@ model NotificationPreference {
   
   // Notification types (each type can be enabled/disabled)
   dailyHoroscope    Boolean   @default(true) @map("daily_horoscope")
+  morningBriefing   Boolean   @default(false) @map("morning_briefing") // PIX-134: FEAT-13
   weeklyForecast    Boolean   @default(true) @map("weekly_forecast")
   newReading        Boolean   @default(true) @map("new_reading")
   partnerUpdates    Boolean   @default(false) @map("partner_updates")
@@ -525,4 +529,39 @@ model UserStreak {
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_streaks")
+}
+
+// ============================================
+// CREDITS — FEAT-10: One-time purchases
+// ============================================
+
+model UserCredits {
+  id             String   @id @default(uuid())
+  userId         String   @unique @map("user_id")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance        Int      @default(0)          // current balance (CHECK >= 0 in migration SQL)
+  totalPurchased Int      @default(0) @map("total_purchased")
+  totalSpent     Int      @default(0) @map("total_spent")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("user_credits")
+}
+
+model CreditTransaction {
+  id                    String   @id @default(uuid())
+  userId                String   @map("user_id")
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                  String   // 'purchase' | 'spend' | 'refund' | 'bonus'
+  amount                Int      // positive for credit, negative for debit
+  balanceAfter          Int      @map("balance_after")
+  description           String
+  stripePaymentIntentId String?  @unique @map("stripe_payment_intent_id") // idempotency for webhooks
+  purchaseAmountCents   Int?     @map("purchase_amount_cents") // EUR cents paid (for upsell threshold)
+  relatedEntityType     String?  @map("related_entity_type") // 'oracle_session' | 'tool_call' etc.
+  relatedEntityId       String?  @map("related_entity_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("credit_transactions")
 }

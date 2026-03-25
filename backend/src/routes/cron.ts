@@ -11,6 +11,8 @@ import { runLifecycleCron } from '../services/email/lifecycle';
 import { revertExpiredTrials } from '../services/streakService';
 import { runNightlyForecastJob } from '../services/forecast-cron';
 import { warmDailyTransitsCache } from '../services/transits';
+import { sendDailyHoroscopeEmails } from '../services/email/horoscope-email';
+import { sendMorningBriefingEmails } from '../services/email/morning-briefing-email';
 
 const router = Router();
 
@@ -131,6 +133,56 @@ router.post('/daily-forecasts', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('[Cron] daily-forecasts error:', error);
     return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Daily forecasts cron failed' } });
+  }
+});
+
+/**
+ * POST /api/v1/cron/daily-horoscope-emails
+ * Send daily horoscope emails to opted-in users.
+ * Schedule: 07:00 UTC (09:00 Bulgaria time) — runs after daily-forecasts cron (02:00 UTC).
+ * Security: Requires CRON_SECRET header for authentication
+ */
+router.post('/daily-horoscope-emails', async (req: Request, res: Response) => {
+  try {
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED', message: 'Cron secret is not configured' } });
+    }
+    if (req.headers['x-cron-secret'] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } });
+    }
+
+    const result = await sendDailyHoroscopeEmails();
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[Cron] daily-horoscope-emails error:', error);
+    return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Daily horoscope emails cron failed' } });
+  }
+});
+
+/**
+ * POST /api/v1/cron/morning-briefing-emails
+ * Send morning briefing emails to users whose local time is 06:00-08:00.
+ * Schedule: every hour — 0 * * * * (Railway cron)
+ * Each run processes only users currently in their 06:00-08:00 local window.
+ * Redis dedup ensures one email per user per day.
+ * Security: Requires CRON_SECRET header for authentication
+ */
+router.post('/morning-briefing-emails', async (req: Request, res: Response) => {
+  try {
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED', message: 'Cron secret is not configured' } });
+    }
+    if (req.headers['x-cron-secret'] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } });
+    }
+
+    const result = await sendMorningBriefingEmails();
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[Cron] morning-briefing-emails error:', error);
+    return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Morning briefing emails cron failed' } });
   }
 });
 
