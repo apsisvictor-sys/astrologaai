@@ -22,6 +22,8 @@ router.get('/:id', partnerController_1.getPartner);
 router.get('/:id/synastry', partnerController_1.getSynastry);
 // GET /api/partners/:id/report - US-20: Get compatibility report
 router.get('/:id/report', partnerController_1.getCompatibilityReport);
+// GET /api/partners/:id/composite - FEAT-11: Get composite chart (PREMIUM)
+router.get('/:id/composite', partnerController_1.getCompositeChart);
 // PUT /api/partners/:id - Update partner
 router.put('/:id', partnerController_1.updatePartner);
 // DELETE /api/partners/:id - Delete partner
