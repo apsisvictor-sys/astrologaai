@@ -126,7 +126,7 @@ export default function BirthDataSettingsPage() {
     return () => clearTimeout(id);
   }, [location, selectedLocation]);
 
-  const canSave = birthDate && (unknownTime || birthTime) && selectedLocation;
+  const canSave = birthDate && selectedLocation;
 
   const handleSave = async () => {
     if (!canSave || !selectedLocation) return;
@@ -136,7 +136,7 @@ export default function BirthDataSettingsPage() {
       const payload = {
         name: user?.fullName || user?.email || 'My Chart',
         birthDate,
-        birthTime: unknownTime ? null : birthTime || null,
+        birthTime: unknownTime ? '12:00' : birthTime || '12:00',
         isUnknownTime: unknownTime,
         locationName: selectedLocation.city
           ? `${selectedLocation.city}${selectedLocation.country ? ', ' + selectedLocation.country : ''}`
@@ -254,7 +254,7 @@ export default function BirthDataSettingsPage() {
                   <input
                     type="checkbox"
                     checked={unknownTime}
-                    onChange={(e) => { setUnknownTime(e.target.checked); if (e.target.checked) setBirthTime(''); }}
+                    onChange={(e) => { setUnknownTime(e.target.checked); setBirthTime('12:00'); }}
                     className="accent-primary"
                   />
                   Unknown
@@ -268,6 +268,15 @@ export default function BirthDataSettingsPage() {
                 className="w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-colors disabled:opacity-40"
                 style={{ background: 'rgba(255,255,255,0.05)', border: `1px solid ${COLORS.borderInput}`, color: COLORS.textPrimary }}
               />
+              {unknownTime ? (
+                <p className="mt-1.5 text-xs" style={{ color: COLORS.textMuted }}>
+                  Rising sign and house cusps will be approximate.
+                </p>
+              ) : (
+                <p className="mt-1.5 text-xs" style={{ color: COLORS.textMuted }}>
+                  Don&apos;t know your birth time? We&apos;ll use noon — update it later.
+                </p>
+              )}
             </div>
 
             {/* Location */}

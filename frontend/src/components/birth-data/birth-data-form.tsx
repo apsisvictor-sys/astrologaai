@@ -186,7 +186,7 @@ export default function BirthDataForm() {
           body: JSON.stringify({
             name: formData.name,
             birthDate: formData.birthDate,
-            birthTime: formData.isUnknownTime ? null : formData.birthTime || null,
+            birthTime: formData.isUnknownTime ? '12:00' : formData.birthTime || '12:00',
             locationName: formData.locationName,
             latitude: formData.latitude,
             longitude: formData.longitude,
@@ -321,7 +321,7 @@ export default function BirthDataForm() {
               <div className="flex items-center gap-3 mb-4">
                 <button
                   type="button"
-                  onClick={() => setFormData({ ...formData, isUnknownTime: !formData.isUnknownTime, birthTime: '' })}
+                  onClick={() => setFormData({ ...formData, isUnknownTime: !formData.isUnknownTime, birthTime: '12:00' })}
                   className="w-6 h-6 rounded-md flex items-center justify-center transition-all"
                   style={{
                     background: formData.isUnknownTime ? colors.primary : 'transparent',
@@ -337,7 +337,7 @@ export default function BirthDataForm() {
                 <label
                   className="cursor-pointer"
                   style={{ color: colors.textPrimary }}
-                  onClick={() => setFormData({ ...formData, isUnknownTime: !formData.isUnknownTime, birthTime: '' })}
+                  onClick={() => setFormData({ ...formData, isUnknownTime: !formData.isUnknownTime, birthTime: '12:00' })}
                 >
                   I don&apos;t know my birth time
                 </label>
@@ -362,6 +362,9 @@ export default function BirthDataForm() {
                   {errors.birthTime && (
                     <p className="mt-1 text-sm" style={{ color: colors.error }}>{errors.birthTime}</p>
                   )}
+                  <p className="mt-2 text-sm" style={{ color: colors.textSecondary }}>
+                    Don&apos;t know your birth time? We&apos;ll use noon — update it later.
+                  </p>
                 </div>
               )}
 
@@ -371,7 +374,7 @@ export default function BirthDataForm() {
                   style={{ background: `${colors.primary}15`, borderLeft: `3px solid ${colors.primary}` }}
                 >
                   <p style={{ color: colors.textSecondary }}>
-                    We&apos;ll use 12:00 PM as the default time. Your chart will still be accurate for most placements.
+                    Rising sign and house cusps will be approximate.
                   </p>
                 </div>
               )}
