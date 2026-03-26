@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 
 const LEFT_TABS = [
   { href: '/chart',    icon: '✦', label: 'Chart',    minTier: null  },
-  { href: '/best-days', icon: '☆', label: 'Best Days', minTier: null },
+  { href: '/best-days', icon: '☆', label: 'Best Days', minTier: 'PREMIUM' },
 ] as const;
 
 const RIGHT_TABS = [
@@ -32,7 +32,7 @@ export function BottomNav({ onLockedClick }: { onLockedClick: (f: string) => voi
       )}>
         <span className="text-lg leading-none">{tab.icon}</span>
         <span className="text-[10px] font-medium">{tab.label}</span>
-        {isLocked && <span className="text-[8px] font-bold text-pro-gold">PRO</span>}
+        {isLocked && <span className={`text-[8px] font-bold ${tab.minTier === 'PREMIUM' ? 'text-premium-purple' : 'text-pro-gold'}`}>{tab.minTier}</span>}
       </div>
     );
 

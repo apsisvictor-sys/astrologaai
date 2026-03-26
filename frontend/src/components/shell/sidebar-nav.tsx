@@ -4,17 +4,22 @@ import { Link, usePathname } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 
-const NAV_ITEMS = [
+type NavItem =
+  | { href: string; icon: string; label: string; minTier: 'PRO' | 'PREMIUM' | null }
+  | { section: string };
+
+const NAV_ITEMS: NavItem[] = [
   { href: '/dashboard', icon: '⌂', label: 'Dashboard', minTier: null      },
   { href: '/chat',      icon: '✦', label: 'Chat',      minTier: null      },
-  { href: '/chart',    icon: '◉', label: 'My Chart',  minTier: null      },
-  { href: '/forecast',      icon: '◎', label: 'Forecast',      minTier: 'PRO'     },
-  { href: '/solar-return', icon: '☀', label: 'Solar Return',  minTier: 'PREMIUM' },
-  { href: '/best-days',    icon: '☆', label: 'Best Days',    minTier: null      },
-  { href: '/partners',  icon: '♡', label: 'Partners',  minTier: 'PREMIUM' },
-  { href: '/memory',   icon: '◈', label: 'Memory',    minTier: 'PREMIUM' },
-  { href: '/settings', icon: '⚙', label: 'Settings',  minTier: null      },
-] as const;
+  { href: '/chart',     icon: '◉', label: 'My Chart',  minTier: null      },
+  { href: '/forecast',  icon: '◎', label: 'Forecast',  minTier: 'PRO'     },
+  { section: 'PREMIUM' },
+  { href: '/solar-return', icon: '☀', label: 'Solar Return', minTier: 'PREMIUM' },
+  { href: '/best-days',    icon: '☆', label: 'Best Days',    minTier: 'PREMIUM' },
+  { href: '/partners',     icon: '♡', label: 'Partners',     minTier: 'PREMIUM' },
+  { href: '/memory',       icon: '◈', label: 'My Memories',  minTier: 'PREMIUM' },
+  { href: '/settings',     icon: '⚙', label: 'Settings',     minTier: null      },
+];
 
 const TIER_ORDER = { FREE: 0, PRO: 1, PREMIUM: 2 };
 
@@ -28,9 +33,20 @@ export function SidebarNav({ userTier, onLockedClick }: SidebarNavProps) {
 
   return (
     <nav className="flex flex-col gap-1">
-      {NAV_ITEMS.map((item) => {
-        const isLocked = item.minTier !== null && TIER_ORDER[userTier] < TIER_ORDER[item.minTier as keyof typeof TIER_ORDER];
+      {NAV_ITEMS.map((item, idx) => {
+        if ('section' in item) {
+          return (
+            <div key={`section-${idx}`} className="px-3 pt-3 pb-1">
+              <span className="text-[10px] font-bold tracking-widest uppercase text-premium-purple/60">
+                {item.section}
+              </span>
+            </div>
+          );
+        }
+
+        const isLocked = item.minTier !== null && TIER_ORDER[userTier] < TIER_ORDER[item.minTier];
         const isActive = pathname.startsWith(item.href);
+        const badgeVariant = item.minTier === 'PREMIUM' ? 'premium' : 'pro';
 
         if (isLocked) {
           return (
@@ -41,7 +57,7 @@ export function SidebarNav({ userTier, onLockedClick }: SidebarNavProps) {
             >
               <span className="w-8 text-center opacity-40">{item.icon}</span>
               <span className="text-sm opacity-40">{item.label}</span>
-              <Badge variant="pro" className="ml-auto">{item.minTier}</Badge>
+              <Badge variant={badgeVariant} className="ml-auto">{item.minTier}</Badge>
             </button>
           );
         }
