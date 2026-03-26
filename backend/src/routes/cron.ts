@@ -14,6 +14,7 @@ import { warmDailyTransitsCache } from '../services/transits';
 import { sendDailyHoroscopeEmails } from '../services/email/horoscope-email';
 import { sendMorningBriefingEmails } from '../services/email/morning-briefing-email';
 import { runMemoryExtractionJob } from '../services/memory-extraction-cron';
+import { sendSolarReturnBirthdayEmails } from '../services/email/solar-return-birthday-email';
 
 const router = Router();
 
@@ -210,6 +211,31 @@ router.post('/memory-extraction', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('[Cron] memory-extraction error:', error);
     return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Memory extraction cron failed' } });
+  }
+});
+
+/**
+ * POST /api/v1/cron/solar-return-birthday
+ * Send Solar Return birthday emails to users whose birthday is tomorrow.
+ * Schedule: 09:00 UTC daily (fire ≤24h before solar return date).
+ * Feb 29 birthdays receive email on Feb 28 in non-leap years.
+ * Security: Requires CRON_SECRET header for authentication
+ */
+router.post('/solar-return-birthday', async (req: Request, res: Response) => {
+  try {
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED', message: 'Cron secret is not configured' } });
+    }
+    if (req.headers['x-cron-secret'] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } });
+    }
+
+    const result = await sendSolarReturnBirthdayEmails();
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[Cron] solar-return-birthday error:', error);
+    return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Solar return birthday emails cron failed' } });
   }
 });
 
