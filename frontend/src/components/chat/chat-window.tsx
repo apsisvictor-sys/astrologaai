@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { useChat } from '@/lib/chat-context';
+import { trackOracleQuery } from '@/lib/analytics';
 import { getApiBaseUrl } from '@/lib/runtime-config';
 import { MessageList } from './message-list';
 import { ChatInputBar } from './chat-input-bar';
@@ -196,7 +197,13 @@ export function ChatWindow({ sessionId }: ChatWindowProps) {
 
       {/* Input */}
       <ChatInputBar
-        onSend={(content) => sendMessage(content)}
+        onSend={(content) => {
+          trackOracleQuery({
+            query_index: messages.filter(m => m.role === 'user').length,
+            is_free: user?.tier === 'FREE',
+          });
+          sendMessage(content);
+        }}
         onCancel={cancelGeneration}
         isStreaming={isStreaming}
         disabled={isLoading || dailyLimitReached}

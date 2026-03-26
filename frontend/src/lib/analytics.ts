@@ -17,12 +17,20 @@ export function trackUserRegistered(props: { method: 'email' | 'google' | 'apple
   capture('user_registered', props);
 }
 
+export function trackUserSignedUp(props: { method: 'magic_link' }) {
+  capture('user_signed_up', props);
+}
+
 export function trackEmailVerified() {
   capture('email_verified');
 }
 
 export function trackOnboardingCompleted() {
   capture('onboarding_completed');
+}
+
+export function trackBirthDataCompleted(props: { birth_time_known: boolean }) {
+  capture('birth_data_completed', props);
 }
 
 // ── Engagement ───────────────────────────────────────────────────────────────
@@ -33,6 +41,10 @@ export function trackChartViewed(props: { isUnknownTime: boolean }) {
 
 export function trackOracleQuerySent(props: { tier: string; sessionId: string }) {
   capture('oracle_query_sent', props);
+}
+
+export function trackOracleQuery(props: { query_index: number; is_free: boolean }) {
+  capture('oracle_query', props);
 }
 
 export function trackForecastViewed(props: { tier: string }) {
@@ -55,6 +67,10 @@ export function trackUpgradeCtaClicked(props: { targetTier: string; feature: str
 
 export function trackSubscriptionStarted(props: { tier: string }) {
   capture('subscription_started', props);
+}
+
+export function trackSubscriptionUpgraded(props: { plan: string; amount: number; currency: string }) {
+  capture('subscription_upgraded', props);
 }
 
 export function trackSubscriptionCancelled(props: { tier: string }) {

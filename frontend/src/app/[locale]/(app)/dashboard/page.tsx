@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
+import { trackSubscriptionUpgraded } from '@/lib/analytics';
 import { Link, useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { LanguageSwitcher } from '@/components/language-switcher';
@@ -129,6 +130,23 @@ export default function DashboardPage({
     if (notice) {
       setPendingNotice(notice);
       localStorage.removeItem('astrologaai_pending_notice');
+    }
+  }, []);
+
+  // Fire subscription_upgraded event when returning from Stripe checkout
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isCheckoutSuccess = new URLSearchParams(window.location.search).get('checkout') === 'success';
+    if (!isCheckoutSuccess) return;
+    const pending = localStorage.getItem('astrologaai_pending_upgrade');
+    if (pending) {
+      try {
+        const { plan, amount, currency } = JSON.parse(pending);
+        trackSubscriptionUpgraded({ plan, amount, currency });
+      } catch {
+        // non-blocking
+      }
+      localStorage.removeItem('astrologaai_pending_upgrade');
     }
   }, []);
 

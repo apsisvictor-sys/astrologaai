@@ -228,8 +228,12 @@ export async function oauthCallback(req: Request, res: Response, next: NextFunct
       },
     });
 
+    // Track whether this is a new registration
+    let isNewUser = false;
+
     // If user doesn't exist, create one
     if (!user) {
+      isNewUser = true;
       // Generate a random password for OAuth users (they won't use it)
       const randomPassword = require('crypto').randomBytes(32).toString('hex');
       const passwordHash = await bcrypt.hash(randomPassword, 12);
@@ -330,6 +334,8 @@ export async function oauthCallback(req: Request, res: Response, next: NextFunct
           accessToken,
           expiresIn: JWT_CONFIG.expiresIn,
         },
+        isNewUser,
+        authProvider: supabaseUser.app_metadata?.provider || 'unknown',
         message: 'Login successful',
       },
     });

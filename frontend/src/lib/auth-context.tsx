@@ -14,6 +14,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useRouter } from 'next/navigation';
 import { signInWithGoogle, signInWithMagicLink } from './supabase-browser';
 import { getApiBaseUrl } from './runtime-config';
+import posthog from 'posthog-js';
+import { trackUserSignedUp } from './analytics';
 
 // Types
 interface User {
@@ -425,11 +427,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Store tokens and user
-      const { user: userData, tokens } = data.data;
+      const { user: userData, tokens, isNewUser, authProvider } = data.data;
 
       localStorage.setItem(ACCESS_TOKEN_KEY, tokens.accessToken);
 
       setUser(userData);
+
+      // Track magic link sign-ups in PostHog
+      if (isNewUser && authProvider === 'email') {
+        posthog.identify(userData.id);
+        trackUserSignedUp({ method: 'magic_link' });
+      }
 
       // Migrate any guest session data (same as email signUp)
       const migratedSessionId = await migrateGuestSession(tokens.accessToken, userData);

@@ -217,6 +217,11 @@ function PricingPage() {
       });
       const result = await res.json();
       if (result.data?.checkoutUrl) {
+        const selectedPlan = PLANS.find(p => p.id === tier);
+        if (selectedPlan && selectedPlan.monthlyPrice > 0) {
+          const amount = billingPeriod === 'monthly' ? selectedPlan.monthlyPrice : selectedPlan.yearlyPrice;
+          localStorage.setItem('astrologaai_pending_upgrade', JSON.stringify({ plan: tier.toLowerCase(), amount, currency: 'eur' }));
+        }
         window.location.href = result.data.checkoutUrl;
       } else if (!result.success) {
         setPromoError('Invalid or expired promo code.');
