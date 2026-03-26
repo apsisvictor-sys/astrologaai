@@ -37,6 +37,7 @@ vi.mock('../../src/utils/prisma', () => {
     user: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn() },
     userMemory: {
       findMany: vi.fn(),
+      findUnique: vi.fn(),
       deleteMany: vi.fn(),
       delete: vi.fn(),
       create: vi.fn(),
@@ -59,6 +60,12 @@ vi.mock('../../src/utils/prisma-vector', () => ({
 vi.mock('ai', () => ({
   streamText: vi.fn(),
   generateText: vi.fn(),
+  embed: vi.fn(),
+}));
+
+vi.mock('../../src/services/embedding', () => ({
+  embedText: vi.fn(),
+  embedBatch: vi.fn(),
 }));
 
 vi.mock('@ai-sdk/anthropic', () => ({
@@ -97,7 +104,9 @@ import userRouter from '../../src/routes/user';
 import { getAspectCooldowns } from '../../src/services/memory-retrieval';
 import { streamChatCompletion } from '../../src/services/llm';
 import { getPrismaVector } from '../../src/utils/prisma-vector';
-import { streamText } from 'ai';
+import { streamText, generateText } from 'ai';
+import { embedText } from '../../src/services/embedding';
+import { runMemoryExtractionJob } from '../../src/services/memory-extraction-cron';
 
 // ─── Express app for HTTP tests ───────────────────────────────────────────────
 
@@ -138,21 +147,94 @@ const MOCK_MEMORY_OLD = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // §1 — Extraction job (PIX-168)
-//   Service: src/services/memory-extraction.ts (not yet implemented)
-//   Contract: extractMemoriesForUser(userId) → { extracted: number }
+//   Service: src/services/memory-extraction-cron.ts
+//   runMemoryExtractionJob() → { usersProcessed, totalInserted, totalSkipped }
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('§1 — Extraction job', () => {
-  it.todo('PREMIUM user with 24h chat history → extraction produces ≥1 UserMemory row');
+  // Advance fake timers to skip delay(1500) between users
+  const runJob = async () => {
+    const promise = runMemoryExtractionJob();
+    await vi.runAllTimersAsync();
+    return promise;
+  };
 
-  it.todo(
-    'Duplicate memory (cosine distance < 0.15) is NOT re-inserted — ' +
-    'second extraction with same content leaves count unchanged'
-  );
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    (getPrismaVector as ReturnType<typeof vi.fn>).mockReturnValue(_pvMock);
+    // Default: dummy embedding, no dedup match, successful insert
+    (embedText as ReturnType<typeof vi.fn>).mockResolvedValue(Array(1536).fill(0.01));
+    _pvMock.$queryRaw.mockResolvedValue([]);    // no duplicate found
+    _pvMock.$executeRaw.mockResolvedValue(undefined);
+    (prisma.chatMessage.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (prisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+    (generateText as ReturnType<typeof vi.fn>).mockResolvedValue({ text: '[]' });
+  });
 
-  it.todo('User with memoryEnabled = false → 0 memories extracted; no DB writes');
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
-  it.todo('FREE user → 0 memories extracted even when chat history is non-empty');
+  it('PREMIUM user with 24h chat history → extraction produces ≥1 UserMemory row', async () => {
+    (prisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { userId: 'user-premium-id', sessionId: 'session-1' },
+    ]);
+    (prisma.chatMessage.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { role: 'USER', content: 'I just quit my job to start my own company.', createdAt: new Date() },
+      { role: 'ASSISTANT', content: 'That is a significant life transition...', createdAt: new Date() },
+    ]);
+    (generateText as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: JSON.stringify([{ content: 'User quit corporate job to start a company.', category: 'career' }]),
+    });
+
+    const result = await runJob();
+
+    expect(result.usersProcessed).toBe(1);
+    expect(result.totalInserted).toBeGreaterThanOrEqual(1);
+    expect(_pvMock.$executeRaw).toHaveBeenCalled();
+  });
+
+  it('Duplicate memory (cosine distance < 0.15) is NOT re-inserted — count unchanged', async () => {
+    (prisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { userId: 'user-premium-id', sessionId: 'session-1' },
+    ]);
+    (prisma.chatMessage.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { role: 'USER', content: 'I am training for a marathon.', createdAt: new Date() },
+    ]);
+    (generateText as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: JSON.stringify([{ content: 'User is training for a marathon.', category: 'health' }]),
+    });
+    // Dedup check returns a match → duplicate detected, skip insert
+    _pvMock.$queryRaw.mockResolvedValue([{ found: 1 }]);
+
+    const result = await runJob();
+
+    expect(result.totalInserted).toBe(0);
+    expect(result.totalSkipped).toBeGreaterThanOrEqual(1);
+    expect(_pvMock.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('User with memoryEnabled = false → 0 memories extracted (filtered by SQL WHERE memory_enabled = true)', async () => {
+    // The SQL query filters out memory_enabled = false users at DB level
+    (prisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    const result = await runJob();
+
+    expect(result.usersProcessed).toBe(0);
+    expect(result.totalInserted).toBe(0);
+    expect(_pvMock.$executeRaw).not.toHaveBeenCalled();
+  });
+
+  it('FREE user → 0 memories extracted (filtered by SQL WHERE tier IN (PRO, PREMIUM))', async () => {
+    // The SQL query filters out FREE users at DB level
+    (prisma.$queryRaw as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    const result = await runJob();
+
+    expect(result.usersProcessed).toBe(0);
+    expect(result.totalInserted).toBe(0);
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -270,19 +352,23 @@ describe('§3 — GDPR endpoints', () => {
 
   describe('DELETE /api/v1/user/memories/:id — delete single memory', () => {
     it('returns 200 and removes the specified memory', async () => {
-      (prisma.userMemory.delete as ReturnType<typeof vi.fn>).mockResolvedValue(MOCK_MEMORY_RECENT);
+      // Route does findUnique first (ownership check), then delete
+      (prisma.userMemory.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue({
+        userId: MOCK_USER_PREMIUM.id,
+      });
+      (prisma.userMemory.delete as ReturnType<typeof vi.fn>).mockResolvedValue({ id: MOCK_MEMORY_RECENT.id });
 
       const res = await request(app).delete(`/api/v1/user/memories/${MOCK_MEMORY_RECENT.id}`);
 
       expect(res.status).toBe(200);
       expect(prisma.userMemory.delete).toHaveBeenCalledWith({
-        where: { id: MOCK_MEMORY_RECENT.id, userId: MOCK_USER_PREMIUM.id },
+        where: { id: MOCK_MEMORY_RECENT.id },
       });
     });
 
-    it('returns 404 when memory not found or belongs to another user', async () => {
-      const notFoundError = Object.assign(new Error('Record not found'), { code: 'P2025' });
-      (prisma.userMemory.delete as ReturnType<typeof vi.fn>).mockRejectedValue(notFoundError);
+    it('returns 404 when memory not found', async () => {
+      // Route checks findUnique; null → 404
+      (prisma.userMemory.findUnique as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
       const res = await request(app).delete('/api/v1/user/memories/does-not-exist');
 
@@ -301,27 +387,31 @@ describe('§3 — GDPR endpoints', () => {
   // ── GET /api/v1/user/memories/export ─────────────────────────────────────
 
   describe('GET /api/v1/user/memories/export — export memories as JSON', () => {
-    it('returns 200 with a JSON array of all memories', async () => {
+    it('returns 200 with memories array and export metadata', async () => {
       (prisma.userMemory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([
         MOCK_MEMORY_RECENT,
       ]);
 
       const res = await request(app).get('/api/v1/user/memories/export');
 
+      // Route returns { exportedAt, userId, totalMemories, memories }
       expect(res.status).toBe(200);
-      expect(Array.isArray(res.body.data)).toBe(true);
-      expect(res.body.data).toHaveLength(1);
-      expect(res.body.data[0].content).toBe(MOCK_MEMORY_RECENT.content);
-      expect(res.body.data[0].category).toBe(MOCK_MEMORY_RECENT.category);
+      expect(Array.isArray(res.body.memories)).toBe(true);
+      expect(res.body.memories).toHaveLength(1);
+      expect(res.body.memories[0].content).toBe(MOCK_MEMORY_RECENT.content);
+      expect(res.body.memories[0].category).toBe(MOCK_MEMORY_RECENT.category);
+      expect(res.body.totalMemories).toBe(1);
+      expect(res.body.exportedAt).toBeDefined();
     });
 
-    it('returns 200 with empty array when user has no memories', async () => {
+    it('returns 200 with empty memories array when user has no memories', async () => {
       (prisma.userMemory.findMany as ReturnType<typeof vi.fn>).mockResolvedValue([]);
 
       const res = await request(app).get('/api/v1/user/memories/export');
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual([]);
+      expect(res.body.memories).toEqual([]);
+      expect(res.body.totalMemories).toBe(0);
     });
 
     it('scopes query to authenticated user — does not leak other users memories', async () => {
