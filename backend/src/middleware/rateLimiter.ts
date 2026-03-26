@@ -108,6 +108,38 @@ export const loginLimiter = rateLimit({
 });
 
 /**
+ * Rate limiter for magic link resend endpoint
+ * 3 resends per hour per IP
+ */
+export const magicLinkResendLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 3,
+  message: {
+    success: false,
+    error: {
+      code: 'RESEND_LIMIT_EXCEEDED',
+      message: 'Too many magic link resend attempts. Please try again later.',
+      retryAfter: '1 hour',
+    },
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request): string => {
+    return req.ip || req.connection.remoteAddress || 'unknown';
+  },
+  handler: (req: Request, res: Response) => {
+    res.status(429).json({
+      success: false,
+      error: {
+        code: 'RESEND_LIMIT_EXCEEDED',
+        message: 'Too many magic link resend attempts. Please try again later.',
+        retryAfter: '1 hour',
+      },
+    });
+  },
+});
+
+/**
  * General API rate limiter
  * 100 requests per 15 minutes per IP
  */
@@ -129,5 +161,6 @@ export default {
   rateLimiter,
   registrationLimiter,
   loginLimiter,
+  magicLinkResendLimiter,
   apiLimiter,
 };

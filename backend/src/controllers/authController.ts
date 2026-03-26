@@ -750,6 +750,39 @@ export async function resendVerification(req: Request, res: Response): Promise<v
 }
 
 /**
+ * Resend magic link — PIX-225
+ * POST /api/v1/auth/resend-magic-link
+ * Public — no auth required (user has no session yet)
+ *
+ * Rate-limited to 3 per hour per IP (see magicLinkResendLimiter).
+ * Logs resend event for audit trail. Actual OTP send is done client-side via Supabase.
+ */
+export async function resendMagicLink(req: Request, res: Response): Promise<void> {
+  const { email } = req.body;
+
+  if (!email || typeof email !== 'string') {
+    res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', message: 'Email is required.' },
+    });
+    return;
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    res.status(400).json({
+      success: false,
+      error: { code: 'VALIDATION_ERROR', message: 'Invalid email address.' },
+    });
+    return;
+  }
+
+  console.log(`[Auth] Magic link resend requested for: ${email} from IP: ${req.ip}`);
+
+  res.json({ success: true, data: { message: 'Magic link resend recorded.' } });
+}
+
+/**
  * Helper: Get current month in YYYY-MM format
  */
 function getCurrentMonth(): string {

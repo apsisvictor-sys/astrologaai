@@ -8,6 +8,7 @@
 import React, { useState, useCallback } from 'react';
 import { useAuth } from '@/lib/auth-context';
 import { CosmicSpinner } from '@/components/ui/spinner';
+import { MagicLinkWaitingScreen } from '@/components/magic-link-waiting';
 
 const PASSWORD_MIN_LENGTH = 8;
 const PASSWORD_REGEX = /^(?=.*[A-Z])(?=.*\d).{8,}$/;
@@ -443,10 +444,10 @@ export function RegistrationForm({ onSuccess, onLoginClick }: RegistrationFormPr
           </div>
         )}
         {magicLinkSent && (
-          <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 text-center">
-            <p className="text-sm text-white font-medium">Check your email ✦</p>
-            <p className="text-xs text-text-muted mt-1">Magic link sent to {magicLinkEmail}</p>
-          </div>
+          <MagicLinkWaitingScreen
+            email={magicLinkEmail}
+            onResend={signInWithMagicLink}
+          />
         )}
       </form>
 

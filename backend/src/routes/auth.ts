@@ -20,9 +20,9 @@
  */
 
 import { Router } from 'express';
-import { register, login, refresh, logout, forgotPassword, resetPassword, verifyEmail, resendVerification } from '../controllers/authController';
+import { register, login, refresh, logout, forgotPassword, resetPassword, verifyEmail, resendVerification, resendMagicLink } from '../controllers/authController';
 import { googleLogin, appleLogin, oauthCallback, getOAuthUrl } from '../controllers/oauthController';
-import { registrationLimiter, loginLimiter } from '../middleware/rateLimiter';
+import { registrationLimiter, loginLimiter, magicLinkResendLimiter } from '../middleware/rateLimiter';
 import { authMiddleware } from '../middleware/auth';
 
 const router = Router();
@@ -118,5 +118,13 @@ router.get('/verify-email', verifyEmail);
  * @access  Private
  */
 router.post('/resend-verification', authMiddleware, resendVerification);
+
+/**
+ * @route   POST /api/v1/auth/resend-magic-link
+ * @desc    Log and rate-limit magic link resend requests (PIX-225)
+ * @access  Public
+ * @rate    3 resends per hour per IP
+ */
+router.post('/resend-magic-link', magicLinkResendLimiter, resendMagicLink);
 
 export default router;
