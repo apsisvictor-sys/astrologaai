@@ -42,6 +42,7 @@ var import_transits = require("../services/transits");
 var import_queryLimit = require("../middleware/queryLimit");
 var import_streakService = require("../services/streakService");
 var import_credits = require("../services/credits");
+var import_memory_retrieval = require("../services/memory-retrieval");
 const prisma = new import_client.PrismaClient();
 function extractSearchSnippet(content, term, maxLen = 140) {
   const idx = content.toLowerCase().indexOf(term.toLowerCase());
@@ -240,6 +241,7 @@ ${aspectLines || "No major aspects within orb today."}`;
         console.warn("[Chat] Failed to compute active transits for system prompt:", err instanceof Error ? err.message : err);
       }
     }
+    const memories = await (0, import_memory_retrieval.retrieveOracleMemories)(userId, content.trim(), effectiveTier);
     const systemPrompt = await (0, import_llm.buildSystemPrompt)({
       chartSummary,
       transitsSummary,
@@ -247,8 +249,10 @@ ${aspectLines || "No major aspects within orb today."}`;
       conversationHistory,
       sessionSummary,
       // US-09: Add session summary for follow-up context
-      recentMessages
+      recentMessages,
       // US-09: Add recent messages for context
+      memories,
+      tier: effectiveTier
     });
     const messages = [
       { role: "system", content: systemPrompt },

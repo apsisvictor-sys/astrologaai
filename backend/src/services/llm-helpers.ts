@@ -27,6 +27,10 @@ export interface ChatContext {
   language: 'bg' | 'en';
   conversationHistory?: ChatMessage[];
   recentMessages?: Array<{ role: string; content: string }>;
+  /** Retrieved memories for Oracle Layer 2 injection (PIX-169) */
+  memories?: Array<{ id: string; content: string; category: string; sourceDate: Date }>;
+  /** User subscription tier — controls memory injection limits */
+  tier?: string;
 }
 
 export interface LLMConfig {
@@ -394,6 +398,30 @@ export async function buildSystemPrompt(context: ChatContext): Promise<string> {
 
   if (context.transitsSummary) {
     prompt += '\n\nCURRENT TRANSITS:\n' + context.transitsSummary;
+  }
+
+  // Oracle Memory injection — PRO/PREMIUM only (PIX-169)
+  if (context.tier && context.tier !== 'FREE' && context.memories && context.memories.length > 0) {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const maxMemories = context.tier === 'PREMIUM' ? 5 : 3;
+
+    let filtered = context.memories;
+    if (context.tier === 'PRO') {
+      filtered = filtered.filter(m => new Date(m.sourceDate) >= thirtyDaysAgo);
+    }
+    filtered = filtered.slice(0, maxMemories);
+
+    if (filtered.length > 0) {
+      const lines = filtered.map(m => {
+        const month = new Date(m.sourceDate).toLocaleString('en-US', {
+          month: 'short',
+          year: 'numeric',
+          timeZone: 'UTC',
+        });
+        return `- [${m.category}] ${m.content} (noted ${month})`;
+      });
+      prompt += '\n\n## Oracle Memory\nThings this user has shared in past conversations:\n' + lines.join('\n');
+    }
   }
 
   prompt += getLanguageDirective(context.language);
