@@ -76,6 +76,7 @@ export async function retrieveOracleMemories(
         FROM   user_memories
         WHERE  user_id = ${userId}
           AND  source_date >= NOW() - INTERVAL '30 days'
+          AND  category != 'aspect_cooldown'
         ORDER  BY embedding <=> ${vec}::vector
         LIMIT  3
       `;
@@ -85,6 +86,7 @@ export async function retrieveOracleMemories(
         SELECT id, content, category, source_date AS "sourceDate"
         FROM   user_memories
         WHERE  user_id = ${userId}
+          AND  category != 'aspect_cooldown'
         ORDER  BY embedding <=> ${vec}::vector
         LIMIT  5
       `;
