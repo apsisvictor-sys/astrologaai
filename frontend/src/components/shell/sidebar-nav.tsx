@@ -8,9 +8,11 @@ const NAV_ITEMS = [
   { href: '/dashboard', icon: '⌂', label: 'Dashboard', minTier: null      },
   { href: '/chat',      icon: '✦', label: 'Chat',      minTier: null      },
   { href: '/chart',    icon: '◉', label: 'My Chart',  minTier: null      },
-  { href: '/forecast',   icon: '◎', label: 'Forecast',   minTier: 'PRO'     },
-  { href: '/best-days', icon: '☆', label: 'Best Days', minTier: null      },
+  { href: '/forecast',      icon: '◎', label: 'Forecast',      minTier: 'PRO'     },
+  { href: '/solar-return', icon: '☀', label: 'Solar Return',  minTier: 'PREMIUM' },
+  { href: '/best-days',    icon: '☆', label: 'Best Days',    minTier: null      },
   { href: '/partners',  icon: '♡', label: 'Partners',  minTier: 'PREMIUM' },
+  { href: '/memory',   icon: '◈', label: 'Memory',    minTier: 'PREMIUM' },
   { href: '/settings', icon: '⚙', label: 'Settings',  minTier: null      },
 ] as const;
 
