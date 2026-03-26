@@ -6,6 +6,7 @@
  * Supports different severity levels and environment-aware logging.
  */
 
+import * as Sentry from '@sentry/node';
 import winston from 'winston';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -215,6 +216,7 @@ export function error(
 ): void {
   const entry = buildLogEntry('error', message, errorCode, options);
   logger.error(entry.message, entry);
+  Sentry.captureMessage(message, 'error');
 }
 
 /**
@@ -227,12 +229,7 @@ export function fatal(
 ): void {
   const entry = buildLogEntry('fatal', message, errorCode, options);
   logger.error(entry.message, entry); // Winston doesn't have fatal level, use error
-  
-  // In production, also send to monitoring service
-  if (process.env.NODE_ENV === 'production') {
-    // TODO: Integrate with monitoring service (Sentry, Datadog, etc.)
-    console.error('[FATAL ERROR]', entry);
-  }
+  Sentry.captureMessage(message, 'fatal');
 }
 
 /**
@@ -405,7 +402,6 @@ export function setLogLevel(level: string): void {
  */
 export function initializeMonitoring(): void {
   if (process.env.NODE_ENV === 'production') {
-    // TODO: Initialize Sentry or other monitoring service
     info('Error monitoring initialized', {
       service: 'error-monitoring',
       timestamp: new Date().toISOString(),
@@ -434,11 +430,7 @@ export function captureException(
   
   logger.error(entry.message, entry);
   
-  // Send to monitoring service in production
-  if (process.env.NODE_ENV === 'production') {
-    // TODO: Send to Sentry/Datadog
-    console.error(`[MONITORING] Exception captured: ${errorId}`);
-  }
+  Sentry.captureException(error, { extra: { errorId, ...context } });
 }
 
 // ============================================

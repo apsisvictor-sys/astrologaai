@@ -213,6 +213,7 @@ Sentry.setupExpressErrorHandler(app);
 
 // Global error handler
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+  Sentry.captureException(err);
   console.error('[Error]', err.stack);
 
   // Check for infrastructure-related errors (database, connection, etc.)
