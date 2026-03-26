@@ -40,18 +40,21 @@ function getAspectStyle(aspectName: string) {
 }
 
 function sym(name: string): string {
-  return PLANET_SYMBOLS[name] ?? name[0];
+  const cap = name.charAt(0).toUpperCase() + name.slice(1);
+  return PLANET_SYMBOLS[name] ?? PLANET_SYMBOLS[cap] ?? name[0];
 }
 
 export function AspectGrid({ aspects, planets, defaultExpanded = false }: AspectGridProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
 
-  // Build O(1) lookup map: "Planet1:Planet2" -> Aspect
+  // Build O(1) lookup map keyed by lowercase: "planet1:planet2" -> Aspect
   const aspectMap = new Map<string, Aspect>();
   for (const asp of aspects) {
-    aspectMap.set(`${asp.planet1}:${asp.planet2}`, asp);
-    aspectMap.set(`${asp.planet2}:${asp.planet1}`, asp);
+    const k1 = asp.planet1.toLowerCase();
+    const k2 = asp.planet2.toLowerCase();
+    aspectMap.set(`${k1}:${k2}`, asp);
+    aspectMap.set(`${k2}:${k1}`, asp);
   }
 
   function handleToggle() {
@@ -156,8 +159,8 @@ export function AspectGrid({ aspects, planets, defaultExpanded = false }: Aspect
                           );
                         }
 
-                        // Lower triangle: check for aspect
-                        const asp = aspectMap.get(`${rowPlanet}:${colPlanet}`);
+                        // Lower triangle: check for aspect (normalize to lowercase for lookup)
+                        const asp = aspectMap.get(`${rowPlanet.toLowerCase()}:${colPlanet.toLowerCase()}`);
                         if (!asp) {
                           return (
                             <td

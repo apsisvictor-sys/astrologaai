@@ -35,7 +35,14 @@ import ProfessionalPDFExport from '@/components/chart/professional-pdf-export';
 import ChartShare from '@/components/chart/chart-share';
 import ChartInterpretation from '@/components/chart/chart-interpretation';
 import AspectExplorer from '@/components/chart/aspect-explorer';
+import { AspectGrid } from '@/components/chart/aspect-grid';
 import TimeSensitivity from '@/components/chart/time-sensitivity';
+
+// Canonical planet order for AspectGrid rows/columns
+const ASPECT_GRID_PLANET_ORDER = [
+  'sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter',
+  'saturn', 'uranus', 'neptune', 'pluto', 'northNode', 'southNode', 'chiron',
+];
 
 // Design system colors (US-12 spec from 06-ux-ui-design.md)
 const colors = {
@@ -488,7 +495,17 @@ export default function NatalChartPage() {
               )}
 
               {viewMode === 'aspects' && (
-                <AspectExplorer chart={chart} language={locale as 'en' | 'bg'} />
+                <div className="space-y-4">
+                  <AspectExplorer chart={chart} language={locale as 'en' | 'bg'} />
+                  {chart.aspects && chart.aspects.length > 0 && (
+                    <AspectGrid
+                      aspects={chart.aspects}
+                      planets={ASPECT_GRID_PLANET_ORDER.filter(
+                        (p) => chart.aspects.some((a) => a.planet1 === p || a.planet2 === p)
+                      )}
+                    />
+                  )}
+                </div>
               )}
 
               {viewMode === 'sensitivity' && (
