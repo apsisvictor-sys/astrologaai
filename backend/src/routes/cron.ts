@@ -13,6 +13,7 @@ import { runNightlyForecastJob } from '../services/forecast-cron';
 import { warmDailyTransitsCache } from '../services/transits';
 import { sendDailyHoroscopeEmails } from '../services/email/horoscope-email';
 import { sendMorningBriefingEmails } from '../services/email/morning-briefing-email';
+import { runMemoryExtractionJob } from '../services/memory-extraction-cron';
 
 const router = Router();
 
@@ -183,6 +184,32 @@ router.post('/morning-briefing-emails', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('[Cron] morning-briefing-emails error:', error);
     return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Morning briefing emails cron failed' } });
+  }
+});
+
+/**
+ * POST /api/v1/cron/memory-extraction
+ * Nightly Haiku memory extraction — scan last 24h Oracle conversations for
+ * PRO/PREMIUM users, extract facts, embed, dedup, and store in user_memories.
+ * Schedule: 03:00 UTC (after daily-forecasts at 02:00).
+ * Security: Requires CRON_SECRET header for authentication
+ */
+router.post('/memory-extraction', async (req: Request, res: Response) => {
+  try {
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED', message: 'Cron secret is not configured' } });
+    }
+    if (req.headers['x-cron-secret'] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } });
+    }
+
+    // Fire-and-forget — job can take several minutes for large user bases
+    runMemoryExtractionJob().catch(err => console.error('[Cron] memory-extraction job error:', err));
+    return res.json({ success: true, message: 'Memory extraction started' });
+  } catch (error) {
+    console.error('[Cron] memory-extraction error:', error);
+    return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Memory extraction cron failed' } });
   }
 });
 
