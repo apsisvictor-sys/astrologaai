@@ -21,7 +21,7 @@ __export(memory_retrieval_exports, {
   retrieveOracleMemories: () => retrieveOracleMemories
 });
 module.exports = __toCommonJS(memory_retrieval_exports);
-var import_prisma = require("../utils/prisma");
+var import_prisma_vector = require("../utils/prisma-vector");
 var import_embedding = require("./embedding");
 function embeddingToSql(embedding) {
   return "[" + embedding.join(",") + "]";
@@ -38,8 +38,9 @@ async function retrieveOracleMemories(userId, messageText, tier) {
   const vec = embeddingToSql(embedding);
   let rows;
   try {
+    const pv = (0, import_prisma_vector.getPrismaVector)();
     if (tier === "PRO") {
-      rows = await import_prisma.prisma.$queryRaw`
+      rows = await pv.$queryRaw`
         SELECT id, content, category, source_date AS "sourceDate"
         FROM   user_memories
         WHERE  user_id = ${userId}
@@ -48,7 +49,7 @@ async function retrieveOracleMemories(userId, messageText, tier) {
         LIMIT  3
       `;
     } else {
-      rows = await import_prisma.prisma.$queryRaw`
+      rows = await pv.$queryRaw`
         SELECT id, content, category, source_date AS "sourceDate"
         FROM   user_memories
         WHERE  user_id = ${userId}
@@ -62,7 +63,7 @@ async function retrieveOracleMemories(userId, messageText, tier) {
   }
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
-  import_prisma.prisma.$executeRaw`
+  (0, import_prisma_vector.getPrismaVector)().$executeRaw`
     UPDATE user_memories
     SET    last_recalled_at = NOW()
     WHERE  id = ANY(${ids}::text[])

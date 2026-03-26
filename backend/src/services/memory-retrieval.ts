@@ -14,7 +14,7 @@
  * buildSystemPrompt() so that unit tests can verify them independently.
  */
 
-import { prisma } from '../utils/prisma';
+import { getPrismaVector } from '../utils/prisma-vector';
 import { embedText } from './embedding';
 
 // ─── types ───────────────────────────────────────────────────────────────────
@@ -61,8 +61,9 @@ export async function retrieveOracleMemories(
 
   let rows: MemoryRow[];
   try {
+    const pv = getPrismaVector();
     if (tier === 'PRO') {
-      rows = await prisma.$queryRaw<MemoryRow[]>`
+      rows = await pv.$queryRaw<MemoryRow[]>`
         SELECT id, content, category, source_date AS "sourceDate"
         FROM   user_memories
         WHERE  user_id = ${userId}
@@ -72,7 +73,7 @@ export async function retrieveOracleMemories(
       `;
     } else {
       // PREMIUM — full history, top 5
-      rows = await prisma.$queryRaw<MemoryRow[]>`
+      rows = await pv.$queryRaw<MemoryRow[]>`
         SELECT id, content, category, source_date AS "sourceDate"
         FROM   user_memories
         WHERE  user_id = ${userId}
@@ -89,7 +90,7 @@ export async function retrieveOracleMemories(
 
   // Update last_recalled_at for retrieved memories — fire-and-forget
   const ids = rows.map(r => r.id);
-  prisma.$executeRaw`
+  getPrismaVector().$executeRaw`
     UPDATE user_memories
     SET    last_recalled_at = NOW()
     WHERE  id = ANY(${ids}::text[])

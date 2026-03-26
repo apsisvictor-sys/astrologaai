@@ -13,6 +13,7 @@
 import { generateText } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { prisma } from '../utils/prisma';
+import { getPrismaVector } from '../utils/prisma-vector';
 import { embedText } from './embedding';
 
 // ─── types ───────────────────────────────────────────────────────────────────
@@ -50,7 +51,7 @@ function embeddingToSql(embedding: number[]): string {
 async function isDuplicate(userId: string, embedding: number[]): Promise<boolean> {
   try {
     const vec = embeddingToSql(embedding);
-    const rows = await prisma.$queryRaw<Array<{ found: number }>>`
+    const rows = await getPrismaVector().$queryRaw<Array<{ found: number }>>`
       SELECT 1 AS found
       FROM   user_memories
       WHERE  user_id = ${userId}
@@ -192,11 +193,11 @@ async function processUser(
       continue;
     }
 
-    // Insert via raw SQL (pgvector::vector cast)
+    // Insert via raw SQL (pgvector::vector cast) — targets vector DB
     try {
       const vec = embeddingToSql(embedding);
       const sourceDateStr = sourceDate.toISOString().split('T')[0];
-      await prisma.$executeRaw`
+      await getPrismaVector().$executeRaw`
         INSERT INTO user_memories (id, user_id, content, embedding, category, source_date, chat_ids, created_at)
         VALUES (
           gen_random_uuid()::text,
@@ -243,6 +244,7 @@ export async function runMemoryExtractionJob(): Promise<{
         AND  cm.role IN ('USER', 'ASSISTANT')
         AND  u.tier IN ('PRO', 'PREMIUM')
         AND  u.is_suspended = false
+        AND  u.memory_enabled = true
     `;
   } catch (err) {
     console.error('[MemoryCron] Failed to query active users:', err);

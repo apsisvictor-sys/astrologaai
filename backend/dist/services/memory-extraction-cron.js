@@ -24,6 +24,7 @@ module.exports = __toCommonJS(memory_extraction_cron_exports);
 var import_ai = require("ai");
 var import_anthropic = require("@ai-sdk/anthropic");
 var import_prisma = require("../utils/prisma");
+var import_prisma_vector = require("../utils/prisma-vector");
 var import_embedding = require("./embedding");
 function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -34,7 +35,7 @@ function embeddingToSql(embedding) {
 async function isDuplicate(userId, embedding) {
   try {
     const vec = embeddingToSql(embedding);
-    const rows = await import_prisma.prisma.$queryRaw`
+    const rows = await (0, import_prisma_vector.getPrismaVector)().$queryRaw`
       SELECT 1 AS found
       FROM   user_memories
       WHERE  user_id = ${userId}
@@ -139,7 +140,7 @@ async function processUser(userId, sessionIds, sourceDate) {
     try {
       const vec = embeddingToSql(embedding);
       const sourceDateStr = sourceDate.toISOString().split("T")[0];
-      await import_prisma.prisma.$executeRaw`
+      await (0, import_prisma_vector.getPrismaVector)().$executeRaw`
         INSERT INTO user_memories (id, user_id, content, embedding, category, source_date, chat_ids, created_at)
         VALUES (
           gen_random_uuid()::text,
@@ -175,6 +176,7 @@ async function runMemoryExtractionJob() {
         AND  cm.role IN ('USER', 'ASSISTANT')
         AND  u.tier IN ('PRO', 'PREMIUM')
         AND  u.is_suspended = false
+        AND  u.memory_enabled = true
     `;
   } catch (err) {
     console.error("[MemoryCron] Failed to query active users:", err);
