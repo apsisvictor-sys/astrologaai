@@ -7,7 +7,8 @@
 // - Preferences model
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
@@ -65,6 +66,7 @@ model User {
   streak            UserStreak?
   userCredits       UserCredits?
   creditTransactions CreditTransaction[]
+  memories          UserMemory[]
 
   @@map("users")
 }
@@ -564,4 +566,28 @@ model CreditTransaction {
 
   @@index([userId])
   @@map("credit_transactions")
+}
+
+// ============================================
+// USER MEMORIES — FUTURE-02: Long-term Personal Memory (PGVector + RAG)
+// ============================================
+
+// Board-approved categories for memory classification.
+// Vector similarity search via embedding (vector(1536) — pgvector).
+// embedding stored as Unsupported type; all vector ops use $queryRaw.
+model UserMemory {
+  id             String    @id @default(uuid())
+  userId         String    @map("user_id")
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content        String    @db.Text
+  // embedding vector(1536) — pgvector type, managed via raw SQL
+  embedding      Unsupported("vector(1536)")?
+  category       String    // 'career'|'love'|'health'|'fears'|'growth'|'high_impact'|'other'
+  sourceDate     DateTime  @map("source_date") @db.Date
+  chatIds        String[]  @map("chat_ids")  // UUID[] of source chat sessions
+  createdAt      DateTime  @default(now()) @map("created_at")
+  lastRecalledAt DateTime? @map("last_recalled_at")
+
+  @@index([userId, category])
+  @@map("user_memories")
 }
