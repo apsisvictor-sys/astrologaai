@@ -68,6 +68,7 @@ model User {
   streak            UserStreak?
   userCredits       UserCredits?
   creditTransactions CreditTransaction[]
+  giftCodesRedeemed GiftCode[]
 
   @@map("users")
 }
@@ -269,10 +270,12 @@ model Subscription {
   status            SubscriptionStatus @default(ACTIVE)
   currentPeriodStart DateTime? @map("current_period_start")
   currentPeriodEnd   DateTime? @map("current_period_end")
-  cancelAtPeriodEnd Boolean   @default(false) @map("cancel_at_period_end")
-  scheduledDowngrade Tier?    @map("scheduled_downgrade")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  cancelAtPeriodEnd   Boolean   @default(false) @map("cancel_at_period_end")
+  scheduledDowngrade  Tier?     @map("scheduled_downgrade")
+  isGiftSubscription  Boolean   @default(false) @map("is_gift_subscription")
+  giftCodeId          String?   @map("gift_code_id")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   @@map("subscriptions")
 }
@@ -283,6 +286,56 @@ enum SubscriptionStatus {
   CANCELED
   UNPAID
   TRIALING
+}
+
+// ============================================
+// GIFT SUBSCRIPTIONS — FEAT-14
+// ============================================
+
+enum GiftCodeStatus {
+  PENDING_PAYMENT // Stripe session created, payment not yet confirmed
+  ACTIVE          // Payment confirmed, not yet redeemed
+  REDEEMED        // Code used by recipient
+  EXPIRED         // Code was never redeemed before its claim window (1 year)
+  CANCELLED       // Payment failed or refunded
+}
+
+model GiftCode {
+  id                    String         @id @default(uuid())
+  code                  String         @unique // 16-char uppercase: XXXX-XXXX-XXXX-XXXX
+
+  // Purchase details
+  purchaserEmail        String         @map("purchaser_email")
+  purchaserId           String?        @map("purchaser_id")  // userId if buyer has an account
+  recipientEmail        String?        @map("recipient_email")
+
+  // Gift spec
+  tier                  Tier           @default(PREMIUM)
+  durationMonths        Int            @map("duration_months") // 1 | 3 | 6 | 12
+
+  // Stripe
+  stripeSessionId       String?        @unique @map("stripe_session_id")
+  stripePaymentIntentId String?        @unique @map("stripe_payment_intent_id")
+  amountPaidCents       Int            @map("amount_paid_cents")
+  currency              String         @default("EUR")
+
+  // Lifecycle
+  status                GiftCodeStatus @default(PENDING_PAYMENT)
+  claimExpiresAt        DateTime       @map("claim_expires_at") // 1 year after purchase
+
+  // Redemption
+  redeemedAt            DateTime?      @map("redeemed_at")
+  redeemedByUserId      String?        @map("redeemed_by_user_id")
+  redeemedBy            User?          @relation(fields: [redeemedByUserId], references: [id])
+  subscriptionEndsAt    DateTime?      @map("subscription_ends_at")
+
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+
+  @@index([code])
+  @@index([stripeSessionId])
+  @@index([redeemedByUserId])
+  @@map("gift_codes")
 }
 
 // ============================================
