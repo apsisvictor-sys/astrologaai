@@ -58,6 +58,7 @@ var import_admin = __toESM(require("./routes/admin"));
 var import_guestChat = __toESM(require("./routes/guestChat"));
 var import_transits = __toESM(require("./routes/transits"));
 var import_credits = __toESM(require("./routes/credits"));
+var import_solar_return = __toESM(require("./routes/solar-return"));
 var import_rateLimitHeaders = require("./middleware/rateLimitHeaders");
 var import_chart_regeneration = require("./services/chart-regeneration");
 var import_admin_defaults = require("./services/admin-defaults");
@@ -169,6 +170,7 @@ app.use("/api/v1/astrology", import_astrology.default);
 app.use("/api/v1/admin", import_admin.default);
 app.use("/api/v1/transits", import_transits.default);
 app.use("/api/v1/credits", import_credits.default);
+app.use("/api/v1/solar-return", import_solar_return.default);
 app.use((req, res) => {
   res.status(404).json({
     success: false,

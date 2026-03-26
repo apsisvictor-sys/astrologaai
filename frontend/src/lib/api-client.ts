@@ -590,3 +590,56 @@ export const userProfileApi = {
     return apiPost<{ message: string }>('/api/v1/user/cancel-email-change', {});
   },
 };
+
+// ── Oracle Memory API (PIX-171) ───────────────────────────────────────────────
+
+export interface OracleMemory {
+  id: string;
+  content: string;
+  category: string;
+  sourceDate: string;
+  createdAt: string;
+  lastRecalledAt: string | null;
+}
+
+export const memoriesApi = {
+  async getSettings() {
+    return apiGet<{ memoryEnabled: boolean }>('/api/v1/user/settings');
+  },
+
+  async setMemoryEnabled(memoryEnabled: boolean) {
+    return apiRequest<{ memoryEnabled: boolean }>('/api/v1/user/settings', {
+      method: 'PATCH',
+      body: JSON.stringify({ memoryEnabled }),
+    });
+  },
+
+  async list() {
+    return apiGet<{ memories: OracleMemory[]; total: number }>('/api/v1/user/memories');
+  },
+
+  async deleteOne(id: string) {
+    return apiDelete<{ id: string }>(`/api/v1/user/memories/${id}`);
+  },
+
+  async deleteAll() {
+    return apiDelete<{ deleted: number }>('/api/v1/user/memories');
+  },
+
+  async exportDownload() {
+    const token = getAccessToken();
+    const response = await fetch(`${API_URL}/api/v1/user/memories/export`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error('Export failed');
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `oracle-memories-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  },
+};

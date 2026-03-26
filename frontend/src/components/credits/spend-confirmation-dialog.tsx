@@ -10,6 +10,7 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { CREDIT_COSTS, CreditAction } from '@/lib/credits-api';
+import { trackCreditsSpent } from '@/lib/analytics';
 
 /** Human-readable labels for each credit action */
 const ACTION_LABELS: Record<CreditAction, { label: string; icon: string }> = {
@@ -137,7 +138,7 @@ export function SpendConfirmationDialog({
                     Cancel
                   </button>
                   <button
-                    onClick={onConfirm}
+                    onClick={() => { trackCreditsSpent({ action, cost, balanceAfter: remaining }); onConfirm(); }}
                     className="flex-1 py-2.5 rounded-full text-sm font-bold text-white transition-all hover:brightness-110"
                     style={{
                       background: 'linear-gradient(135deg, #00d4e8, #00f0ff)',

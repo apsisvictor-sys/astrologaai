@@ -29,6 +29,8 @@ var import_forecast_cron = require("../services/forecast-cron");
 var import_transits = require("../services/transits");
 var import_horoscope_email = require("../services/email/horoscope-email");
 var import_morning_briefing_email = require("../services/email/morning-briefing-email");
+var import_memory_extraction_cron = require("../services/memory-extraction-cron");
+var import_solar_return_birthday_email = require("../services/email/solar-return-birthday-email");
 const router = (0, import_express.Router)();
 router.post("/email-lifecycle", async (req, res) => {
   try {
@@ -143,6 +145,38 @@ router.post("/morning-briefing-emails", async (req, res) => {
   } catch (error) {
     console.error("[Cron] morning-briefing-emails error:", error);
     return res.status(500).json({ success: false, error: { code: "CRON_ERROR", message: "Morning briefing emails cron failed" } });
+  }
+});
+router.post("/memory-extraction", async (req, res) => {
+  try {
+    const configuredSecret = (0, import_cron.getCronSecret)();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: "CRON_NOT_CONFIGURED", message: "Cron secret is not configured" } });
+    }
+    if (req.headers["x-cron-secret"] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "Invalid or missing cron secret" } });
+    }
+    (0, import_memory_extraction_cron.runMemoryExtractionJob)().catch((err) => console.error("[Cron] memory-extraction job error:", err));
+    return res.json({ success: true, message: "Memory extraction started" });
+  } catch (error) {
+    console.error("[Cron] memory-extraction error:", error);
+    return res.status(500).json({ success: false, error: { code: "CRON_ERROR", message: "Memory extraction cron failed" } });
+  }
+});
+router.post("/solar-return-birthday", async (req, res) => {
+  try {
+    const configuredSecret = (0, import_cron.getCronSecret)();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: "CRON_NOT_CONFIGURED", message: "Cron secret is not configured" } });
+    }
+    if (req.headers["x-cron-secret"] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED", message: "Invalid or missing cron secret" } });
+    }
+    const result = await (0, import_solar_return_birthday_email.sendSolarReturnBirthdayEmails)();
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error("[Cron] solar-return-birthday error:", error);
+    return res.status(500).json({ success: false, error: { code: "CRON_ERROR", message: "Solar return birthday emails cron failed" } });
   }
 });
 var cron_default = router;

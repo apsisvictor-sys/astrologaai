@@ -164,6 +164,131 @@ router.get("/share-card/public/:userId", async (req, res) => {
     return res.status(500).json({ success: false, error: { code: "SERVER_ERROR", message: "Failed" } });
   }
 });
+router.get("/settings", import_auth.authMiddleware, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED" } });
+  try {
+    const user = await import_prisma.prisma.user.findUnique({
+      where: { id: userId },
+      select: { memoryEnabled: true }
+    });
+    if (!user) return res.status(404).json({ success: false, error: { code: "NOT_FOUND" } });
+    return res.json({ success: true, data: { memoryEnabled: user.memoryEnabled } });
+  } catch (err) {
+    console.error("[User] settings GET error:", err);
+    return res.status(500).json({ success: false, error: { code: "SERVER_ERROR" } });
+  }
+});
+router.patch("/settings", import_auth.authMiddleware, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED" } });
+  const { memoryEnabled } = req.body;
+  if (typeof memoryEnabled !== "boolean") {
+    return res.status(400).json({ success: false, error: { code: "VALIDATION_ERROR", message: "memoryEnabled must be a boolean" } });
+  }
+  try {
+    const user = await import_prisma.prisma.user.update({
+      where: { id: userId },
+      data: { memoryEnabled },
+      select: { memoryEnabled: true }
+    });
+    return res.json({ success: true, data: { memoryEnabled: user.memoryEnabled } });
+  } catch (err) {
+    console.error("[User] settings PATCH error:", err);
+    return res.status(500).json({ success: false, error: { code: "SERVER_ERROR" } });
+  }
+});
+router.get("/memories", import_auth.authMiddleware, async (req, res) => {
+  const userId = req.user?.id;
+  const tier = req.user?.tier;
+  if (!userId) return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED" } });
+  if (tier !== "PRO" && tier !== "PREMIUM") {
+    return res.status(403).json({ success: false, error: { code: "FORBIDDEN", message: "Oracle Memory is available for PRO and PREMIUM subscribers." } });
+  }
+  try {
+    const memories = await import_prisma.prisma.userMemory.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        content: true,
+        category: true,
+        sourceDate: true,
+        createdAt: true,
+        lastRecalledAt: true
+      }
+    });
+    return res.json({ success: true, data: { memories, total: memories.length } });
+  } catch (err) {
+    console.error("[User] memories GET error:", err);
+    return res.status(500).json({ success: false, error: { code: "SERVER_ERROR" } });
+  }
+});
+router.get("/memories/export", import_auth.authMiddleware, async (req, res) => {
+  const userId = req.user?.id;
+  const tier = req.user?.tier;
+  if (!userId) return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED" } });
+  if (tier !== "PRO" && tier !== "PREMIUM") {
+    return res.status(403).json({ success: false, error: { code: "FORBIDDEN", message: "Oracle Memory is available for PRO and PREMIUM subscribers." } });
+  }
+  try {
+    const memories = await import_prisma.prisma.userMemory.findMany({
+      where: { userId },
+      orderBy: { sourceDate: "asc" },
+      select: {
+        id: true,
+        content: true,
+        category: true,
+        sourceDate: true,
+        chatIds: true,
+        createdAt: true,
+        lastRecalledAt: true
+      }
+    });
+    const payload = {
+      exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      userId,
+      totalMemories: memories.length,
+      memories
+    };
+    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Disposition", `attachment; filename="oracle-memories-${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.json"`);
+    return res.json(payload);
+  } catch (err) {
+    console.error("[User] memories export error:", err);
+    return res.status(500).json({ success: false, error: { code: "SERVER_ERROR" } });
+  }
+});
+router.delete("/memories", import_auth.authMiddleware, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED" } });
+  try {
+    const result = await import_prisma.prisma.userMemory.deleteMany({ where: { userId } });
+    return res.json({ success: true, data: { deleted: result.count } });
+  } catch (err) {
+    console.error("[User] memories DELETE all error:", err);
+    return res.status(500).json({ success: false, error: { code: "SERVER_ERROR" } });
+  }
+});
+router.delete("/memories/:id", import_auth.authMiddleware, async (req, res) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED" } });
+  const { id } = req.params;
+  try {
+    const memory = await import_prisma.prisma.userMemory.findUnique({ where: { id }, select: { userId: true } });
+    if (!memory) {
+      return res.status(404).json({ success: false, error: { code: "NOT_FOUND", message: "Memory not found" } });
+    }
+    if (memory.userId !== userId) {
+      return res.status(403).json({ success: false, error: { code: "FORBIDDEN" } });
+    }
+    await import_prisma.prisma.userMemory.delete({ where: { id } });
+    return res.json({ success: true, data: { id } });
+  } catch (err) {
+    console.error("[User] memories DELETE single error:", err);
+    return res.status(500).json({ success: false, error: { code: "SERVER_ERROR" } });
+  }
+});
 router.get("/streak", import_auth.authMiddleware, async (req, res) => {
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ success: false, error: { code: "UNAUTHORIZED" } });

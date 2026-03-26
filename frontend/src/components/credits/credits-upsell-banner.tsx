@@ -11,9 +11,10 @@
  * Dismissible per session (sessionStorage flag).
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CREDITS_UPSELL_EUR_THRESHOLD } from '@/lib/credits-api';
+import { trackCreditsUpsellConverted, trackCreditsUpsellShown } from '@/lib/analytics';
 
 const DISMISS_KEY = 'credits_upsell_banner_dismissed';
 
@@ -29,6 +30,7 @@ export function CreditsUpsellBanner({
   userTier,
 }: CreditsUpsellBannerProps) {
   const [dismissed, setDismissed] = useState(true); // start hidden, reveal after mount
+  const hasTrackedShow = useRef(false);
 
   useEffect(() => {
     const wasDismissed = sessionStorage.getItem(DISMISS_KEY) === '1';
@@ -39,6 +41,13 @@ export function CreditsUpsellBanner({
     !dismissed &&
     userTier === 'FREE' &&
     spentEurLast30Days >= CREDITS_UPSELL_EUR_THRESHOLD;
+
+  useEffect(() => {
+    if (shouldShow && !hasTrackedShow.current) {
+      hasTrackedShow.current = true;
+      trackCreditsUpsellShown({ spentEurLast30Days });
+    }
+  }, [shouldShow, spentEurLast30Days]);
 
   if (!shouldShow) return null;
 
@@ -82,6 +91,7 @@ export function CreditsUpsellBanner({
       <div className="flex items-center gap-2 shrink-0">
         <Link
           href="/pricing"
+          onClick={() => trackCreditsUpsellConverted({ spentEurLast30Days })}
           className="px-3 py-1 rounded-full text-xs font-bold text-white transition-all hover:brightness-110"
           style={{
             background: 'linear-gradient(135deg, #e41aff, #00f0ff)',

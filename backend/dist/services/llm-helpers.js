@@ -321,6 +321,26 @@ async function buildSystemPrompt(context) {
   if (context.transitsSummary) {
     prompt += "\n\nCURRENT TRANSITS:\n" + context.transitsSummary;
   }
+  if (context.tier && context.tier !== "FREE" && context.memories && context.memories.length > 0) {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1e3);
+    const maxMemories = context.tier === "PREMIUM" ? 5 : 3;
+    let filtered = context.memories;
+    if (context.tier === "PRO") {
+      filtered = filtered.filter((m) => new Date(m.sourceDate) >= thirtyDaysAgo);
+    }
+    filtered = filtered.slice(0, maxMemories);
+    if (filtered.length > 0) {
+      const lines = filtered.map((m) => {
+        const month = new Date(m.sourceDate).toLocaleString("en-US", {
+          month: "short",
+          year: "numeric",
+          timeZone: "UTC"
+        });
+        return `- [${m.category}] ${m.content} (noted ${month})`;
+      });
+      prompt += "\n\n## Oracle Memory\nThings this user has shared in past conversations:\n" + lines.join("\n");
+    }
+  }
   prompt += (0, import_languageService.getLanguageDirective)(context.language);
   return prompt;
 }

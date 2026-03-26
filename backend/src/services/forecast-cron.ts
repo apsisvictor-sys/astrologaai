@@ -90,9 +90,38 @@ export async function storeForecast(
   }
 }
 
+// ─── DB queries for date ranges (used by best-days endpoint) ────────────────
+
+export async function getStoredForecasts(
+  userId: string,
+  dateFrom: string,
+  dateTo: string,
+): Promise<Array<{ date: string; horoscope: any; forecast: any }>> {
+  try {
+    return await prisma.$queryRaw<Array<{ date: string; horoscope: any; forecast: any }>>`
+      SELECT date, horoscope, forecast
+      FROM   daily_forecasts
+      WHERE  user_id = ${userId}
+      AND    date >= ${dateFrom}
+      AND    date <= ${dateTo}
+      ORDER BY date ASC
+    `;
+  } catch {
+    return [];
+  }
+}
+
+// ─── helpers (date arithmetic) ───────────────────────────────────────────────
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
 // ─── generate for a single user ──────────────────────────────────────────────
 
-async function generateForUser(user: {
+type CronUser = {
   id: string;
   language: string;
   tier?: string;
@@ -103,7 +132,25 @@ async function generateForUser(user: {
     longitude: number;
     timezone: string;
   } | null;
-}): Promise<void> {
+};
+
+function toBirthData(user: CronUser) {
+  if (!user.birthProfile) return null;
+  const birthDate = new Date(user.birthProfile.birthDate);
+  const [hour, minute] = (user.birthProfile.birthTime || '12:00').split(':').map(Number);
+  return {
+    year: birthDate.getFullYear(),
+    month: birthDate.getMonth() + 1,
+    day: birthDate.getDate(),
+    hour: hour || 12,
+    minute: minute || 0,
+    latitude: user.birthProfile.latitude,
+    longitude: user.birthProfile.longitude,
+    timezone: user.birthProfile.timezone || 'UTC',
+  };
+}
+
+async function generateForUser(user: CronUser): Promise<void> {
   if (!user.birthProfile) return;
 
   const date = todayString();
@@ -122,18 +169,7 @@ async function generateForUser(user: {
     return;
   }
 
-  const birthDate = new Date(user.birthProfile.birthDate);
-  const [hour, minute] = (user.birthProfile.birthTime || '12:00').split(':').map(Number);
-  const birthData = {
-    year: birthDate.getFullYear(),
-    month: birthDate.getMonth() + 1,
-    day: birthDate.getDate(),
-    hour: hour || 12,
-    minute: minute || 0,
-    latitude: user.birthProfile.latitude,
-    longitude: user.birthProfile.longitude,
-    timezone: user.birthProfile.timezone || 'UTC',
-  };
+  const birthData = toBirthData(user)!;
 
   let horoscope: any = null;
   let forecast: any = null;
@@ -166,6 +202,56 @@ async function generateForUser(user: {
   }
 }
 
+// ─── 7-day lookahead (Best Days calendar data) ──────────────────────────────
+
+const LOOKAHEAD_DAYS = 7;
+
+async function generateLookaheadForUser(user: CronUser): Promise<void> {
+  if (!user.birthProfile) return;
+  const birthData = toBirthData(user)!;
+  const today = todayString();
+
+  for (let offset = 1; offset <= LOOKAHEAD_DAYS; offset++) {
+    const dateStr = addDays(today, offset);
+
+    // Skip if already stored
+    const existing = await getStoredForecast(user.id, dateStr);
+    if (existing?.horoscope) {
+      // PREMIUM: ensure oracleCommentary exists
+      if (user.tier === 'PREMIUM') {
+        const h = existing.horoscope as any;
+        if (!h.oracleCommentary) {
+          const commentary = await generateOracleCommentary(h, user.language);
+          if (commentary) {
+            await storeForecast(user.id, dateStr, { ...h, oracleCommentary: commentary }, existing.forecast);
+          }
+        }
+      }
+      continue;
+    }
+
+    try {
+      const horoscope = await getPersonalDailyHoroscope(user.id, birthData, dateStr);
+
+      // PREMIUM: add oracle commentary
+      if (user.tier === 'PREMIUM') {
+        const commentary = await generateOracleCommentary(horoscope, user.language);
+        if (commentary) {
+          (horoscope as any).oracleCommentary = commentary;
+        }
+      }
+
+      await storeForecast(user.id, dateStr, horoscope, null);
+      console.log(`[ForecastCron] Lookahead ${dateStr} generated for ${user.id}`);
+    } catch (err) {
+      console.warn(`[ForecastCron] Lookahead ${dateStr} failed for ${user.id}:`, err);
+    }
+
+    // 1-second gap to respect API rate limits
+    await delay(1000);
+  }
+}
+
 /**
  * Generate a one-sentence personalized Oracle Insight using Claude Haiku.
  * Used for PREMIUM tier users in the morning briefing.
@@ -195,6 +281,39 @@ async function generateOracleInsight(forecast: any, language: string): Promise<s
     return result.text.trim().replace(/^["']|["']$/g, ''); // strip surrounding quotes if any
   } catch (err) {
     console.warn('[ForecastCron] Oracle Insight generation error:', err);
+    return null;
+  }
+}
+
+/**
+ * Generate a 2-3 sentence Oracle-voice commentary for a Best Days calendar entry.
+ * Used for PREMIUM tier only. Input: the day's horoscope (with transits + area ratings).
+ */
+async function generateOracleCommentary(horoscope: any, language: string): Promise<string | null> {
+  if (!process.env.ANTHROPIC_API_KEY) return null;
+
+  const areas = (horoscope?.lifeAreas ?? [])
+    .map((a: any) => `${a.area}: ${a.rating}/5`)
+    .join(', ');
+  const topInfluence = horoscope?.planetaryInfluences?.[0];
+  const transitDesc = topInfluence
+    ? `${topInfluence.planet} ${topInfluence.aspectType} ${topInfluence.natalPlanet}`
+    : 'current transits';
+
+  const prompt = language === 'bg'
+    ? `Ти си мъдър астрологичен оракул. Напиши 2-3 кратки изречения (макс 50 думи) — поетично послание за деня. Области: ${areas}. Ключов транзит: ${transitDesc}. Само текста, без встъпление.`
+    : `You are a wise astrological Oracle. Write 2-3 short sentences (max 50 words) — a poetic daily message. Areas: ${areas}. Key transit: ${transitDesc}. Just the text, no preamble.`;
+
+  try {
+    const result = await generateText({
+      model: anthropic('claude-haiku-4-5-20251001'),
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.8,
+      maxTokens: 120,
+    });
+    return result.text.trim().replace(/^["']|["']$/g, '');
+  } catch (err) {
+    console.warn('[ForecastCron] Oracle Commentary generation error:', err);
     return null;
   }
 }
@@ -268,7 +387,18 @@ export async function runNightlyForecastJob(): Promise<void> {
     await delay(2000);
   }
 
-  console.log(`[ForecastCron] Done for ${date}`);
+  // ── 7-day lookahead for Best Days calendar ──
+  console.log(`[ForecastCron] Starting 7-day lookahead for ${users.length} users`);
+  for (const user of users) {
+    try {
+      await generateLookaheadForUser(user);
+    } catch (err) {
+      console.error(`[ForecastCron] Lookahead error for user ${user.id}:`, err);
+    }
+    await delay(2000);
+  }
+
+  console.log(`[ForecastCron] Done for ${date} (today + ${LOOKAHEAD_DAYS}-day lookahead)`);
 }
 
 // ─── scheduler ───────────────────────────────────────────────────────────────

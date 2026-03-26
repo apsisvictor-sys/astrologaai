@@ -7,9 +7,13 @@ interface UpgradeModalProps {
   isOpen: boolean;
   feature: string;
   onClose: () => void;
+  requiredTier?: 'PRO' | 'PREMIUM';
 }
 
-export function UpgradeModal({ isOpen, feature, onClose }: UpgradeModalProps) {
+export function UpgradeModal({ isOpen, feature, onClose, requiredTier = 'PRO' }: UpgradeModalProps) {
+  const tierLabel = requiredTier === 'PREMIUM'
+    ? 'the PREMIUM plan'
+    : 'The Navigator (PRO) plan and above';
   return (
     <AnimatePresence>
       {isOpen && (
@@ -37,7 +41,7 @@ export function UpgradeModal({ isOpen, feature, onClose }: UpgradeModalProps) {
             <p className="text-xs font-bold uppercase tracking-widest text-primary/60 mb-2">Upgrade Required</p>
             <h2 className="text-2xl font-bold text-white mb-2">{feature}</h2>
             <p className="text-text-secondary text-sm mb-6">
-              This feature is available on The Navigator (PRO) plan and above.
+              This feature is available on {tierLabel}.
             </p>
             <Link
               href="/pricing"

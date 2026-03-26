@@ -37,6 +37,7 @@ var import_ai = require("ai");
 var import_openai = require("@ai-sdk/openai");
 var import_anthropic = require("@ai-sdk/anthropic");
 var import_agent_tools = require("./agent-tools");
+var import_memory_retrieval = require("./memory-retrieval");
 var import_llm_helpers = require("./llm-helpers");
 var import_llm_helpers2 = require("./llm-helpers");
 function mapToCoreMessages(messages) {
@@ -139,6 +140,23 @@ Answer every question with depth, nuance, and comprehensive multi-tool synthesis
 
 [TIER SYSTEM INSTRUCTION]
 ${systemPromptContext}`;
+    }
+    if ((tier === "PRO" || tier === "PREMIUM") && config.userId && coreMessages.length > 0 && coreMessages[0].role === "system") {
+      const cooldowns = await (0, import_memory_retrieval.getAspectCooldowns)(config.userId).catch(() => []);
+      if (cooldowns.length > 0) {
+        const lines = cooldowns.map((c) => {
+          const label = c.cooldownLevel === 2 ? "deprioritize" : "avoid leading with";
+          const month = new Date(c.featuredAt).toLocaleString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+          return `- ${c.aspect} [${label}] (featured ${month})`;
+        });
+        const block = `
+
+## ASPECT ROTATION GUIDANCE
+In recent sessions, you have already led with or prominently featured these aspects. Introduce fresh aspects or apply familiar ones differently:
+${lines.join("\n")}
+This is a soft guideline only \u2014 if an aspect is highly activated by current transits or directly relevant to the user's question, accuracy takes precedence over variety.`;
+        coreMessages[0].content += block;
+      }
     }
     const modelIdForCache = getModelIdForTier(tier);
     if (modelIdForCache.startsWith("claude-") && coreMessages.length > 0 && coreMessages[0].role === "system") {

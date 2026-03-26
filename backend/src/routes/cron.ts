@@ -13,6 +13,8 @@ import { runNightlyForecastJob } from '../services/forecast-cron';
 import { warmDailyTransitsCache } from '../services/transits';
 import { sendDailyHoroscopeEmails } from '../services/email/horoscope-email';
 import { sendMorningBriefingEmails } from '../services/email/morning-briefing-email';
+import { runMemoryExtractionJob } from '../services/memory-extraction-cron';
+import { sendSolarReturnBirthdayEmails } from '../services/email/solar-return-birthday-email';
 
 const router = Router();
 
@@ -183,6 +185,57 @@ router.post('/morning-briefing-emails', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('[Cron] morning-briefing-emails error:', error);
     return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Morning briefing emails cron failed' } });
+  }
+});
+
+/**
+ * POST /api/v1/cron/memory-extraction
+ * Nightly Haiku memory extraction — scan last 24h Oracle conversations for
+ * PRO/PREMIUM users, extract facts, embed, dedup, and store in user_memories.
+ * Schedule: 03:00 UTC (after daily-forecasts at 02:00).
+ * Security: Requires CRON_SECRET header for authentication
+ */
+router.post('/memory-extraction', async (req: Request, res: Response) => {
+  try {
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED', message: 'Cron secret is not configured' } });
+    }
+    if (req.headers['x-cron-secret'] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } });
+    }
+
+    // Fire-and-forget — job can take several minutes for large user bases
+    runMemoryExtractionJob().catch(err => console.error('[Cron] memory-extraction job error:', err));
+    return res.json({ success: true, message: 'Memory extraction started' });
+  } catch (error) {
+    console.error('[Cron] memory-extraction error:', error);
+    return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Memory extraction cron failed' } });
+  }
+});
+
+/**
+ * POST /api/v1/cron/solar-return-birthday
+ * Send Solar Return birthday emails to users whose birthday is tomorrow.
+ * Schedule: 09:00 UTC daily (fire ≤24h before solar return date).
+ * Feb 29 birthdays receive email on Feb 28 in non-leap years.
+ * Security: Requires CRON_SECRET header for authentication
+ */
+router.post('/solar-return-birthday', async (req: Request, res: Response) => {
+  try {
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED', message: 'Cron secret is not configured' } });
+    }
+    if (req.headers['x-cron-secret'] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } });
+    }
+
+    const result = await sendSolarReturnBirthdayEmails();
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[Cron] solar-return-birthday error:', error);
+    return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Solar return birthday emails cron failed' } });
   }
 });
 

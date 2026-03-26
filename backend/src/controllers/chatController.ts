@@ -32,6 +32,7 @@ import {
 import { getUserUsageStats, incrementDailyQuery, getFreeTierDailyQueryLimit } from '../middleware/queryLimit';
 import { updateStreak } from '../services/streakService';
 import { deductCredits, refundCredits } from '../services/credits';
+import { retrieveOracleMemories } from '../services/memory-retrieval';
 import type { ChatMessage } from '../services/llm';
 
 const prisma = new PrismaClient();
@@ -322,6 +323,9 @@ ${aspectLines || 'No major aspects within orb today.'}`;
       }
     }
 
+    // Retrieve relevant memories for Oracle Layer 2 injection (PIX-169)
+    const memories = await retrieveOracleMemories(userId, content.trim(), effectiveTier);
+
     const systemPrompt = await buildSystemPrompt({
       chartSummary,
       transitsSummary,
@@ -329,6 +333,8 @@ ${aspectLines || 'No major aspects within orb today.'}`;
       conversationHistory,
       sessionSummary, // US-09: Add session summary for follow-up context
       recentMessages, // US-09: Add recent messages for context
+      memories,
+      tier: effectiveTier,
     });
 
     const messages: ChatMessage[] = [

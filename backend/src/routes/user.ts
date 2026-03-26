@@ -330,6 +330,182 @@ router.get('/share-card/public/:userId', async (req: Request, res: Response) => 
   }
 });
 
+// ============================================
+// PIX-170: Oracle Memory — GDPR endpoints
+// ============================================
+
+/**
+ * @route   GET /api/v1/user/settings
+ * @desc    Get current user settings (memoryEnabled)
+ * @access  Private
+ */
+router.get('/settings', authMiddleware, async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { memoryEnabled: true },
+    });
+    if (!user) return res.status(404).json({ success: false, error: { code: 'NOT_FOUND' } });
+    return res.json({ success: true, data: { memoryEnabled: user.memoryEnabled } });
+  } catch (err) {
+    console.error('[User] settings GET error:', err);
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR' } });
+  }
+});
+
+/**
+ * @route   PATCH /api/v1/user/settings
+ * @desc    Toggle memoryEnabled (Oracle Memory consent)
+ * @access  Private
+ * @body    { memoryEnabled: boolean }
+ */
+router.patch('/settings', authMiddleware, async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const { memoryEnabled } = req.body;
+  if (typeof memoryEnabled !== 'boolean') {
+    return res.status(400).json({ success: false, error: { code: 'VALIDATION_ERROR', message: 'memoryEnabled must be a boolean' } });
+  }
+
+  try {
+    const user = await prisma.user.update({
+      where: { id: userId },
+      data: { memoryEnabled },
+      select: { memoryEnabled: true },
+    });
+    return res.json({ success: true, data: { memoryEnabled: user.memoryEnabled } });
+  } catch (err) {
+    console.error('[User] settings PATCH error:', err);
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR' } });
+  }
+});
+
+/**
+ * @route   GET /api/v1/user/memories
+ * @desc    List all Oracle memories for the authenticated user (PRO/PREMIUM)
+ * @access  Private — PRO and PREMIUM only
+ */
+router.get('/memories', authMiddleware, async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  const tier = req.user?.tier;
+  if (!userId) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (tier !== 'PRO' && tier !== 'PREMIUM') {
+    return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Oracle Memory is available for PRO and PREMIUM subscribers.' } });
+  }
+
+  try {
+    const memories = await prisma.userMemory.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        content: true,
+        category: true,
+        sourceDate: true,
+        createdAt: true,
+        lastRecalledAt: true,
+      },
+    });
+    return res.json({ success: true, data: { memories, total: memories.length } });
+  } catch (err) {
+    console.error('[User] memories GET error:', err);
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR' } });
+  }
+});
+
+/**
+ * @route   GET /api/v1/user/memories/export
+ * @desc    Export all Oracle memories as JSON (PRO/PREMIUM, GDPR portability)
+ * @access  Private — PRO and PREMIUM only
+ */
+router.get('/memories/export', authMiddleware, async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  const tier = req.user?.tier;
+  if (!userId) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+  if (tier !== 'PRO' && tier !== 'PREMIUM') {
+    return res.status(403).json({ success: false, error: { code: 'FORBIDDEN', message: 'Oracle Memory is available for PRO and PREMIUM subscribers.' } });
+  }
+
+  try {
+    const memories = await prisma.userMemory.findMany({
+      where: { userId },
+      orderBy: { sourceDate: 'asc' },
+      select: {
+        id: true,
+        content: true,
+        category: true,
+        sourceDate: true,
+        chatIds: true,
+        createdAt: true,
+        lastRecalledAt: true,
+      },
+    });
+
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      userId,
+      totalMemories: memories.length,
+      memories,
+    };
+
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="oracle-memories-${new Date().toISOString().split('T')[0]}.json"`);
+    return res.json(payload);
+  } catch (err) {
+    console.error('[User] memories export error:', err);
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR' } });
+  }
+});
+
+/**
+ * @route   DELETE /api/v1/user/memories
+ * @desc    Delete ALL Oracle memories for the user (GDPR right to erasure)
+ * @access  Private
+ */
+router.delete('/memories', authMiddleware, async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  try {
+    const result = await prisma.userMemory.deleteMany({ where: { userId } });
+    return res.json({ success: true, data: { deleted: result.count } });
+  } catch (err) {
+    console.error('[User] memories DELETE all error:', err);
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR' } });
+  }
+});
+
+/**
+ * @route   DELETE /api/v1/user/memories/:id
+ * @desc    Delete a single Oracle memory by ID (GDPR right to erasure)
+ * @access  Private
+ */
+router.delete('/memories/:id', authMiddleware, async (req: Request, res: Response) => {
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED' } });
+
+  const { id } = req.params;
+
+  try {
+    const memory = await prisma.userMemory.findUnique({ where: { id }, select: { userId: true } });
+    if (!memory) {
+      return res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Memory not found' } });
+    }
+    if (memory.userId !== userId) {
+      return res.status(403).json({ success: false, error: { code: 'FORBIDDEN' } });
+    }
+
+    await prisma.userMemory.delete({ where: { id } });
+    return res.json({ success: true, data: { id } });
+  } catch (err) {
+    console.error('[User] memories DELETE single error:', err);
+    return res.status(500).json({ success: false, error: { code: 'SERVER_ERROR' } });
+  }
+});
+
 // ── GET /api/v1/user/streak ───────────────────────────────────────────────────
 // ENH-23: Returns current Oracle streak for the authenticated user
 
