@@ -15,6 +15,7 @@ import { sendDailyHoroscopeEmails } from '../services/email/horoscope-email';
 import { sendMorningBriefingEmails } from '../services/email/morning-briefing-email';
 import { runMemoryExtractionJob } from '../services/memory-extraction-cron';
 import { sendSolarReturnBirthdayEmails } from '../services/email/solar-return-birthday-email';
+import { runGiftExpirySweep } from '../services/gift-expiry-cron';
 
 const router = Router();
 
@@ -236,6 +237,31 @@ router.post('/solar-return-birthday', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('[Cron] solar-return-birthday error:', error);
     return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Solar return birthday emails cron failed' } });
+  }
+});
+
+/**
+ * POST /api/v1/cron/gift-expiry-sweep
+ * Daily: expire gift subscriptions past their end date and mark unclaimed
+ * gift codes past their 1-year claim window as EXPIRED (FEAT-14-F).
+ * Schedule: 05:00 UTC (after streak-maintenance at 04:00).
+ * Security: Requires CRON_SECRET header for authentication
+ */
+router.post('/gift-expiry-sweep', async (req: Request, res: Response) => {
+  try {
+    const configuredSecret = getCronSecret();
+    if (!configuredSecret) {
+      return res.status(503).json({ success: false, error: { code: 'CRON_NOT_CONFIGURED', message: 'Cron secret is not configured' } });
+    }
+    if (req.headers['x-cron-secret'] !== configuredSecret) {
+      return res.status(401).json({ success: false, error: { code: 'UNAUTHORIZED', message: 'Invalid or missing cron secret' } });
+    }
+
+    const result = await runGiftExpirySweep();
+    return res.json({ success: true, data: result });
+  } catch (error) {
+    console.error('[Cron] gift-expiry-sweep error:', error);
+    return res.status(500).json({ success: false, error: { code: 'CRON_ERROR', message: 'Gift expiry sweep failed' } });
   }
 });
 
