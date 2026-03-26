@@ -18,6 +18,7 @@ var __copyProps = (to, from, except, desc) => {
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var memory_retrieval_exports = {};
 __export(memory_retrieval_exports, {
+  getAspectCooldowns: () => getAspectCooldowns,
   retrieveOracleMemories: () => retrieveOracleMemories
 });
 module.exports = __toCommonJS(memory_retrieval_exports);
@@ -72,7 +73,40 @@ async function retrieveOracleMemories(userId, messageText, tier) {
   );
   return rows;
 }
+async function getAspectCooldowns(userId) {
+  try {
+    const pv = (0, import_prisma_vector.getPrismaVector)();
+    const rows = await pv.$queryRaw`
+      SELECT content, source_date
+      FROM   user_memories
+      WHERE  user_id = ${userId}
+        AND  category = 'aspect_cooldown'
+        AND  source_date >= NOW() - INTERVAL '7 days'
+      ORDER  BY source_date DESC
+      LIMIT  20
+    `;
+    const cooldowns = [];
+    for (const row of rows) {
+      try {
+        const parsed = JSON.parse(row.content);
+        if (typeof parsed === "object" && parsed !== null && typeof parsed.aspect === "string" && (parsed.cooldownLevel === 1 || parsed.cooldownLevel === 2)) {
+          cooldowns.push({
+            aspect: parsed.aspect,
+            cooldownLevel: parsed.cooldownLevel,
+            featuredAt: row.source_date
+          });
+        }
+      } catch {
+      }
+    }
+    return cooldowns;
+  } catch (err) {
+    console.warn("[MemoryRetrieval] getAspectCooldowns failed (non-fatal):", err);
+    return [];
+  }
+}
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
+  getAspectCooldowns,
   retrieveOracleMemories
 });

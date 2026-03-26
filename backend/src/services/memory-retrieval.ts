@@ -26,6 +26,14 @@ export interface MemoryRow {
   sourceDate: Date;
 }
 
+export interface AspectCooldown {
+  aspect: string;
+  /** 1 = avoid leading, 2 = deprioritize */
+  cooldownLevel: 1 | 2;
+  /** Date the Oracle featured this aspect */
+  featuredAt: Date;
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function embeddingToSql(embedding: number[]): string {
@@ -99,4 +107,53 @@ export async function retrieveOracleMemories(
   );
 
   return rows;
+}
+
+/**
+ * Retrieve aspect cooldown records for Oracle Layer 2 ASPECT ROTATION GUIDANCE
+ * injection (PIX-179).
+ *
+ * Queries `user_memories` for records with category = 'aspect_cooldown' from
+ * the last 7 days. Returns up to 20 records, most recent first.
+ * Returns [] on failure (non-fatal — Oracle continues without rotation guidance).
+ */
+export async function getAspectCooldowns(userId: string): Promise<AspectCooldown[]> {
+  try {
+    const pv = getPrismaVector();
+    const rows = await pv.$queryRaw<Array<{ content: string; source_date: Date }>>`
+      SELECT content, source_date
+      FROM   user_memories
+      WHERE  user_id = ${userId}
+        AND  category = 'aspect_cooldown'
+        AND  source_date >= NOW() - INTERVAL '7 days'
+      ORDER  BY source_date DESC
+      LIMIT  20
+    `;
+
+    const cooldowns: AspectCooldown[] = [];
+    for (const row of rows) {
+      try {
+        const parsed = JSON.parse(row.content);
+        if (
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          typeof parsed.aspect === 'string' &&
+          (parsed.cooldownLevel === 1 || parsed.cooldownLevel === 2)
+        ) {
+          cooldowns.push({
+            aspect: parsed.aspect,
+            cooldownLevel: parsed.cooldownLevel,
+            featuredAt: row.source_date,
+          });
+        }
+      } catch {
+        // malformed row — skip
+      }
+    }
+
+    return cooldowns;
+  } catch (err) {
+    console.warn('[MemoryRetrieval] getAspectCooldowns failed (non-fatal):', err);
+    return [];
+  }
 }

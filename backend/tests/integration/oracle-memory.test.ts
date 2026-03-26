@@ -50,6 +50,31 @@ vi.mock('../../src/utils/prisma', () => {
   return { default: mock, prisma: mock };
 });
 
+// Mocks for PIX-179 (aspect cooldown) tests — §5
+const _pvMock = { $queryRaw: vi.fn(), $executeRaw: vi.fn() };
+vi.mock('../../src/utils/prisma-vector', () => ({
+  getPrismaVector: vi.fn(() => _pvMock),
+}));
+
+vi.mock('ai', () => ({
+  streamText: vi.fn(),
+  generateText: vi.fn(),
+}));
+
+vi.mock('@ai-sdk/anthropic', () => ({
+  anthropic: vi.fn(() => 'mock-anthropic-model'),
+}));
+
+vi.mock('@ai-sdk/openai', () => {
+  const fn = vi.fn(() => 'mock-openai-model') as any;
+  fn.embedding = vi.fn(() => 'mock-embedding-model');
+  return { openai: fn };
+});
+
+vi.mock('../../src/services/agent-tools', () => ({
+  createAstrologyTools: vi.fn(() => ({})),
+}));
+
 // Controllable auth mock — set _currentUser before each test
 let _currentUser: any = null;
 vi.mock('../../src/middleware/auth', () => ({
@@ -67,8 +92,12 @@ vi.mock('../../src/middleware/auth', () => ({
 // ─── Imports after mocks ─────────────────────────────────────────────────────
 
 import { prisma } from '../../src/utils/prisma';
-import { buildSystemPrompt } from '../../src/services/llm-helpers';
+import { buildSystemPrompt, ASTROLOGER_SYSTEM_PROMPT } from '../../src/services/llm-helpers';
 import userRouter from '../../src/routes/user';
+import { getAspectCooldowns } from '../../src/services/memory-retrieval';
+import { streamChatCompletion } from '../../src/services/llm';
+import { getPrismaVector } from '../../src/utils/prisma-vector';
+import { streamText } from 'ai';
 
 // ─── Express app for HTTP tests ───────────────────────────────────────────────
 
@@ -401,5 +430,148 @@ describe('§4 — Tier gating', () => {
     for (const m of mems) {
       expect(prompt).not.toContain(m.content);
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// §5 — Aspect Cooldown pipeline (PIX-179)
+//   (a) extraction writes correct aspect_cooldown records — it.todo (needs DB)
+//   (b) getAspectCooldowns() query returns correct results
+//   (c) Layer 2 injection includes ASPECT ROTATION GUIDANCE when data exists
+//   (d) injection is absent when no cooldown data
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('§5 — Aspect Cooldown pipeline (PIX-179)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (getPrismaVector as ReturnType<typeof vi.fn>).mockReturnValue(_pvMock);
+  });
+
+  // ── (a) Extraction ────────────────────────────────────────────────────────
+
+  it.todo(
+    '(a) extraction job writes aspect_cooldown record when Oracle featured an aspect prominently',
+  );
+
+  it.todo(
+    '(a) extraction job writes NO aspect_cooldown records when Oracle messages contain no aspects',
+  );
+
+  // ── (b) getAspectCooldowns() query ────────────────────────────────────────
+
+  it('(b) returns parsed aspect cooldowns from DB rows within 7-day window', async () => {
+    const now = new Date();
+    _pvMock.$queryRaw.mockResolvedValue([
+      { content: JSON.stringify({ aspect: 'Sun conjunct Moon', cooldownLevel: 2 }), source_date: now },
+      { content: JSON.stringify({ aspect: 'Saturn square Venus', cooldownLevel: 1 }), source_date: now },
+    ]);
+
+    const result = await getAspectCooldowns('user-123');
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({ aspect: 'Sun conjunct Moon', cooldownLevel: 2 });
+    expect(result[1]).toMatchObject({ aspect: 'Saturn square Venus', cooldownLevel: 1 });
+  });
+
+  it('(b) skips malformed JSON rows without throwing', async () => {
+    _pvMock.$queryRaw.mockResolvedValue([
+      { content: 'not-json', source_date: new Date() },
+      { content: JSON.stringify({ aspect: 'Jupiter trine Mars', cooldownLevel: 1 }), source_date: new Date() },
+    ]);
+
+    const result = await getAspectCooldowns('user-123');
+
+    expect(result).toHaveLength(1);
+    expect(result[0].aspect).toBe('Jupiter trine Mars');
+  });
+
+  it('(b) returns [] when DB query fails (non-fatal)', async () => {
+    _pvMock.$queryRaw.mockRejectedValue(new Error('DB unavailable'));
+
+    const result = await getAspectCooldowns('user-123');
+
+    expect(result).toEqual([]);
+  });
+
+  it('(b) returns [] when no aspect records exist in 7-day window', async () => {
+    _pvMock.$queryRaw.mockResolvedValue([]);
+
+    const result = await getAspectCooldowns('user-123');
+
+    expect(result).toEqual([]);
+  });
+
+  // ── (c) Layer 2 injection when cooldown data exists ───────────────────────
+
+  it('(c) streamChatCompletion injects ASPECT ROTATION GUIDANCE block for PRO user with cooldowns', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+
+    // Seed cooldown data via getPrismaVector mock
+    _pvMock.$queryRaw.mockResolvedValue([
+      { content: JSON.stringify({ aspect: 'Pluto opposite Sun', cooldownLevel: 2 }), source_date: new Date() },
+    ]);
+
+    // Capture messages passed to streamText
+    let capturedMessages: any[] = [];
+    (streamText as ReturnType<typeof vi.fn>).mockImplementation(({ messages }) => {
+      capturedMessages = messages;
+      return {
+        fullStream: (async function* () {
+          yield { type: 'finish', totalUsage: { inputTokens: 0, outputTokens: 0 } };
+        })(),
+      };
+    });
+
+    const systemContent = ASTROLOGER_SYSTEM_PROMPT + '\n\nDynamic Layer 2 context here.';
+    const gen = streamChatCompletion(
+      [{ role: 'system', content: systemContent }, { role: 'user', content: 'test question' }],
+      { tier: 'PRO', userId: 'user-123' },
+    );
+    for await (const _chunk of gen) { /* consume */ }
+
+    const allSystemContent = capturedMessages
+      .filter(m => m.role === 'system')
+      .map(m => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content)))
+      .join('\n');
+
+    expect(allSystemContent).toContain('ASPECT ROTATION GUIDANCE');
+    expect(allSystemContent).toContain('Pluto opposite Sun');
+    expect(allSystemContent).toContain('deprioritize');
+
+    vi.unstubAllEnvs();
+  });
+
+  // ── (d) injection absent when no cooldown data ────────────────────────────
+
+  it('(d) streamChatCompletion does NOT inject guidance block when no cooldowns exist', async () => {
+    vi.stubEnv('ANTHROPIC_API_KEY', 'test-key');
+
+    _pvMock.$queryRaw.mockResolvedValue([]);
+
+    let capturedMessages: any[] = [];
+    (streamText as ReturnType<typeof vi.fn>).mockImplementation(({ messages }) => {
+      capturedMessages = messages;
+      return {
+        fullStream: (async function* () {
+          yield { type: 'finish', totalUsage: { inputTokens: 0, outputTokens: 0 } };
+        })(),
+      };
+    });
+
+    const systemContent = ASTROLOGER_SYSTEM_PROMPT + '\n\nDynamic Layer 2 context here.';
+    const gen = streamChatCompletion(
+      [{ role: 'system', content: systemContent }, { role: 'user', content: 'test question' }],
+      { tier: 'PRO', userId: 'user-456' },
+    );
+    for await (const _chunk of gen) { /* consume */ }
+
+    const allSystemContent = capturedMessages
+      .filter(m => m.role === 'system')
+      .map(m => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content)))
+      .join('\n');
+
+    expect(allSystemContent).not.toContain('ASPECT ROTATION GUIDANCE');
+
+    vi.unstubAllEnvs();
   });
 });

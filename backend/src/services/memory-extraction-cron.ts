@@ -32,6 +32,14 @@ interface ExtractedFact {
   category: MemoryCategory;
 }
 
+/** Cooldown level: 1 = avoid leading, 2 = deprioritize */
+type CooldownLevel = 1 | 2;
+
+interface ExtractedAspect {
+  aspect: string;
+  cooldownLevel: CooldownLevel;
+}
+
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
 function delay(ms: number) {
@@ -143,6 +151,80 @@ ${transcript}`;
   return facts.slice(0, 3); // enforce max 3
 }
 
+// ─── aspect cooldown extraction ──────────────────────────────────────────────
+
+/**
+ * Call Claude Haiku to identify astrological aspects the Oracle led with or
+ * featured prominently in its responses. Returns up to 3 aspect cooldown
+ * records. Only inspects ASSISTANT messages. Returns [] if none found.
+ */
+async function extractAspects(
+  messages: Array<{ role: string; content: string }>,
+): Promise<ExtractedAspect[]> {
+  const oracleMessages = messages
+    .filter(m => m.role !== 'USER')
+    .map(m => `Oracle: ${m.content}`)
+    .join('\n');
+
+  if (!oracleMessages.trim()) return [];
+
+  const prompt = `You are reviewing an Oracle AI astrology conversation. Look ONLY at the Oracle's messages below.
+Identify up to 3 astrological aspects (planet-to-planet relationships) that the Oracle led with, opened a response with, or discussed at length across multiple turns.
+
+An astrological aspect is a specific relationship between two planets — e.g., "Sun conjunct Moon", "Saturn square Venus", "Jupiter trine Mars", "Pluto opposite Sun".
+
+Rules:
+- Only include aspects the Oracle CLEARLY EMPHASIZED — led a response with, or returned to repeatedly
+- Skip generic discussion, sign placements, or house placements (those are not aspects)
+- If no specific aspects were emphasized, return an empty array
+- Assign cooldownLevel based on prominence:
+  - 2 = Oracle opened a major response with this aspect OR featured it across multiple messages
+  - 1 = Oracle mentioned it once as a notable point
+- Do NOT include level 0 aspects
+
+Return ONLY valid JSON — no markdown, no explanation:
+[{"aspect": "Sun conjunct Moon", "cooldownLevel": 2}]
+
+Oracle messages:
+${oracleMessages}`;
+
+  const result = await generateText({
+    model: anthropic('claude-haiku-4-5-20251001'),
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.2,
+    maxTokens: 256,
+  });
+
+  const text = result.text.trim().replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return [];
+  }
+
+  if (!Array.isArray(parsed)) return [];
+
+  const aspects: ExtractedAspect[] = [];
+  for (const item of parsed) {
+    if (
+      typeof item === 'object' &&
+      item !== null &&
+      typeof (item as any).aspect === 'string' &&
+      (item as any).aspect.trim().length > 0 &&
+      ((item as any).cooldownLevel === 1 || (item as any).cooldownLevel === 2)
+    ) {
+      aspects.push({
+        aspect: (item as any).aspect.trim(),
+        cooldownLevel: (item as any).cooldownLevel as CooldownLevel,
+      });
+    }
+  }
+
+  return aspects.slice(0, 3);
+}
+
 // ─── per-user extraction ──────────────────────────────────────────────────────
 
 async function processUser(
@@ -171,8 +253,6 @@ async function processUser(
     console.warn(`[MemoryCron] Extraction failed for user ${userId}:`, err);
     return { inserted: 0, skipped: 0 };
   }
-
-  if (facts.length === 0) return { inserted: 0, skipped: 0 };
 
   let inserted = 0;
   let skipped = 0;
@@ -213,6 +293,37 @@ async function processUser(
       inserted++;
     } catch (err) {
       console.warn(`[MemoryCron] Insert failed for user ${userId}:`, err);
+      skipped++;
+    }
+  }
+
+  // Extract aspect cooldowns from Oracle messages (PIX-179)
+  let aspects: ExtractedAspect[] = [];
+  try {
+    aspects = await extractAspects(messages.map(m => ({ role: m.role, content: m.content })));
+  } catch (err) {
+    console.warn(`[MemoryCron] Aspect extraction failed for user ${userId}:`, err);
+  }
+
+  for (const aspect of aspects) {
+    try {
+      const sourceDateStr = sourceDate.toISOString().split('T')[0];
+      const content = JSON.stringify({ aspect: aspect.aspect, cooldownLevel: aspect.cooldownLevel });
+      await getPrismaVector().$executeRaw`
+        INSERT INTO user_memories (id, user_id, content, category, source_date, chat_ids, created_at)
+        VALUES (
+          gen_random_uuid()::text,
+          ${userId},
+          ${content},
+          'aspect_cooldown',
+          ${sourceDateStr}::date,
+          ${sessionIds}::text[],
+          now()
+        )
+      `;
+      inserted++;
+    } catch (err) {
+      console.warn(`[MemoryCron] Aspect insert failed for user ${userId}:`, err);
       skipped++;
     }
   }

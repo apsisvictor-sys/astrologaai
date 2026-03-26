@@ -8,6 +8,7 @@ import { streamText, generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { createAstrologyTools } from './agent-tools';
+import { getAspectCooldowns } from './memory-retrieval';
 
 // Re-export helpers from legacy (prompt building, chart summary, session summary)
 export {
@@ -193,6 +194,20 @@ Answer every question with depth, nuance, and comprehensive multi-tool synthesis
 
     if (coreMessages.length > 0 && coreMessages[0].role === 'system') {
       coreMessages[0].content += `\n\n[TIER SYSTEM INSTRUCTION]\n${systemPromptContext}`;
+    }
+
+    // ASPECT ROTATION GUIDANCE — inject into Layer 2 for PRO/PREMIUM (PIX-179)
+    if ((tier === 'PRO' || tier === 'PREMIUM') && config.userId && coreMessages.length > 0 && coreMessages[0].role === 'system') {
+      const cooldowns = await getAspectCooldowns(config.userId).catch(() => []);
+      if (cooldowns.length > 0) {
+        const lines = cooldowns.map(c => {
+          const label = c.cooldownLevel === 2 ? 'deprioritize' : 'avoid leading with';
+          const month = new Date(c.featuredAt).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
+          return `- ${c.aspect} [${label}] (featured ${month})`;
+        });
+        const block = `\n\n## ASPECT ROTATION GUIDANCE\nIn recent sessions, you have already led with or prominently featured these aspects. Introduce fresh aspects or apply familiar ones differently:\n${lines.join('\n')}\nThis is a soft guideline only — if an aspect is highly activated by current transits or directly relevant to the user's question, accuracy takes precedence over variety.`;
+        (coreMessages[0] as any).content += block;
+      }
     }
 
     // Anthropic 2-layer prompt caching: split system message into static (Layer 1)
