@@ -23,23 +23,18 @@ __export(geocoding_exports, {
   validateCoordinates: () => validateCoordinates
 });
 module.exports = __toCommonJS(geocoding_exports);
+var import_geo_tz = require("geo-tz");
 var import_redis = require("../utils/redis");
-const GOOGLE_MAPS_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const CACHE_TTL_SEARCH = 86400;
-const CACHE_TTL_PLACE = 604800;
 const CACHE_TTL_TIMEZONE = 2592e3;
-function isRedisAvailable() {
-  return !!(import_redis.redisClient && import_redis.redisClient.isOpen);
-}
+const PHOTON_BASE = "https://photon.komoot.io";
 async function redisGet(key) {
-  if (!isRedisAvailable()) return null;
   return Promise.race([
     import_redis.redisClient.get(key),
     new Promise((resolve) => setTimeout(() => resolve(null), 500))
   ]);
 }
 function redisSet(key, ttl, value) {
-  if (!isRedisAvailable()) return;
   Promise.race([
     import_redis.redisClient.setEx(key, ttl, value),
     new Promise((resolve) => setTimeout(resolve, 500))
@@ -47,68 +42,31 @@ function redisSet(key, ttl, value) {
   });
 }
 async function getTimezoneFromCoordinates(lat, lon) {
-  if (!GOOGLE_MAPS_API_KEY) {
-    console.warn("[Geocoding] GOOGLE_MAPS_API_KEY not set \u2014 defaulting to UTC");
-    return "UTC";
-  }
   const cacheKey = `geocoding:tz:${lat.toFixed(2)}:${lon.toFixed(2)}`;
   const cached = await redisGet(cacheKey);
   if (cached) return cached;
-  const timestamp = Math.floor(Date.now() / 1e3);
-  const url = `https://maps.googleapis.com/maps/api/timezone/json?location=${lat},${lon}&timestamp=${timestamp}&key=${GOOGLE_MAPS_API_KEY}`;
   try {
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.status === "OK" && data.timeZoneId) {
-      redisSet(cacheKey, CACHE_TTL_TIMEZONE, data.timeZoneId);
-      return data.timeZoneId;
-    }
-    console.error("[Geocoding] Time Zone API error:", data.status, data.errorMessage);
-    return "UTC";
+    const zones = (0, import_geo_tz.find)(lat, lon);
+    const tz = zones[0] ?? "UTC";
+    redisSet(cacheKey, CACHE_TTL_TIMEZONE, tz);
+    return tz;
   } catch (err) {
-    console.error("[Geocoding] Time Zone fetch error:", err);
+    console.error("[Geocoding] geo-tz lookup error:", err);
     return "UTC";
   }
 }
-async function getPlaceDetails(placeId) {
-  const cacheKey = `geocoding:place:${placeId}`;
-  const cached = await redisGet(cacheKey);
-  if (cached) return JSON.parse(cached);
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?place_id=${placeId}&key=${GOOGLE_MAPS_API_KEY}`;
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-    if (data.status !== "OK" || !data.results?.length) return null;
-    const result = data.results[0];
-    const loc = result.geometry?.location;
-    if (!loc) return null;
-    let city = "";
-    let country = "";
-    for (const component of result.address_components || []) {
-      if (component.types.includes("locality")) city = component.long_name;
-      if (component.types.includes("administrative_area_level_1") && !city) city = component.long_name;
-      if (component.types.includes("country")) country = component.long_name;
-    }
-    const details = {
-      lat: loc.lat,
-      lon: loc.lng,
-      city,
-      country,
-      displayName: result.formatted_address
-    };
-    redisSet(cacheKey, CACHE_TTL_PLACE, JSON.stringify(details));
-    return details;
-  } catch (err) {
-    console.error("[Geocoding] Place details fetch error:", err);
-    return null;
-  }
+function extractCityFromPhoton(props) {
+  return props.city ?? props.town ?? props.village ?? props.county ?? props.state ?? props.name ?? "";
+}
+function buildDisplayName(props) {
+  const parts = [];
+  if (props.name) parts.push(props.name);
+  if (props.state && props.state !== props.name) parts.push(props.state);
+  if (props.country) parts.push(props.country);
+  return parts.join(", ");
 }
 async function searchLocations(query, limit = 5) {
   if (!query || query.length < 2) return [];
-  if (!GOOGLE_MAPS_API_KEY) {
-    console.warn("[Geocoding] GOOGLE_MAPS_API_KEY not set \u2014 location search unavailable");
-    return [];
-  }
   const cap = Math.min(limit, 5);
   const cacheKey = `geocoding:search:${query.toLowerCase().trim()}`;
   const cached = await redisGet(cacheKey);
@@ -116,44 +74,45 @@ async function searchLocations(query, limit = 5) {
     console.log(`[Geocoding] Cache hit: "${query}"`);
     return JSON.parse(cached);
   }
-  console.log(`[Geocoding] Autocomplete: "${query}"`);
+  console.log(`[Geocoding] Photon search: "${query}"`);
   const params = new URLSearchParams({
-    input: query,
-    types: "geocode",
-    language: "en",
-    key: GOOGLE_MAPS_API_KEY
+    q: query,
+    limit: String(cap),
+    lang: "en"
   });
-  let predictions = [];
+  let data = { features: [] };
   try {
-    const res = await fetch(`https://maps.googleapis.com/maps/api/place/autocomplete/json?${params}`);
-    const data = await res.json();
-    if (data.status === "OK") {
-      predictions = (data.predictions || []).slice(0, cap);
-    } else {
-      console.error("[Geocoding] Autocomplete error:", data.status, data.error_message);
+    const res = await fetch(`${PHOTON_BASE}/api/?${params}`, {
+      headers: { "Accept": "application/json" }
+    });
+    if (!res.ok) {
+      console.error("[Geocoding] Photon HTTP error:", res.status);
       return [];
     }
+    data = await res.json();
   } catch (err) {
-    console.error("[Geocoding] Autocomplete fetch error:", err);
+    console.error("[Geocoding] Photon fetch error:", err);
     return [];
   }
-  const settled = await Promise.all(
-    predictions.map(async (prediction) => {
-      const details = await getPlaceDetails(prediction.place_id);
-      if (!details) return null;
-      const timezone = await getTimezoneFromCoordinates(details.lat, details.lon);
+  if (!data.features?.length) return [];
+  const results = await Promise.all(
+    data.features.map(async (feature) => {
+      const [lon, lat] = feature.geometry.coordinates;
+      const props = feature.properties;
+      const city = extractCityFromPhoton(props);
+      const country = props.country ?? "";
+      const timezone = await getTimezoneFromCoordinates(lat, lon);
       return {
-        name: details.city || prediction.description.split(",")[0],
-        displayName: prediction.description,
-        latitude: details.lat,
-        longitude: details.lon,
-        country: details.country,
-        city: details.city,
+        name: props.name || city,
+        displayName: buildDisplayName(props),
+        latitude: lat,
+        longitude: lon,
+        country,
+        city,
         timezone
       };
     })
   );
-  const results = settled.filter((r) => r !== null);
   redisSet(cacheKey, CACHE_TTL_SEARCH, JSON.stringify(results));
   return results;
 }
