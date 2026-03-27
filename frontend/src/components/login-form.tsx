@@ -42,6 +42,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
   const [magicLinkOpen, setMagicLinkOpen] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [magicLinkEmail, setMagicLinkEmail] = useState('');
+  const [magicLinkError, setMagicLinkError] = useState<string | null>(null);
 
   const validateEmail = (email: string): string | undefined => {
     if (!email) return 'Email is required';
@@ -289,7 +290,7 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
               <input
                 type="email"
                 value={magicLinkEmail}
-                onChange={(e) => setMagicLinkEmail(e.target.value)}
+                onChange={(e) => { setMagicLinkEmail(e.target.value); if (magicLinkError) setMagicLinkError(null); }}
                 placeholder="your@email.com"
                 className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-primary/50 transition-all"
               />
@@ -299,10 +300,12 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
                 onClick={async () => {
                   try {
                     setOauthLoading('magic');
+                    setMagicLinkError(null);
                     await signInWithMagicLink(magicLinkEmail);
                     setMagicLinkSent(true);
-                  } catch {
-                    // error handled by auth context
+                  } catch (err) {
+                    const msg = err instanceof Error ? err.message : 'Failed to send magic link. Please try again.';
+                    setMagicLinkError(msg);
                   } finally {
                     setOauthLoading(null);
                   }
@@ -314,6 +317,9 @@ export function LoginForm({ onSuccess, onRegisterClick }: LoginFormProps) {
                 ) : 'Send'}
               </button>
             </div>
+            {magicLinkError && (
+              <p className="text-sm text-red-400">{magicLinkError}</p>
+            )}
           </div>
         )}
         {magicLinkSent && (
