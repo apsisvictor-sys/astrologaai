@@ -48,7 +48,7 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
   PRO: {
     tier: 'PRO',
     name: { bg: 'Про', en: 'Pro' },
-    burstLimit: 10,
+    burstLimit: 30,
     features: [
       'unlimited_queries',
       'tool:get_natal_chart',
@@ -65,7 +65,7 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
   PREMIUM: {
     tier: 'PREMIUM',
     name: { bg: 'Премиум', en: 'Premium' },
-    burstLimit: 10, // 10 req/min — realistic for human use, protects against abuse
+    burstLimit: 60,
     features: [
       'everything_in_pro',
       'tool:get_natal_chart',
