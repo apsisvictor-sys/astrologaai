@@ -1,5 +1,12 @@
+import Link from 'next/link';
+
 export function PublicFooter() {
-  const links = ['Terms of Use', 'Privacy Policy', 'Refund Policy', 'Company'];
+  const links = [
+    { label: 'Terms of Use', href: '/terms' },
+    { label: 'Privacy Policy', href: '/privacy' },
+    { label: 'Refund Policy', href: '/terms#refunds' },
+    { label: 'Company', href: '/features' },
+  ];
 
   return (
     <footer className="mt-28 pb-12 px-6">
@@ -9,9 +16,9 @@ export function PublicFooter() {
         </p>
         <div className="flex items-center gap-6 flex-wrap justify-center">
           {links.map((link) => (
-            <a key={link} href="#" className="text-xs text-text-muted hover:text-text-secondary transition-colors">
-              {link}
-            </a>
+            <Link key={link.label} href={link.href} className="text-xs text-text-muted hover:text-text-secondary transition-colors">
+              {link.label}
+            </Link>
           ))}
         </div>
       </div>
