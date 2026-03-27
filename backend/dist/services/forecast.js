@@ -39,6 +39,7 @@ var import_redis = require("../utils/redis");
 var import_astrology = require("./astrology");
 var import_llm = require("./llm");
 var import_forecast_cron = require("./forecast-cron");
+var import_transits = require("./transits");
 const FORECAST_CACHE_TTL = 43200;
 const WEEKLY_CACHE_TTL = 604800;
 const PLANET_TRANSLATIONS = {
@@ -159,8 +160,7 @@ function translateToBulgarian(text) {
   return text;
 }
 async function getCurrentTransits(natalChart) {
-  const { getActiveTransitsForUser } = await import("./transits");
-  const { skyPositions } = await getActiveTransitsForUser(natalChart);
+  const { skyPositions } = await (0, import_transits.getActiveTransitsForUser)(natalChart);
   return skyPositions.map((p) => ({
     planet: p.planet,
     planetBg: p.planetBg,

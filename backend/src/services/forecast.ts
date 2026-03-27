@@ -10,6 +10,7 @@ import { redisClient } from '../utils/redis';
 import { calculateNatalChart, NatalChart, BirthDataInput } from './astrology';
 import { chatCompletion, type ChatMessage } from './llm';
 import { getStoredForecast, storeForecast } from './forecast-cron';
+import { getActiveTransitsForUser } from './transits';
 
 // ============================================
 // Types
@@ -223,7 +224,6 @@ function translateToBulgarian(text: string): string {
  * Uses astrology-api.io or fallback calculation
  */
 async function getCurrentTransits(natalChart: any): Promise<Transit[]> {
-  const { getActiveTransitsForUser } = await import('./transits');
   const { skyPositions } = await getActiveTransitsForUser(natalChart);
   return skyPositions.map(p => ({
     planet: p.planet,

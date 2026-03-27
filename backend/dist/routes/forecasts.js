@@ -1,9 +1,7 @@
 "use strict";
-var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __export = (target, all) => {
   for (var name in all)
@@ -17,14 +15,6 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 var forecasts_exports = {};
 __export(forecasts_exports, {
@@ -36,6 +26,7 @@ var import_auth = require("../middleware/auth");
 var import_queryLimit = require("../middleware/queryLimit");
 var import_forecast = require("../services/forecast");
 var import_forecast_cron = require("../services/forecast-cron");
+var import_transits = require("../services/transits");
 var import_prisma = require("../utils/prisma");
 const router = (0, import_express.Router)();
 router.use(import_auth.authMiddleware);
@@ -184,8 +175,7 @@ router.get("/transits", async (req, res) => {
         }
       });
     }
-    const { getActiveTransitsForUser } = await import("../services/transits");
-    const transitData = await getActiveTransitsForUser(birthChart.chartData);
+    const transitData = await (0, import_transits.getActiveTransitsForUser)(birthChart.chartData);
     res.json({
       success: true,
       data: {

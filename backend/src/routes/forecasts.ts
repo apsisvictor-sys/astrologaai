@@ -11,6 +11,7 @@ import { authMiddleware } from '../middleware/auth';
 import { queryLimitMiddleware } from '../middleware/queryLimit';
 import { getDailyForecast, getWeeklyForecast, getPersonalDailyHoroscope } from '../services/forecast';
 import { getStoredForecasts } from '../services/forecast-cron';
+import { getActiveTransitsForUser } from '../services/transits';
 import { prisma } from '../utils/prisma';
 
 const router = Router();
@@ -201,7 +202,6 @@ router.get('/transits', async (req: Request, res: Response) => {
       });
     }
 
-    const { getActiveTransitsForUser } = await import('../services/transits');
     const transitData = await getActiveTransitsForUser(birthChart.chartData);
 
     res.json({
