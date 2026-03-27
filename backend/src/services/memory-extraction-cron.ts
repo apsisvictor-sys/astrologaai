@@ -12,6 +12,7 @@
 
 import { generateText } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
+import * as Sentry from '@sentry/node';
 import { prisma } from '../utils/prisma';
 import { getPrismaVector } from '../utils/prisma-vector';
 import { embedText } from './embedding';
@@ -340,6 +341,25 @@ export async function runMemoryExtractionJob(): Promise<{
 }> {
   console.log('[MemoryCron] Starting nightly memory extraction');
 
+  // ─── pgvector health check ────────────────────────────────────────────────
+  // Ping postgres-vector before processing any users. If the service is down,
+  // skip the entire run rather than failing user-by-user halfway through.
+  //
+  // Manual recovery: Railway dashboard → astrologaai project → postgres-vector
+  // service → Restart. After restart, the next scheduled run (03:00 UTC) will
+  // retry automatically. To trigger an immediate re-run, call:
+  //   POST /api/admin/memory-cron/run  (internal admin endpoint)
+  try {
+    await getPrismaVector().$queryRaw`SELECT 1`;
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    Sentry.captureException(error, {
+      tags: { service: 'memory-cron', phase: 'health-check' },
+    });
+    console.error('[MemoryCron] postgres-vector health check failed — skipping run:', err);
+    return { usersProcessed: 0, totalInserted: 0, totalSkipped: 0 };
+  }
+
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   const today = new Date();
 
@@ -358,6 +378,8 @@ export async function runMemoryExtractionJob(): Promise<{
         AND  u.memory_enabled = true
     `;
   } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    Sentry.captureException(error, { tags: { service: 'memory-cron', phase: 'query-active-users' } });
     console.error('[MemoryCron] Failed to query active users:', err);
     return { usersProcessed: 0, totalInserted: 0, totalSkipped: 0 };
   }
@@ -386,6 +408,8 @@ export async function runMemoryExtractionJob(): Promise<{
         console.log(`[MemoryCron] User ${userId}: +${result.inserted} memories, ${result.skipped} skipped`);
       }
     } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      Sentry.captureException(error, { tags: { service: 'memory-cron', phase: 'process-user' }, extra: { userId } });
       console.error(`[MemoryCron] Unexpected error for user ${userId}:`, err);
     }
     // Pace requests — Haiku + OpenAI embeddings rate limits
