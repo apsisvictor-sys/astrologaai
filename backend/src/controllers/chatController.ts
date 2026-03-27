@@ -376,13 +376,14 @@ ${aspectLines || 'No major aspects within orb today.'}`;
     res.setHeader('X-Provider', orchestratorStatus.activeProvider);
 
     // Send initial metadata
+    const ql = (req as any).queryLimit ?? {};
+    const rateLimitMeta = ql.unlimited
+      ? { remaining: null, limit: null }
+      : { remaining: Math.max(0, (ql.queryLimit ?? 0) - (ql.queriesUsed ?? 0) - 1), limit: ql.queryLimit ?? 0 };
     res.write(`event: metadata\ndata: ${JSON.stringify({
       sessionId: session.id,
       messageId: userMessage.id,
-      rateLimit: {
-        remaining: rateLimit.remaining - 1,
-        limit: rateLimit.limit,
-      },
+      rateLimit: rateLimitMeta,
     })}\n\n`);
 
     // Stream AI response
