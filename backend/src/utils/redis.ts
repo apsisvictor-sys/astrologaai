@@ -27,8 +27,8 @@ const memoryClient = {
   lPop: async (_key: string) => null as null,
   lTrim: async (_key: string, _start: number, _stop: number) => {},
   keys: async (_pattern: string) => [] as string[],
-  sadd: async (_key: string, ..._members: string[]) => 0,
-  smembers: async (_key: string): Promise<string[]> => [],
+  sAdd: async (_key: string, ..._members: string[]) => 0,
+  sMembers: async (_key: string): Promise<string[]> => [],
   ping: async () => 'PONG',
   on: () => {},
   connect: async () => {},
@@ -224,7 +224,7 @@ export async function invalidateResetToken(token: string): Promise<void> {
 export async function invalidateUserSessions(userId: string): Promise<void> {
   try {
     const setKey = `user_sessions:${userId}`;
-    const sessionIds = await redisClient.smembers(setKey);
+    const sessionIds = await redisClient.sMembers(setKey);
     if (sessionIds.length > 0) {
       const contextKeys = sessionIds.map(id => `chat_context:${id}`);
       await redisClient.del(setKey, ...contextKeys);

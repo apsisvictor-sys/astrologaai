@@ -801,7 +801,7 @@ export async function createSession(req: Request, res: Response): Promise<void> 
     });
 
     // Register session so invalidateUserSessions can find and delete it
-    redisClient.sadd(`user_sessions:${userId}`, session.id).catch(() => {});
+    redisClient.sAdd(`user_sessions:${userId}`, session.id).catch(() => {});
 
     const welcomeMessage = getOracleGreeting(userLanguage);
 
@@ -904,7 +904,7 @@ export async function startNewConversation(req: Request, res: Response): Promise
     });
 
     // Register session so invalidateUserSessions can find and delete it
-    redisClient.sadd(`user_sessions:${userId}`, session.id).catch(() => {});
+    redisClient.sAdd(`user_sessions:${userId}`, session.id).catch(() => {});
 
     // US-09: Initialize Redis context for the new session
     await storeSessionContext(

@@ -645,7 +645,7 @@ async function createSession(req, res) {
         birthProfileId
       }
     });
-    import_redis.redisClient.sadd(`user_sessions:${userId}`, session.id).catch(() => {
+    import_redis.redisClient.sAdd(`user_sessions:${userId}`, session.id).catch(() => {
     });
     const welcomeMessage = getOracleGreeting(userLanguage);
     res.status(201).json({
@@ -724,7 +724,7 @@ async function startNewConversation(req, res) {
         birthProfileId
       }
     });
-    import_redis.redisClient.sadd(`user_sessions:${userId}`, session.id).catch(() => {
+    import_redis.redisClient.sAdd(`user_sessions:${userId}`, session.id).catch(() => {
     });
     await (0, import_redis.storeSessionContext)(
       session.id,

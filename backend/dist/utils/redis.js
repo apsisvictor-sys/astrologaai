@@ -55,8 +55,8 @@ const memoryClient = {
   lTrim: async (_key, _start, _stop) => {
   },
   keys: async (_pattern) => [],
-  sadd: async (_key, ..._members) => 0,
-  smembers: async (_key) => [],
+  sAdd: async (_key, ..._members) => 0,
+  sMembers: async (_key) => [],
   ping: async () => "PONG",
   on: () => {
   },
@@ -171,7 +171,7 @@ async function invalidateResetToken(token) {
 async function invalidateUserSessions(userId) {
   try {
     const setKey = `user_sessions:${userId}`;
-    const sessionIds = await redisClient.smembers(setKey);
+    const sessionIds = await redisClient.sMembers(setKey);
     if (sessionIds.length > 0) {
       const contextKeys = sessionIds.map((id) => `chat_context:${id}`);
       await redisClient.del(setKey, ...contextKeys);
