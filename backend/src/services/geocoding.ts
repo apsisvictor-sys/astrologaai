@@ -1,15 +1,15 @@
 /**
  * Geocoding Service
- * Location search: OpenStreetMap Nominatim (free, no API key)
+ * Location search: Photon by Komoot (OSM data, cloud-friendly, no API key)
  * Timezone lookup: geo-tz (local database, no API call)
  *
  * Cache strategy:
  *   - Search results cached 24h per query
  *   - Timezone cached 30 days per ~1km grid cell
  *
- * Nominatim usage rules:
- *   - Max 1 req/sec — enforced via lastRequestAt gate
- *   - User-Agent: AstroLogAI/1.0 (contact@pixelautomate.com)
+ * Photon usage:
+ *   - https://photon.komoot.io — free, OSM-backed, works from cloud IPs
+ *   - No rate limit enforcement (unlike Nominatim which blocks cloud infra)
  */
 
 import { find as geoTzFind } from 'geo-tz';
@@ -28,26 +28,7 @@ export interface GeocodingResult {
 const CACHE_TTL_SEARCH   = 86400;    // 24 hours  — search results
 const CACHE_TTL_TIMEZONE = 2592000;  // 30 days   — timezone (never changes)
 
-const NOMINATIM_BASE = 'https://nominatim.openstreetmap.org';
-const NOMINATIM_UA   = 'AstroLogAI/1.0 (contact@pixelautomate.com)';
-
-// ---------------------------------------------------------------------------
-// Rate limiter — Nominatim allows max 1 req/sec
-// ---------------------------------------------------------------------------
-
-let lastRequestAt = 0;
-
-async function nominatimFetch(url: string): Promise<Response> {
-  const now = Date.now();
-  const wait = 1000 - (now - lastRequestAt);
-  if (wait > 0) {
-    await new Promise(resolve => setTimeout(resolve, wait));
-  }
-  lastRequestAt = Date.now();
-  return fetch(url, {
-    headers: { 'User-Agent': NOMINATIM_UA, 'Accept-Language': 'en' },
-  });
-}
+const PHOTON_BASE = 'https://photon.komoot.io';
 
 // ---------------------------------------------------------------------------
 // Redis helpers
@@ -92,38 +73,54 @@ export async function getTimezoneFromCoordinates(lat: number, lon: number): Prom
 }
 
 // ---------------------------------------------------------------------------
-// Nominatim search
+// Photon (Komoot) search
 // ---------------------------------------------------------------------------
 
-interface NominatimResult {
-  lat: string;
-  lon: string;
-  display_name: string;
-  address: {
+interface PhotonFeature {
+  geometry: {
+    coordinates: [number, number]; // [lon, lat]
+    type: 'Point';
+  };
+  properties: {
+    name?: string;
     city?: string;
     town?: string;
     village?: string;
-    municipality?: string;
     county?: string;
     state?: string;
     country?: string;
+    countrycode?: string;
+    osm_key?: string;
+    osm_value?: string;
   };
 }
 
-function extractCity(address: NominatimResult['address']): string {
+interface PhotonResponse {
+  features: PhotonFeature[];
+}
+
+function extractCityFromPhoton(props: PhotonFeature['properties']): string {
   return (
-    address.city ??
-    address.town ??
-    address.village ??
-    address.municipality ??
-    address.county ??
-    address.state ??
+    props.city ??
+    props.town ??
+    props.village ??
+    props.county ??
+    props.state ??
+    props.name ??
     ''
   );
 }
 
+function buildDisplayName(props: PhotonFeature['properties']): string {
+  const parts: string[] = [];
+  if (props.name) parts.push(props.name);
+  if (props.state && props.state !== props.name) parts.push(props.state);
+  if (props.country) parts.push(props.country);
+  return parts.join(', ');
+}
+
 /**
- * Search for city locations using OpenStreetMap Nominatim.
+ * Search for city locations using Photon (Komoot OSM geocoder).
  * Results cached 24h per query.
  * Max 5 results regardless of limit param.
  */
@@ -139,42 +136,41 @@ export async function searchLocations(query: string, limit: number = 5): Promise
     return JSON.parse(cached);
   }
 
-  console.log(`[Geocoding] Nominatim search: "${query}"`);
+  console.log(`[Geocoding] Photon search: "${query}"`);
 
   const params = new URLSearchParams({
     q: query,
-    format: 'json',
     limit: String(cap),
-    addressdetails: '1',
-    featuretype: 'city',
-    'accept-language': 'en',
+    lang: 'en',
   });
 
-  let hits: NominatimResult[] = [];
+  let data: PhotonResponse = { features: [] };
   try {
-    const res = await nominatimFetch(`${NOMINATIM_BASE}/search?${params}`);
+    const res = await fetch(`${PHOTON_BASE}/api/?${params}`, {
+      headers: { 'Accept': 'application/json' },
+    });
     if (!res.ok) {
-      console.error('[Geocoding] Nominatim HTTP error:', res.status);
+      console.error('[Geocoding] Photon HTTP error:', res.status);
       return [];
     }
-    hits = await res.json();
+    data = await res.json();
   } catch (err) {
-    console.error('[Geocoding] Nominatim fetch error:', err);
+    console.error('[Geocoding] Photon fetch error:', err);
     return [];
   }
 
-  if (!hits.length) return [];
+  if (!data.features?.length) return [];
 
   const results: GeocodingResult[] = await Promise.all(
-    hits.map(async (hit) => {
-      const lat = parseFloat(hit.lat);
-      const lon = parseFloat(hit.lon);
-      const city = extractCity(hit.address);
-      const country = hit.address.country ?? '';
+    data.features.map(async (feature) => {
+      const [lon, lat] = feature.geometry.coordinates;
+      const props = feature.properties;
+      const city = extractCityFromPhoton(props);
+      const country = props.country ?? '';
       const timezone = await getTimezoneFromCoordinates(lat, lon);
       return {
-        name: city || hit.display_name.split(',')[0],
-        displayName: hit.display_name,
+        name: props.name || city,
+        displayName: buildDisplayName(props),
         latitude: lat,
         longitude: lon,
         country,

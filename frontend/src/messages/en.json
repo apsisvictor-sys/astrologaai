@@ -548,11 +548,6 @@
       }
     }
   },
-  "settings": {
-    "language": {
-      "selectLanguage": "Select language"
-    }
-  },
   "errors": {
     "generic": "Something went wrong",
     "networkError": "Network error. Please try again.",

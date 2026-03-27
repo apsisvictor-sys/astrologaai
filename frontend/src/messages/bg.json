@@ -548,11 +548,6 @@
       }
     }
   },
-  "settings": {
-    "language": {
-      "selectLanguage": "Изберете език"
-    }
-  },
   "errors": {
     "generic": "Нещо се обърка",
     "networkError": "Мрежова грешка. Моля, опитайте отново.",
