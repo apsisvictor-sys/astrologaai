@@ -1057,4 +1057,69 @@ router.patch('/referrals/:id', async (req: Request, res: Response) => {
   }
 });
 
+// ── Backfill: broken birth charts ────────────────────────────────────────────
+
+/**
+ * POST /admin/backfill-charts
+ * Find birth profiles with no birth chart and re-trigger calculation.
+ * One-time fix for profiles where chart calculation failed silently.
+ */
+router.post('/backfill-charts', async (_req: Request, res: Response) => {
+  try {
+    // Find profiles with no birth chart
+    const brokenProfiles = await prisma.birthProfile.findMany({
+      where: { birthChart: null },
+      include: { user: { select: { id: true, email: true } } },
+    });
+
+    if (brokenProfiles.length === 0) {
+      return res.json({ success: true, data: { found: 0, fixed: 0, failed: 0, details: [] } });
+    }
+
+    const { calculateNatalChart } = await import('../services/astrology');
+    const results: Array<{ profileId: string; userId: string; status: string; error?: string }> = [];
+
+    for (const profile of brokenProfiles) {
+      try {
+        const chartData = await calculateNatalChart({
+          date: profile.dateOfBirth.toISOString().split('T')[0],
+          time: profile.timeOfBirth || '12:00',
+          latitude: profile.latitude,
+          longitude: profile.longitude,
+          timezone: profile.timezone || 'UTC',
+        });
+
+        await prisma.birthChart.create({
+          data: {
+            userId: profile.userId,
+            birthProfileId: profile.id,
+            chartData: chartData as any,
+          },
+        });
+
+        results.push({ profileId: profile.id, userId: profile.userId, status: 'fixed' });
+      } catch (err: any) {
+        results.push({
+          profileId: profile.id,
+          userId: profile.userId,
+          status: 'failed',
+          error: err.message,
+        });
+      }
+    }
+
+    const fixed = results.filter(r => r.status === 'fixed').length;
+    const failed = results.filter(r => r.status === 'failed').length;
+    console.log(`[Admin] Backfill charts: ${brokenProfiles.length} found, ${fixed} fixed, ${failed} failed`);
+
+    return res.json({
+      success: true,
+      data: { found: brokenProfiles.length, fixed, failed, details: results },
+    });
+  } catch (error) {
+    console.error('[Admin] backfill-charts error:', error);
+    return res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR' } });
+  }
+});
+
 export default router;

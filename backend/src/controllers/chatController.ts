@@ -10,7 +10,10 @@
  */
 
 import { Request, Response } from 'express';
-import { PrismaClient, Tier } from '@prisma/client';
+import * as Sentry from '@sentry/node';
+import { Tier } from '@prisma/client';
+import { prisma } from '../utils/prisma';
+import { inFlightSaves } from '../index';
 import { redisClient, 
   storeSessionContext, 
   getSessionContext, 
@@ -36,7 +39,7 @@ import { retrieveOracleMemories } from '../services/memory-retrieval';
 import { processSessionAspectCooldown } from '../services/aspect-cooldown-job';
 import type { ChatMessage } from '../services/llm';
 
-const prisma = new PrismaClient();
+// Prisma singleton imported from utils/prisma
 
 // ============================================
 // Rate Limiting Configuration (US-36, US-37)
@@ -253,8 +256,10 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
     }
 
     // Get user's birth chart for context
+    // chartStatus: 'ok' | 'missing_chart' (profile exists, chart calc failed) | 'no_profile'
     let chartSummary: string | undefined;
     let rawChartData: any = null;
+    let chartStatus: 'ok' | 'missing_chart' | 'no_profile' = 'no_profile';
 
     if (session.birthProfileId || birthProfileId) {
       const profileId = session.birthProfileId || birthProfileId;
@@ -267,6 +272,9 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
         const chart = birthProfile.birthChart.chartData as any;
         rawChartData = chart;
         chartSummary = generateChartSummary(chart, userLanguage);
+        chartStatus = 'ok';
+      } else if (birthProfile) {
+        chartStatus = 'missing_chart';
       }
     } else {
       // Try to get user's primary birth chart
@@ -279,6 +287,10 @@ export async function sendMessage(req: Request, res: Response): Promise<void> {
         const chart = userChart.chartData as any;
         rawChartData = chart;
         chartSummary = generateChartSummary(chart, userLanguage);
+        chartStatus = 'ok';
+      } else {
+        const profileCount = await prisma.birthProfile.count({ where: { userId } });
+        chartStatus = profileCount > 0 ? 'missing_chart' : 'no_profile';
       }
     }
 
@@ -385,6 +397,7 @@ ${aspectLines || 'No major aspects within orb today.'}`;
       sessionId: session.id,
       messageId: userMessage.id,
       rateLimit: rateLimitMeta,
+      chartStatus,
     })}\n\n`);
 
     // Stream AI response
@@ -467,10 +480,13 @@ ${aspectLines || 'No major aspects within orb today.'}`;
 
     res.end();
 
-    // Background: save assistant response + update context (non-blocking)
-    // Client already received the complete event — DB failure is silent
+    // Background: save assistant response + update context
+    // Each operation isolated so one failure doesn't cascade
     if (!hasError && fullResponse) {
-      (async () => {
+      const savePromise = (async () => {
+        const ctx = { sessionId: session.id, userId, responseLen: fullResponse.length };
+
+        // 1. Save assistant message
         try {
           const assistantMessage = await prisma.chatMessage.create({
             data: {
@@ -484,38 +500,50 @@ ${aspectLines || 'No major aspects within orb today.'}`;
             },
           });
           assistantMessageId = assistantMessage.id;
+        } catch (err) {
+          Sentry.captureException(err, { extra: { ...ctx, op: 'chatMessage.create' } });
+          console.error('[Chat] Failed to save assistant message:', err);
+        }
 
+        // 2. Update session timestamp
+        try {
           await prisma.chatSession.update({
             where: { id: session.id },
             data: { updatedAt: new Date() },
           });
+        } catch (err) {
+          Sentry.captureException(err, { extra: { ...ctx, op: 'chatSession.update' } });
+          console.error('[Chat] Failed to update session:', err);
+        }
 
-          processSessionAspectCooldown(session.id)
-            .catch(err => console.warn('[Chat] Aspect cooldown extraction failed (non-fatal):', err));
+        // 3. Aspect cooldown
+        processSessionAspectCooldown(session.id)
+          .catch(err => console.warn('[Chat] Aspect cooldown failed (non-fatal):', err));
 
+        // 4. Session context + summary
+        try {
           const updatedMessages = [
             ...session.messages.map(m => ({ role: m.role.toLowerCase(), content: m.content })),
             { role: 'user', content: content.trim() },
             { role: 'assistant', content: fullResponse },
           ];
-
           const currentSummary = session.summary ||
             (await getSessionContext(session.id))?.summary || undefined;
-
           await storeSessionContext(session.id, userId, updatedMessages, currentSummary);
 
           const totalMessages = session.messages.length + 2;
           if (totalMessages >= SUMMARY_THRESHOLD && !session.summary) {
             generateAndStoreSessionSummary(session.id, userId, updatedMessages, userLanguage)
-              .then(summary => {
-                console.log(`[Chat] Session ${session.id} summary generated: ${summary.substring(0, 50)}...`);
-              })
-              .catch(err => {
-                console.error('[Chat] Failed to generate session summary:', err);
-              });
+              .then(summary => console.log(`[Chat] Summary generated: ${summary.substring(0, 50)}...`))
+              .catch(err => console.error('[Chat] Summary generation failed:', err));
           }
+        } catch (err) {
+          Sentry.captureException(err, { extra: { ...ctx, op: 'storeSessionContext' } });
+          console.error('[Chat] Failed to store context:', err);
+        }
 
-          // ENH-04: Aggregate token usage — character-length approximations
+        // 5. Token usage (ENH-04)
+        try {
           const modelUsed = process.env.LLM_MODEL || 'unknown';
           const today = new Date(); today.setHours(0, 0, 0, 0);
           const approxInput = BigInt(Math.ceil((systemPrompt?.length ?? 0) / 4));
@@ -523,34 +551,34 @@ ${aspectLines || 'No major aspects within orb today.'}`;
           await prisma.llmUsage.upsert({
             where: { date_tier_model: { date: today, tier: userTier, model: modelUsed } },
             create: {
-              date: today,
-              tier: userTier,
-              model: modelUsed,
-              requestCount: 1,
-              inputTokens: approxInput,
-              outputTokens: approxOutput,
+              date: today, tier: userTier, model: modelUsed, requestCount: 1,
+              inputTokens: approxInput, outputTokens: approxOutput,
               totalTokens: approxInput + approxOutput,
               costUsdCents: estimateCostCents(modelUsed, Number(approxInput), Number(approxOutput)),
             },
             update: {
               requestCount: { increment: 1 },
-              inputTokens: { increment: approxInput },
-              outputTokens: { increment: approxOutput },
+              inputTokens: { increment: approxInput }, outputTokens: { increment: approxOutput },
               totalTokens: { increment: approxInput + approxOutput },
               costUsdCents: { increment: estimateCostCents(modelUsed, Number(approxInput), Number(approxOutput)) },
             },
           });
-
-          // ENH-23: Update Oracle streak
-          if (userId) {
-            updateStreak(userId).catch(err =>
-              console.error('[Chat] Failed to update streak (non-fatal):', err)
-            );
-          }
         } catch (err) {
-          console.error('[Chat] Failed to persist assistant message (non-fatal):', err);
+          Sentry.captureException(err, { extra: { ...ctx, op: 'llmUsage.upsert' } });
+          console.error('[Chat] Failed to track usage:', err);
+        }
+
+        // 6. Streak (ENH-23)
+        if (userId) {
+          updateStreak(userId).catch(err =>
+            console.error('[Chat] Streak update failed (non-fatal):', err)
+          );
         }
       })();
+
+      // Track for graceful shutdown drain
+      inFlightSaves.add(savePromise);
+      savePromise.finally(() => inFlightSaves.delete(savePromise));
     }
   } catch (error) {
     console.error('[Chat] Error sending message:', error);

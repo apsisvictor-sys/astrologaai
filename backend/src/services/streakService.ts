@@ -4,9 +4,7 @@
  * Rewards: 7-day streak → 48h PRO trial via subscription tier override.
  */
 
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../utils/prisma';
 
 // Milestone streaks that trigger rewards
 const MILESTONE_DAYS = [7, 14, 21, 30, 60, 100];

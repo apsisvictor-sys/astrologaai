@@ -20,6 +20,7 @@ import { config } from 'dotenv';
 import { runtimeConfig, isOriginAllowed } from './config/runtime';
 import { getEnvValidationReport } from './config/envValidation';
 import { prisma } from './utils/prisma';
+import { redisClient } from './utils/redis';
 
 // Import routes
 import authRoutes from './routes/auth';
@@ -50,6 +51,7 @@ import { rateLimitHeadersMiddleware, fetchRateLimitStatus } from './middleware/r
 import { startRegenerationProcessor } from './services/chart-regeneration';
 import { seedAdminDefaults } from './services/admin-defaults';
 import { ensureDailyForecastTable, startForecastCron } from './services/forecast-cron';
+import { ensureTransitForecastTable, startTransitForecastCron } from './services/transit-forecast-cron';
 
 config({ override: true });
 
@@ -264,19 +266,35 @@ app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
 });
 
 // ============================================
+// STARTUP VALIDATION
+// ============================================
+
+const envReport = getEnvValidationReport();
+
+if (!envReport.ok) {
+  console.error(`\n❌ FATAL: Missing critical environment variables:`);
+  envReport.missingCritical.forEach((key) => console.error(`   - ${key}`));
+  console.error(`\nServer cannot start. Set these variables and restart.\n`);
+  process.exit(1);
+}
+
+if (envReport.degradedFeatures.length > 0) {
+  console.warn(`\n⚠️  Degraded features (missing optional env vars):`);
+  envReport.degradedFeatures.forEach(({ key, feature }) =>
+    console.warn(`   - ${key} missing → ${feature} disabled`)
+  );
+  console.warn('');
+}
+
+// ============================================
 // START SERVER
 // ============================================
 
-app.listen(PORT, () => {
-  const envReport = getEnvValidationReport();
-
+const server = app.listen(PORT, () => {
   console.log(`🚀 AstroLogAI API running on port ${PORT}`);
   console.log(`📚 Health check: http://localhost:${PORT}/health`);
   console.log(`🔐 Auth endpoints: http://localhost:${PORT}/api/v1/auth`);
   console.log(`🌐 Allowed origins: ${runtimeConfig.allowedOrigins.join(', ') || '(none configured)'}`);
-  if (!envReport.ok) {
-    console.warn(`⚠️ Missing required env vars: ${envReport.missingRequired.join(', ')}`);
-  }
 
   // US-30: Start background chart regeneration processor
   startRegenerationProcessor();
@@ -288,8 +306,62 @@ app.listen(PORT, () => {
     console.log(`⚡ Nightly forecast cron started (runs daily at 02:00 UTC)`);
   }).catch(err => console.error('[Startup] Failed to start forecast cron:', err));
 
+  ensureTransitForecastTable().then(() => {
+    startTransitForecastCron();
+    console.log(`⚡ Transit forecast cron started (runs daily at 03:00 UTC)`);
+  }).catch(err => console.error('[Startup] Failed to start transit forecast cron:', err));
+
   // Seed AdminConfig defaults (model prices, alert thresholds) — skips if already set
   seedAdminDefaults().catch(err => console.error('[Startup] Failed to seed admin defaults:', err));
 });
+
+// ============================================
+// GRACEFUL SHUTDOWN
+// ============================================
+
+export const inFlightSaves = new Set<Promise<void>>();
+
+function gracefulShutdown(signal: string) {
+  console.log(`\n[Shutdown] ${signal} received — draining connections...`);
+
+  server.close(async () => {
+    console.log('[Shutdown] HTTP server closed');
+
+    if (inFlightSaves.size > 0) {
+      console.log(`[Shutdown] Waiting for ${inFlightSaves.size} in-flight saves...`);
+      await Promise.race([
+        Promise.allSettled([...inFlightSaves]),
+        new Promise(resolve => setTimeout(resolve, 10_000)),
+      ]);
+    }
+
+    try {
+      await prisma.$disconnect();
+      console.log('[Shutdown] Prisma disconnected');
+    } catch (err) {
+      console.error('[Shutdown] Prisma disconnect error:', err);
+    }
+
+    try {
+      if (typeof (redisClient as any).quit === 'function') {
+        await (redisClient as any).quit();
+      }
+      console.log('[Shutdown] Redis client closed');
+    } catch (err) {
+      console.error('[Shutdown] Redis close error:', err);
+    }
+
+    console.log('[Shutdown] Clean exit');
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    console.error('[Shutdown] Forced exit after 15s timeout');
+    process.exit(1);
+  }, 15_000).unref();
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;

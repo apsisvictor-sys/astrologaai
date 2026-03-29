@@ -39,8 +39,10 @@ let _connected = false;
 let activeClient: typeof memoryClient = memoryClient;
 
 const redisUrl = process.env.REDIS_URL;
-if (redisUrl) {
-  const realClient = createClient({ url: redisUrl });
+const isProduction = process.env.NODE_ENV === 'production';
+
+async function connectWithRetry(url: string, maxRetries = 3, backoffMs = 2000): Promise<void> {
+  const realClient = createClient({ url });
 
   realClient.on('connect', () => {
     _connected = true;
@@ -56,11 +58,34 @@ if (redisUrl) {
     }
   });
 
-  realClient.connect().catch((err: Error) => {
-    console.error('[Redis] ⚠️  Initial connect FAILED — cache will NOT persist across requests! All LLM forecast calls will re-run on every request. Error:', err.message);
-  });
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await realClient.connect();
+      return; // success
+    } catch (err: any) {
+      console.error(`[Redis] Connection attempt ${attempt}/${maxRetries} failed:`, err.message);
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, backoffMs * attempt));
+      }
+    }
+  }
+
+  // All retries exhausted
+  if (isProduction) {
+    console.error('[Redis] FATAL: Redis required in production — connection failed after 3 attempts');
+    process.exit(1);
+  } else {
+    console.warn('[Redis] All retries failed — using in-memory fallback (dev mode)');
+  }
+}
+
+if (redisUrl) {
+  connectWithRetry(redisUrl);
+} else if (isProduction) {
+  console.error('[Redis] FATAL: REDIS_URL required in production');
+  process.exit(1);
 } else {
-  console.warn('[Redis] ⚠️  No REDIS_URL set — using in-memory fallback. Cache lost on every restart. All LLM forecast calls will re-run after restarts.');
+  console.warn('[Redis] No REDIS_URL set — using in-memory fallback (dev mode)');
 }
 
 export const redisClient = new Proxy(memoryClient, {
