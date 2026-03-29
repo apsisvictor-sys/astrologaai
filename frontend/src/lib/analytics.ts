@@ -33,10 +33,24 @@ export function trackBirthDataCompleted(props: { birth_time_known: boolean }) {
   capture('birth_data_completed', props);
 }
 
+export function trackBirthDataSubmitted(props: { birth_time_known: boolean }) {
+  capture('birth_data_submitted', props);
+}
+
 // ── Engagement ───────────────────────────────────────────────────────────────
 
 export function trackChartViewed(props: { isUnknownTime: boolean }) {
   capture('chart_viewed', props);
+}
+
+export function trackFirstChartViewed(props: { userId: string; isUnknownTime: boolean }) {
+  if (typeof window === 'undefined') return;
+
+  const storageKey = `posthog:first_chart_viewed:${props.userId}`;
+  if (localStorage.getItem(storageKey)) return;
+
+  capture('first_chart_viewed', { isUnknownTime: props.isUnknownTime });
+  localStorage.setItem(storageKey, '1');
 }
 
 export function trackOracleQuerySent(props: { tier: string; sessionId: string }) {
@@ -59,6 +73,10 @@ export function trackPartnerAdded(props: { tier: string }) {
 
 export function trackUpgradeModalShown(props: { feature: string }) {
   capture('upgrade_modal_shown', props);
+}
+
+export function trackPremiumFeatureViewed(props: { feature: string }) {
+  capture('premium_feature_viewed', props);
 }
 
 export function trackUpgradeCtaClicked(props: { targetTier: string; feature: string }) {

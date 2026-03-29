@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useLocale } from 'next-intl';
 import { useAuth } from '@/lib/auth-context';
 import { memoriesApi, OracleMemory } from '@/lib/api-client';
+import { trackPremiumFeatureViewed } from '@/lib/analytics';
 import { UpgradeModal } from '@/components/shell/upgrade-modal';
 
 // ── Category config ───────────────────────────────────────────────────────────
@@ -260,6 +261,11 @@ export function MemoriesPanel() {
   const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
   const [deletingAll, setDeletingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tier !== 'FREE') return;
+    trackPremiumFeatureViewed({ feature: 'Oracle Memory' });
+  }, [tier]);
 
   useEffect(() => {
     if (tier !== 'PREMIUM') { setLoading(false); return; }

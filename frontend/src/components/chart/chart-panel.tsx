@@ -13,6 +13,7 @@ import { AspectGrid }          from './aspect-grid';
 import { ChartLoadingAnimation } from './chart-loading-animation';
 import { adaptNatalChart, type BackendNatalChart } from './natal-chart-adapter';
 import { ShareCardModal } from './ShareCardModal';
+import { trackFirstChartViewed } from '@/lib/analytics';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://astrologaai-backend-production.up.railway.app';
 
@@ -43,6 +44,15 @@ export function ChartPanel() {
     if (!isAuthenticated) return;
     loadChart();
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (phase !== 'ready' || !profile || !user?.id) return;
+
+    trackFirstChartViewed({
+      userId: user.id,
+      isUnknownTime: profile.isUnknownTime,
+    });
+  }, [phase, profile, user?.id]);
 
   async function loadChart() {
     setPhase('loading');

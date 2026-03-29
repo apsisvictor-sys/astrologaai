@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate } from '@/lib/format';
-import { trackBirthDataCompleted } from '@/lib/analytics';
+import { trackBirthDataSubmitted } from '@/lib/analytics';
 
 // Design system colors
 const colors = {
@@ -203,8 +203,7 @@ export default function BirthDataForm() {
         throw new Error(data.error?.message || 'Failed to save birth data');
       }
 
-      // Track birth data completion
-      trackBirthDataCompleted({ birth_time_known: !formData.isUnknownTime && !!formData.birthTime });
+      trackBirthDataSubmitted({ birth_time_known: !formData.isUnknownTime && !!formData.birthTime });
 
       // Success - redirect to birth data list
       router.push('/settings/birth-data?success=true');

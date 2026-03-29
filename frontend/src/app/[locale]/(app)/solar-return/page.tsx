@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from '@/i18n/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { trackPremiumFeatureViewed } from '@/lib/analytics';
 import CircularChartWheel from '@/components/chart/circular-chart-wheel';
 import { getApiBaseUrl } from '@/lib/runtime-config';
 
@@ -178,6 +179,11 @@ export default function SolarReturnPage() {
   useEffect(() => {
     if (!authLoading && !isAuthenticated) router.push('/login');
   }, [authLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (user?.tier !== 'FREE') return;
+    trackPremiumFeatureViewed({ feature: 'Solar Return' });
+  }, [user?.tier]);
 
   // Fetch chart data (PREMIUM only)
   const fetchChart = useCallback(async (year: number) => {

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
+import { trackPremiumFeatureViewed } from '@/lib/analytics';
 import { getApiBaseUrl } from '@/lib/runtime-config';
 import { BestDaysCalendar } from '@/components/best-days/calendar-grid';
 
@@ -21,6 +22,11 @@ export default function BestDaysPage() {
       .then(data => setHasBirthData((data.data?.profiles?.length || 0) > 0))
       .catch(() => setHasBirthData(true)); // fail open
   }, [user]);
+
+  useEffect(() => {
+    if (tier !== 'FREE') return;
+    trackPremiumFeatureViewed({ feature: 'Best Days' });
+  }, [tier]);
 
   return (
     <div className="space-y-5 px-4 sm:px-6 pt-6 pb-20 max-w-4xl mx-auto">
