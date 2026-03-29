@@ -1,8 +1,9 @@
 /**
  * Rate Limit Middleware
- * - FREE tier: message-count daily limit (3 questions/day, tracked in Redis, limit from AdminConfig)
+ * - FREE tier: 3 queries/day (tracked in Redis, limit from AdminConfig)
+ * - PRO tier: 10 queries/day (tracked in Redis)
+ * - PREMIUM tier: unlimited queries, burst rate limit only (requests per minute)
  * - Admin accounts: unlimited always
- * - PRO/PREMIUM: burst rate limit only (requests per minute)
  */
 
 import { Request, Response, NextFunction } from 'express';
@@ -49,6 +50,16 @@ export async function getFreeTierDailyQueryLimit(): Promise<number> {
     // fallback
   }
   return 3;
+}
+
+/**
+ * Get the daily query limit for a tier.
+ * FREE: 3/day, PRO: 10/day, PREMIUM: unlimited (-1)
+ */
+export function getDailyQueryLimitForTier(tier: Tier): number {
+  if (tier === 'PREMIUM') return -1; // unlimited
+  if (tier === 'PRO') return 10;
+  return 3; // FREE default
 }
 
 /**
@@ -127,7 +138,7 @@ export async function queryLimitMiddleware(
       return;
     }
 
-    // PRO/PREMIUM: burst limit only
+    // PREMIUM: burst limit only (truly unlimited queries)
     if (isUnlimitedTier(userTier)) {
       const burst = await checkBurstLimit(userId, userTier);
       if (!burst.allowed) {
@@ -152,11 +163,10 @@ export async function queryLimitMiddleware(
       return;
     }
 
-    // FREE tier: check daily query limit
-    const [queriesUsed, queryLimit] = await Promise.all([
-      getDailyQueriesUsed(userId),
-      getFreeTierDailyQueryLimit(),
-    ]);
+    // FREE / PRO: check daily query limit (FREE: 3/day, PRO: 10/day)
+    const tierLimit = getDailyQueryLimitForTier(userTier);
+    const queriesUsed = await getDailyQueriesUsed(userId);
+    const queryLimit = userTier === 'FREE' ? await getFreeTierDailyQueryLimit() : tierLimit;
 
     if (queriesUsed >= queryLimit) {
       // Already at limit — block this new message
@@ -165,15 +175,21 @@ export async function queryLimitMiddleware(
       tomorrow.setHours(0, 0, 0, 0);
       const retryAfter = Math.ceil((tomorrow.getTime() - Date.now()) / 1000);
 
+      const limitMessage = userTier === 'PRO'
+        ? (userLanguage === 'en'
+            ? 'You\'ve used your 10 questions for today. Resets at midnight.'
+            : 'Използвахте 10-те си въпроса за днес. Нулира се в полунощ.')
+        : (userLanguage === 'en'
+            ? 'You\'ve used your 3 free questions for today. Resets at midnight.'
+            : 'Използвахте 3-те си безплатни въпроса за днес. Нулира се в полунощ.');
+
       res.setHeader(RATE_LIMIT_HEADERS.RETRY_AFTER, retryAfter);
       res.setHeader(RATE_LIMIT_HEADERS.TIER, userTier);
       res.status(429).json({
         success: false,
         error: {
           code: 'DAILY_LIMIT_REACHED',
-          message: userLanguage === 'en'
-            ? 'You\'ve used your 3 free questions for today. Resets at midnight.'
-            : 'Използвахте 3-те си безплатни въпроса за днес. Нулира се в полунощ.',
+          message: limitMessage,
           limitType: 'daily_queries',
           retryAfter,
           upgradeUrl: '/pricing',
@@ -210,14 +226,15 @@ export async function getUserUsageStats(userId: string, tier: Tier): Promise<{
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(0, 0, 0, 0);
 
+  // PREMIUM: unlimited queries
   if (isUnlimitedTier(tier)) {
     return { used: 0, limit: 'unlimited', remaining: 'unlimited', resetAt: tomorrow.toISOString(), percentage: null };
   }
 
-  const [used, limit] = await Promise.all([
-    getDailyQueriesUsed(userId),
-    getFreeTierDailyQueryLimit(),
-  ]);
+  // FREE / PRO: daily query limits
+  const used = await getDailyQueriesUsed(userId);
+  const tierLimit = getDailyQueryLimitForTier(tier);
+  const limit = tier === 'FREE' ? await getFreeTierDailyQueryLimit() : tierLimit;
   const remaining = Math.max(0, limit - used);
   const percentage = Math.min(100, Math.round((used / limit) * 100));
   return { used, limit, remaining, resetAt: tomorrow.toISOString(), percentage };

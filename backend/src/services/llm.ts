@@ -56,6 +56,11 @@ function mapToCoreMessages(messages: LegacyChatMessage[]): any[] {
 
 /**
  * Default models per tier — override via env vars MODEL_FREE, MODEL_PRO, MODEL_PREMIUM
+ * 
+ * Tier-based AI model selection:
+ * - FREE:    Claude Haiku (fast, basic responses)
+ * - PRO:     Claude Sonnet (balanced intelligence & speed, 10 queries/day)
+ * - PREMIUM: Claude Opus (most powerful model, unlimited queries)
  */
 const TIER_DEFAULT_MODELS: Record<string, string> = {
   FREE:    'claude-haiku-4-5-20251001',
@@ -205,7 +210,7 @@ Answer every question with depth, nuance, and comprehensive multi-tool synthesis
           const month = new Date(c.featuredAt).toLocaleString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
           return `- ${c.aspect} [${label}] (featured ${month})`;
         });
-        const block = `\n\n## ASPECT ROTATION GUIDANCE\nIn recent sessions, you have already led with or prominently featured these aspects. Introduce fresh aspects or apply familiar ones differently:\n${lines.join('\n')}\nThis is a soft guideline only — if an aspect is highly activated by current transits or directly relevant to the user's question, accuracy takes precedence over variety.`;
+        const block = `\n\n## ASPECT ROTATION GUIDANCE\nAvoid opening your response with these aspects that you have already discussed recently:\n${lines.join('\n')}\nLead with a different planetary influence from the user's chart unless one of these aspects is directly required for accuracy.`;
         (coreMessages[0] as any).content += block;
       }
     }

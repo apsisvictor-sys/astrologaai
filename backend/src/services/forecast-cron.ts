@@ -14,6 +14,7 @@
 import { generateText } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 import { prisma } from '../utils/prisma';
+import { cleanupExpiredAspectCooldowns } from './aspect-cooldown-job';
 import { generateDailyForecast, getPersonalDailyHoroscope } from './forecast';
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -323,6 +324,8 @@ async function generateOracleCommentary(horoscope: any, language: string): Promi
 let lastRunDate = '';
 
 export async function runNightlyForecastJob(): Promise<void> {
+  await cleanupExpiredAspectCooldowns();
+
   const date = todayString();
   if (lastRunDate === date) {
     console.log('[ForecastCron] Already ran today, skipping');

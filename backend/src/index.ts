@@ -41,6 +41,7 @@ import guestChatRoutes from './routes/guestChat';
 import transitsRouter from './routes/transits';
 import creditsRoutes from './routes/credits'; // FEAT-10: Credits
 import solarReturnRoutes from './routes/solar-return'; // FEAT-09a: Solar Return chart
+import chatSuggestionsRoutes from './routes/chat-suggestions'; // FUTURE-06: Suggested Prompts
 
 // US-37: Rate limit headers middleware
 import { rateLimitHeadersMiddleware, fetchRateLimitStatus } from './middleware/rateLimitHeaders';
@@ -175,6 +176,7 @@ app.get('/health/astrology', async (req: Request, res: Response) => {
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/user', userRoutes);
 app.use('/api/v1/chat/guest', guestChatRoutes); // Guest (unauthenticated) chat — must be before /api/v1/chat
+app.use('/api/v1/chat/suggestions', chatSuggestionsRoutes); // FUTURE-06: Suggested Prompts — must be before /api/v1/chat
 app.use('/api/v1/chat', chatRoutes);
 app.use('/api/v1/birth-chart', birthChartRoutes);
 app.use('/api/v1/birth-data', birthDataRoutes);

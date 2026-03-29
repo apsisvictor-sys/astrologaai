@@ -33,6 +33,7 @@ import { getUserUsageStats, incrementDailyQuery, getFreeTierDailyQueryLimit } fr
 import { updateStreak } from '../services/streakService';
 import { deductCredits, refundCredits } from '../services/credits';
 import { retrieveOracleMemories } from '../services/memory-retrieval';
+import { processSessionAspectCooldown } from '../services/aspect-cooldown-job';
 import type { ChatMessage } from '../services/llm';
 
 const prisma = new PrismaClient();
@@ -488,6 +489,9 @@ ${aspectLines || 'No major aspects within orb today.'}`;
             where: { id: session.id },
             data: { updatedAt: new Date() },
           });
+
+          processSessionAspectCooldown(session.id)
+            .catch(err => console.warn('[Chat] Aspect cooldown extraction failed (non-fatal):', err));
 
           const updatedMessages = [
             ...session.messages.map(m => ({ role: m.role.toLowerCase(), content: m.content })),

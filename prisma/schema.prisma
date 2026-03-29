@@ -68,6 +68,7 @@ model User {
   streak            UserStreak?
   userCredits       UserCredits?
   creditTransactions CreditTransaction[]
+  aspectCooldowns   AspectCooldown[]
 
   @@map("users")
 }
@@ -190,6 +191,22 @@ model ChatMessage {
 
   @@index([sessionId])
   @@map("chat_messages")
+}
+
+model AspectCooldown {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aspectKey  String   @map("aspect_key")
+  featuredAt DateTime @default(now()) @map("featured_at")
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, aspectKey])
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+  @@map("aspect_cooldowns")
 }
 
 // Legacy Message model (keeping for backward compatibility)

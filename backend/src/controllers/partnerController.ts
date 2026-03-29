@@ -275,7 +275,7 @@ export const createPartner = async (req: Request, res: Response) => {
       });
     }
     
-    // Check partner limit (Free: 1, Pro: 10, Premium: unlimited)
+    // Check partner limit (Free: 0, Pro: 10, Premium: unlimited)
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -284,9 +284,9 @@ export const createPartner = async (req: Request, res: Response) => {
     });
     
     const partnerLimits: Record<string, number> = {
-      FREE: 0,
-      PRO: 0,     // Partners is a PREMIUM-only feature
-      PREMIUM: 10,
+      FREE: 0,      // Partners is a PRO/PREMIUM feature
+      PRO: 10,      // PRO gets up to 10 partner profiles
+      PREMIUM: 100, // PREMIUM gets effectively unlimited (100)
     };
 
     const limit = partnerLimits[user?.tier || 'FREE'];

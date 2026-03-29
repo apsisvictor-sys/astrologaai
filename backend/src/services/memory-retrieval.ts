@@ -14,6 +14,7 @@
  * buildSystemPrompt() so that unit tests can verify them independently.
  */
 
+import { prisma } from '../utils/prisma';
 import { getPrismaVector } from '../utils/prisma-vector';
 import { embedText } from './embedding';
 
@@ -120,6 +121,27 @@ export async function retrieveOracleMemories(
  * Returns [] on failure (non-fatal — Oracle continues without rotation guidance).
  */
 export async function getAspectCooldowns(userId: string): Promise<AspectCooldown[]> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ aspect: string; featuredAt: Date }>>`
+      SELECT aspect_key AS aspect, featured_at AS "featuredAt"
+      FROM   aspect_cooldowns
+      WHERE  user_id = ${userId}
+        AND  expires_at > now()
+      ORDER  BY featured_at DESC
+      LIMIT  20
+    `;
+
+    if (rows.length > 0) {
+      return rows.map(row => ({
+        aspect: row.aspect,
+        cooldownLevel: 1,
+        featuredAt: row.featuredAt,
+      }));
+    }
+  } catch (err) {
+    console.warn('[MemoryRetrieval] aspect_cooldowns query failed, falling back to legacy memories:', err);
+  }
+
   try {
     const pv = getPrismaVector();
     const rows = await pv.$queryRaw<Array<{ content: string; source_date: Date }>>`

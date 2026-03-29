@@ -48,12 +48,12 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
   PRO: {
     tier: 'PRO',
     name: { bg: 'Про', en: 'Pro' },
+    dailyQueries: 10,           // PRO: 10 queries per day
     burstLimit: 30,
     features: [
-      'unlimited_queries',
+      '10_queries_day',
       'tool:get_natal_chart',
       'tool:get_transits',       // Live transit timing predictions
-      'tool:get_solar_return',   // Annual solar return / year-ahead forecast
       'tool:get_lunar_return',   // Monthly lunar return cycle
     ],
     price: {
@@ -67,14 +67,15 @@ export const TIER_CONFIG: Record<Tier, TierLimits> = {
     name: { bg: 'Премиум', en: 'Premium' },
     burstLimit: 60,
     features: [
-      'everything_in_pro',
+      'unlimited_queries',
+      'claude_opus_ai',          // Most powerful AI model
       'tool:get_natal_chart',
       'tool:get_transits',
-      'tool:get_synastry', // Premium users unlock relationship compatibility
-      'tool:get_progressions', // Advanced Psychological Timing
-      'tool:get_solar_return', // Year Ahead Forecast
-      'tool:get_relocation', // Astrocartography / Moving
-      'tool:get_composite', // Destiny of Relationship
+      'tool:get_solar_return',   // Year Ahead Forecast (PREMIUM only)
+      'tool:get_synastry',       // Relationship compatibility
+      'tool:get_progressions',   // Advanced Psychological Timing
+      'tool:get_relocation',     // Astrocartography / Moving
+      'tool:get_composite',      // Destiny of Relationship
       'tool:get_lunar_return',   // Monthly lunar return cycle
       'tool:get_venus_return',   // Precise Love timing
       'tool:get_solar_arc',      // Long-term solar arc directions
@@ -96,10 +97,11 @@ export function getTierLimits(tier: Tier): TierLimits {
 }
 
 /**
- * Check if tier has unlimited queries (PRO and PREMIUM are unlimited)
+ * Check if tier has unlimited queries (PREMIUM only)
+ * FREE: 3/day, PRO: 10/day, PREMIUM: unlimited
  */
 export function isUnlimitedTier(tier: Tier): boolean {
-  return tier === 'PRO' || tier === 'PREMIUM';
+  return tier === 'PREMIUM';
 }
 
 /**
@@ -156,3 +158,59 @@ export function getMonthlyResetDay(): number {
 }
 
 export default TIER_CONFIG;
+
+/**
+ * Gift subscription price IDs from Stripe (one-time payments, mode: "payment")
+ * FEAT-14: Gift subscriptions
+ *
+ * Keys map to env vars: STRIPE_GIFT_PREMIUM_{1M|3M|6M|12M}_PRICE_ID
+ * Prices: €19.99 / €54.99 / €99.99 / €179.88
+ */
+export interface GiftPriceConfig {
+  durationMonths: 1 | 3 | 6 | 12;
+  amountCents: number;
+  currency: 'eur';
+  priceIdEnvKey: string;
+}
+
+export const GIFT_PRICE_CONFIG: Record<string, GiftPriceConfig> = {
+  GIFT_PREMIUM_1M: {
+    durationMonths: 1,
+    amountCents: 1999,
+    currency: 'eur',
+    priceIdEnvKey: 'STRIPE_GIFT_PREMIUM_1M_PRICE_ID',
+  },
+  GIFT_PREMIUM_3M: {
+    durationMonths: 3,
+    amountCents: 5499,
+    currency: 'eur',
+    priceIdEnvKey: 'STRIPE_GIFT_PREMIUM_3M_PRICE_ID',
+  },
+  GIFT_PREMIUM_6M: {
+    durationMonths: 6,
+    amountCents: 9999,
+    currency: 'eur',
+    priceIdEnvKey: 'STRIPE_GIFT_PREMIUM_6M_PRICE_ID',
+  },
+  GIFT_PREMIUM_12M: {
+    durationMonths: 12,
+    amountCents: 17988,
+    currency: 'eur',
+    priceIdEnvKey: 'STRIPE_GIFT_PREMIUM_12M_PRICE_ID',
+  },
+};
+
+/**
+ * Resolve the Stripe price ID for a gift duration from environment.
+ * Throws if the env var is missing or is a placeholder.
+ */
+export function getGiftPriceId(durationMonths: 1 | 3 | 6 | 12): string {
+  const key = `GIFT_PREMIUM_${durationMonths}M` as keyof typeof GIFT_PRICE_CONFIG;
+  const config = GIFT_PRICE_CONFIG[key];
+  if (!config) throw new Error(`No gift price config for ${durationMonths} months`);
+  const priceId = process.env[config.priceIdEnvKey];
+  if (!priceId || priceId.startsWith('price_') === false) {
+    throw new Error(`Missing or invalid env var: ${config.priceIdEnvKey}`);
+  }
+  return priceId;
+}
