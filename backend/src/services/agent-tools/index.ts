@@ -2,7 +2,14 @@ import { tool } from 'ai';
 import { z } from 'zod';
 import { AstrologyClient } from '@astro-api/astroapi-typescript';
 import { prisma } from '../../utils/prisma';
-import geoip from 'geoip-lite';
+// Lazy-load geoip-lite to avoid crashing when data files are missing (e.g. Railway)
+let _geoip: typeof import('geoip-lite') | null = null;
+function getGeoip() {
+  if (!_geoip) {
+    try { _geoip = require('geoip-lite'); } catch { return null; }
+  }
+  return _geoip;
+}
 
 // ============================================
 // Context & Helpers
@@ -48,7 +55,7 @@ function resolveIpLocation(ip?: string): { latitude: number; longitude: number; 
     if (!ip) return null;
     const cleanIp = ip.replace(/^::ffff:/, ''); // strip IPv4-mapped IPv6 prefix
     if (cleanIp === '127.0.0.1' || cleanIp === '::1' || cleanIp.startsWith('192.168.') || cleanIp.startsWith('10.')) return null;
-    const geo = geoip.lookup(cleanIp);
+    const geoip = getGeoip(); if (!geoip) return null; const geo = geoip.lookup(cleanIp);
     if (!geo?.ll) return null;
     return { latitude: geo.ll[0], longitude: geo.ll[1], timezone: geo.timezone || 'UTC' };
 }
