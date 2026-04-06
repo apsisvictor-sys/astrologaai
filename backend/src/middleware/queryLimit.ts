@@ -140,6 +140,8 @@ export async function queryLimitMiddleware(
 
     // PREMIUM: burst limit only (truly unlimited queries)
     if (isUnlimitedTier(userTier)) {
+      // Increment FIRST, then check — so the current request counts toward the limit
+      await incrementBurstCounter(userId, userTier);
       const burst = await checkBurstLimit(userId, userTier);
       if (!burst.allowed) {
         res.setHeader(RATE_LIMIT_HEADERS.RETRY_AFTER, burst.retryAfter);
@@ -157,7 +159,6 @@ export async function queryLimitMiddleware(
         });
         return;
       }
-      await incrementBurstCounter(userId, userTier);
       (req as any).queryLimit = { allowed: true, unlimited: true };
       next();
       return;
