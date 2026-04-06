@@ -1,5 +1,5 @@
 # AstroLogAI — Master Roadmap & Source of Truth
-> **Single source of truth.** Last updated: 2026-03-20 (Sprint 4 complete — annual billing, moon phase, pause subscription deployed ace2602).
+> **Single source of truth.** Last updated: 2026-04-06 (Sprints 1-5 DONE, Sprint 6 IN PROGRESS, Sprint 7 PARTIAL).
 > All bugs found during testing, all pending work, all future plans live here.
 > When testing resumes (Section 7+), new bugs get added to this file.
 
@@ -30,6 +30,9 @@
 | Sprint 2 | Growth emails | 2026-03-19 | React Email templates, branded transactional emails, lifecycle cron (FEAT-05), Big 3 share card (ENH-18), retrograde banners (ENH-20) |
 | Sprint 3 | (merged into Sprint 2 delivery) | 2026-03-19 | — |
 | Sprint 4 | Revenue | 2026-03-20 (ace2602) | Annual billing (FEAT-07), moon phase dashboard (FEAT-06), pause/cancel (ENH-19) |
+| Sprint 5 | Differentiate | 2026-03-21 | Suggested prompts (FUTURE-06), aspect grid case fix (PIX-204), Sentry burst limits (PIX-199), Oracle circuit breaker (PIX-200), OG meta tags (PIX-240), terms/privacy pages (PIX-241), magic link error feedback (PIX-251), best days backend (PIX-141), PostHog instrumentation |
+| Sprint 6 | Ecosystem | IN PROGRESS (2026-03-25→) | Transit engine foundation deployed (15edc8e), esbuild Railway migration, credits system (FEAT-10) coded, gift webhook PR #5 open (FEAT-14-D), gift cron + redeem flow on branches |
+| Sprint 7 | Intelligence | PARTIAL | Memory extraction cron live (03:00 UTC), RAG retrieval live (pgvector), aspect cooldowns wired to system prompt (2026-04-05), memory pruning (200-entry cap). ai_memory consolidation + Honcho behavioral layers NOT YET BUILT — specs ready |
 
 ---
 
@@ -947,8 +950,12 @@ Query-based limits replaced by token-based daily limits. Admin users table now s
 
 ## 🟣 Future Features (post-launch)
 
-### FUTURE-01 — Real-time Transit Prediction Engine
+### FUTURE-01 — Real-time Transit Prediction Engine — PARTIAL (foundation deployed 2026-03-25, 15edc8e)
 *(See `docs/oracle-engagement-strategy.md` for full spec)*
+- ✅ Transit engine foundation deployed (transit calculation, route, cron stub)
+- ✅ Transit forecast cron runs 03:00 UTC daily
+- ✅ Transit route `/api/v1/transits` live (current + forecast)
+- ✅ Active worktree: `.worktrees/future01-engine/` (branch `feat/FUTURE-01-transit-engine`)
 - Pre-calculate exact transit dates for each user for next 6 months
 - Store in `user_transit_forecasts` table
 - Nightly cron extends the calendar
@@ -989,7 +996,8 @@ ALTER TABLE chat_sessions ADD COLUMN shared_token VARCHAR(64) UNIQUE DEFAULT NUL
 
 ---
 
-### ENH-10 — Oracle aspect rotation / anti-repetition system (Phase 1 of FUTURE-02)
+### ENH-10 — Oracle aspect rotation / anti-repetition system (Phase 1 of FUTURE-02) — ✅ LIVE (2026-04-05)
+- **Status:** DONE — Aspect cooldowns wired to system prompt. AspectCooldown model in Prisma, `getAspectCooldowns()` retrieves active cooldowns, injected into `buildSystemPrompt()` as ASPECT ROTATION directive. Oracle receives mandatory rotation instructions.
 - **Priority:** HIGH — Oracle opens every new chat with the same dominant aspect regardless of history; feels robotic and shallow after the first session
 - **Root cause:** Natal chart summary injected on every new chat gives the Oracle identical context each time. With no cross-session memory, it naturally gravitates to the most prominent aspect (e.g. Sun square Saturn). Correct behavior given context; wrong product experience.
 
@@ -1010,11 +1018,16 @@ ALTER TABLE chat_sessions ADD COLUMN shared_token VARCHAR(64) UNIQUE DEFAULT NUL
 
 ---
 
-### FUTURE-02 — Long-term Personal Memory (PGVector + RAG)
-*(See `docs/oracle-engagement-strategy.md` for full spec)*
-- After-session Haiku job extracts structured memories → `user_memories` + `user_relationships` tables
-- pgvector embeddings of memories + session summaries
-- Before each Oracle response: embed user message → similarity search → inject top-5 relevant memories
+### FUTURE-02 — Long-term Personal Memory (PGVector + RAG) — PARTIAL (RAG live, consolidation planned)
+*(See `docs/oracle-memory-architecture.md` for full 8-layer spec)*
+- ✅ Memory extraction cron live (03:00 UTC nightly) — Haiku extracts 1-3 facts per user per day
+- ✅ pgvector embeddings stored in `user_memories` table with cosine similarity dedup
+- ✅ RAG retrieval live — user question embedded → top-5 memories injected into Oracle context
+- ✅ PRO: 90-day window, top 5. PREMIUM: unlimited history, top 5.
+- ✅ Memory pruning: 200-entry cap per user (oldest pruned nightly)
+- ✅ Categories: love, career, health, fears, growth, high_impact
+- ⏳ ai_memory consolidation layer (autoDream pattern) — spec ready in `tasks/plan-user-memory-honcho.md`
+- ⏳ Honcho behavioral profiling layer — spec ready, account setup done
 - Enables: "This reminds me of what you told me about your father in January"
 - The competitive moat — no other astrology app has this
 - **Note:** ENH-10 (aspect cooldown table) is Phase 1 of this system — build it first, absorb into FUTURE-02 when this is implemented
