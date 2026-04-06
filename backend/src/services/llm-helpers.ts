@@ -29,7 +29,9 @@ export interface ChatContext {
   recentMessages?: Array<{ role: string; content: string }>;
   /** Retrieved memories for Oracle Layer 2 injection (PIX-169) */
   memories?: Array<{ id: string; content: string; category: string; sourceDate: Date }>;
-  /** User subscription tier — controls memory injection limits */
+  /** Aspect cooldowns — topics Oracle recently led with, must rotate away from */
+  aspectCooldowns?: Array<{ aspect: string; cooldownLevel: 1 | 2; featuredAt: Date }>;
+  /** User subscription tier */
   tier?: string;
 }
 
@@ -401,27 +403,29 @@ export async function buildSystemPrompt(context: ChatContext): Promise<string> {
   }
 
   // Oracle Memory injection — PRO/PREMIUM only (PIX-169)
+  // Tier filtering and count limits already enforced in retrieveOracleMemories()
   if (context.tier && context.tier !== 'FREE' && context.memories && context.memories.length > 0) {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const maxMemories = context.tier === 'PREMIUM' ? 5 : 3;
-
-    let filtered = context.memories;
-    if (context.tier === 'PRO') {
-      filtered = filtered.filter(m => new Date(m.sourceDate) >= thirtyDaysAgo);
-    }
-    filtered = filtered.slice(0, maxMemories);
-
-    if (filtered.length > 0) {
-      const lines = filtered.map(m => {
-        const month = new Date(m.sourceDate).toLocaleString('en-US', {
-          month: 'short',
-          year: 'numeric',
-          timeZone: 'UTC',
-        });
-        return `- [${m.category}] ${m.content} (noted ${month})`;
+    const lines = context.memories.map(m => {
+      const month = new Date(m.sourceDate).toLocaleString('en-US', {
+        month: 'short',
+        year: 'numeric',
+        timeZone: 'UTC',
       });
-      prompt += '\n\n## Oracle Memory\nThings this user has shared in past conversations:\n' + lines.join('\n');
-    }
+      return `- [${m.category}] ${m.content} (noted ${month})`;
+    });
+    prompt += '\n\n## Oracle Memory\nThings this user has shared in past conversations:\n' + lines.join('\n');
+  }
+
+  // Aspect cooldown injection — prevent repetition of recently featured aspects
+  if (context.aspectCooldowns && context.aspectCooldowns.length > 0) {
+    const cooldownLines = context.aspectCooldowns.map(c => {
+      const daysAgo = Math.floor((Date.now() - new Date(c.featuredAt).getTime()) / (1000 * 60 * 60 * 24));
+      const directive = c.cooldownLevel === 2
+        ? 'do not lead with this or feature it prominently'
+        : 'avoid using as the primary focus';
+      return `- ${c.aspect} (featured ${daysAgo}d ago — ${directive})`;
+    });
+    prompt += '\n\n## ASPECT ROTATION — MANDATORY\nThe Oracle recently led with or prominently featured these aspects. You MUST rotate to fresh chart territory this session. Do not open with, lead with, or make these the primary focus:\n' + cooldownLines.join('\n');
   }
 
   prompt += getLanguageDirective(context.language);

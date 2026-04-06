@@ -35,7 +35,7 @@ import {
 import { getUserUsageStats, incrementDailyQuery, getFreeTierDailyQueryLimit } from '../middleware/queryLimit';
 import { updateStreak } from '../services/streakService';
 import { deductCredits, refundCredits } from '../services/credits';
-import { retrieveOracleMemories } from '../services/memory-retrieval';
+import { retrieveOracleMemories, getAspectCooldowns } from '../services/memory-retrieval';
 import { processSessionAspectCooldown } from '../services/aspect-cooldown-job';
 import type { ChatMessage } from '../services/llm';
 
@@ -336,8 +336,11 @@ ${aspectLines || 'No major aspects within orb today.'}`;
       }
     }
 
-    // Retrieve relevant memories for Oracle Layer 2 injection (PIX-169)
-    const memories = await retrieveOracleMemories(userId, content.trim(), effectiveTier);
+    // Retrieve memories and aspect cooldowns in parallel — both non-fatal if they fail
+    const [memories, aspectCooldowns] = await Promise.all([
+      retrieveOracleMemories(userId, content.trim(), effectiveTier),
+      effectiveTier !== 'FREE' ? getAspectCooldowns(userId) : Promise.resolve([]),
+    ]);
 
     const systemPrompt = await buildSystemPrompt({
       chartSummary,
@@ -347,6 +350,7 @@ ${aspectLines || 'No major aspects within orb today.'}`;
       sessionSummary, // US-09: Add session summary for follow-up context
       recentMessages, // US-09: Add recent messages for context
       memories,
+      aspectCooldowns,
       tier: effectiveTier,
     });
 

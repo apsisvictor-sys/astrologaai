@@ -72,14 +72,15 @@ export async function retrieveOracleMemories(
   try {
     const pv = getPrismaVector();
     if (tier === 'PRO') {
+      // PRO — last 90 days, top 5
       rows = await pv.$queryRaw<MemoryRow[]>`
         SELECT id, content, category, source_date AS "sourceDate"
         FROM   user_memories
         WHERE  user_id = ${userId}
-          AND  source_date >= NOW() - INTERVAL '30 days'
+          AND  source_date >= NOW() - INTERVAL '90 days'
           AND  category != 'aspect_cooldown'
         ORDER  BY embedding <=> ${vec}::vector
-        LIMIT  3
+        LIMIT  5
       `;
     } else {
       // PREMIUM — full history, top 5

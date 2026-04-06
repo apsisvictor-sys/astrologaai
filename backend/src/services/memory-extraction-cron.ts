@@ -114,7 +114,7 @@ Conversation:
 ${transcript}`;
 
   const result = await generateText({
-    model: anthropic('claude-haiku-4-5-20251001'),
+    model: anthropic('claude-haiku-4.5-20251001'),
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.3,
     maxTokens: 512,
@@ -190,7 +190,7 @@ Oracle messages:
 ${oracleMessages}`;
 
   const result = await generateText({
-    model: anthropic('claude-haiku-4-5-20251001'),
+    model: anthropic('claude-haiku-4.5-20251001'),
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.2,
     maxTokens: 256,
@@ -419,5 +419,30 @@ export async function runMemoryExtractionJob(): Promise<{
   console.log(
     `[MemoryCron] Done — ${usersProcessed} users, ${totalInserted} inserted, ${totalSkipped} skipped`,
   );
+
+  // Prune users who exceed 200 entries — keep most recently recalled, then most recent by date
+  try {
+    const pruneResult = await getPrismaVector().$executeRaw`
+      DELETE FROM user_memories
+      WHERE id IN (
+        SELECT id FROM (
+          SELECT id,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY user_id
+                   ORDER BY COALESCE(last_recalled_at, source_date::timestamptz) DESC
+                 ) AS rn
+          FROM user_memories
+          WHERE category != 'aspect_cooldown'
+        ) ranked
+        WHERE rn > 200
+      )
+    `;
+    if (pruneResult > 0) {
+      console.log(`[MemoryCron] Pruned ${pruneResult} excess memory entries (200-entry cap)`);
+    }
+  } catch (err) {
+    console.warn('[MemoryCron] Pruning failed (non-fatal):', err);
+  }
+
   return { usersProcessed, totalInserted, totalSkipped };
 }
