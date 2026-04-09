@@ -959,6 +959,12 @@ router.post('/webhook', async (req: Request, res: Response) => {
           break;
         }
 
+        // Gift purchase — giftCodeId in metadata signals a gift one-time payment
+        if (session.metadata?.giftCodeId) {
+          await handleGiftPaymentWebhook(session);
+          break;
+        }
+
         if (userId && tier) {
           // Get user for email and language preference
           const user = await prisma.user.findUnique({
@@ -1144,8 +1150,23 @@ router.post('/webhook', async (req: Request, res: Response) => {
         }
         break;
       }
+
+      case 'charge.refunded': {
+        const charge = event.data.object as Stripe.Charge;
+        const paymentIntentId = charge.payment_intent as string | null;
+        if (paymentIntentId) {
+          await cancelGiftCodeByPaymentIntent(paymentIntentId, 'charge.refunded');
+        }
+        break;
+      }
+
+      case 'payment_intent.payment_failed': {
+        const paymentIntent = event.data.object as Stripe.PaymentIntent;
+        await cancelGiftCodeByPaymentIntent(paymentIntent.id, 'payment_intent.payment_failed');
+        break;
+      }
     }
-    
+
     res.json({ received: true });
   } catch (error) {
     console.error('Error handling webhook event:', error);
@@ -1186,6 +1207,198 @@ function mapStripeSubscriptionStatus(status: string): 'ACTIVE' | 'CANCELED' | 'P
     trialing: 'TRIALING',
   };
   return statusMap[status] || 'ACTIVE';
+}
+
+// ─── Gift webhook helpers ───────────────────────────────────────────────────
+
+/**
+ * Handle a Stripe `checkout.session.completed` event for gift purchases.
+ * Idempotent: skips if GiftCode is already ACTIVE.
+ * FEAT-14-D (PIX-212)
+ */
+async function handleGiftPaymentWebhook(session: Stripe.Checkout.Session): Promise<void> {
+  const giftCodeId = session.metadata?.giftCodeId;
+  if (!giftCodeId) return;
+
+  const paymentIntentId = session.payment_intent as string | null;
+
+  const giftCode = await prisma.giftCode.findUnique({ where: { id: giftCodeId } });
+  if (!giftCode) {
+    console.error('[gift webhook] GiftCode not found:', giftCodeId);
+    return;
+  }
+
+  // Idempotency: already activated — skip
+  if (giftCode.status !== 'PENDING_PAYMENT') {
+    console.log(`[gift webhook] GiftCode ${giftCodeId} already in status ${giftCode.status} — skipping`);
+    return;
+  }
+
+  await prisma.giftCode.update({
+    where: { id: giftCodeId },
+    data: {
+      status: 'ACTIVE',
+      stripeSessionId: session.id,
+      stripePaymentIntentId: paymentIntentId ?? undefined,
+    },
+  });
+
+  console.log(`[gift webhook] GiftCode ${giftCode.code} activated (session: ${session.id})`);
+
+  // Send purchase confirmation to purchaser
+  await sendGiftPurchaseEmail(giftCode.purchaserEmail, giftCode.code, giftCode.durationMonths, giftCode.claimExpiresAt);
+
+  // If recipient email was provided, notify them too
+  if (giftCode.recipientEmail) {
+    await sendGiftRecipientEmail(giftCode.recipientEmail, giftCode.code, giftCode.durationMonths, giftCode.claimExpiresAt);
+  }
+}
+
+/**
+ * Cancel a GiftCode (status → CANCELLED) by Stripe payment intent ID.
+ * No-op if no matching gift code exists (most payment intents are not gifts).
+ */
+async function cancelGiftCodeByPaymentIntent(paymentIntentId: string, reason: string): Promise<void> {
+  const giftCode = await prisma.giftCode.findUnique({
+    where: { stripePaymentIntentId: paymentIntentId },
+  });
+
+  if (!giftCode) return; // Not a gift payment — ignore
+
+  if (giftCode.status === 'CANCELLED') {
+    console.log(`[gift webhook] GiftCode ${giftCode.id} already CANCELLED — skipping (${reason})`);
+    return;
+  }
+
+  await prisma.giftCode.update({
+    where: { id: giftCode.id },
+    data: { status: 'CANCELLED' },
+  });
+
+  console.log(`[gift webhook] GiftCode ${giftCode.code} cancelled via ${reason}`);
+}
+
+/**
+ * Send gift purchase confirmation email to the purchaser.
+ * Includes the gift code and a CTA to forward to the recipient.
+ */
+async function sendGiftPurchaseEmail(
+  to: string,
+  code: string,
+  durationMonths: number,
+  claimExpiresAt: Date
+): Promise<void> {
+  try {
+    const { Resend } = await import('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redeemUrl = `${frontendUrl}/en/redeem`;
+    const expiryDate = claimExpiresAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const durationLabel = durationMonths === 1 ? '1 month' : `${durationMonths} months`;
+
+    await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'noreply@astrologaai.com',
+      to,
+      subject: `Your AstroLogAI gift is ready — ${durationLabel} of PREMIUM`,
+      html: `
+        <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0A0A0F; padding: 40px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #FAFAFA; font-size: 32px; margin: 0;">✨ AstroLogAI</h1>
+          </div>
+          <h2 style="color: #FAFAFA; font-size: 24px; margin-bottom: 16px;">Your gift is ready!</h2>
+          <p style="color: #A1A1AA; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
+            Thank you for purchasing a <strong style="color: #8B5CF6;">${durationLabel} AstroLogAI PREMIUM</strong> gift.
+            Share the code below with your recipient — or forward this email to them.
+          </p>
+          <div style="background: #12121A; border: 1px solid #8B5CF6; border-radius: 12px; padding: 28px; text-align: center; margin: 28px 0;">
+            <p style="color: #A1A1AA; font-size: 14px; margin: 0 0 12px 0;">Gift code</p>
+            <p style="color: #FAFAFA; font-size: 28px; font-weight: 700; letter-spacing: 4px; margin: 0;">${code}</p>
+          </div>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${redeemUrl}?code=${code}" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%); color: white; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px;">
+              Redeem at AstroLogAI
+            </a>
+          </div>
+          <p style="color: #71717A; font-size: 14px;">Code valid until: <strong style="color: #A1A1AA;">${expiryDate}</strong></p>
+          <p style="color: #52525B; font-size: 12px; margin-top: 40px; border-top: 1px solid #252532; padding-top: 20px;">
+            © 2026 AstroLogAI. All rights reserved.<br>Questions? support@astrologaai.com
+          </p>
+        </div>
+      `,
+    });
+
+    console.log(`[gift email] Purchase confirmation sent to ${to}`);
+  } catch (err) {
+    console.error('[gift email] Failed to send purchase confirmation:', err);
+    // Non-fatal — don't block webhook response
+  }
+}
+
+/**
+ * Send gift notification email to the recipient.
+ * Sent immediately when recipientEmail is provided at purchase time.
+ */
+async function sendGiftRecipientEmail(
+  to: string,
+  code: string,
+  durationMonths: number,
+  claimExpiresAt: Date
+): Promise<void> {
+  try {
+    const { Resend } = await import('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const redeemUrl = `${frontendUrl}/en/redeem`;
+    const expiryDate = claimExpiresAt.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+    const durationLabel = durationMonths === 1 ? '1 month' : `${durationMonths} months`;
+
+    await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || 'noreply@astrologaai.com',
+      to,
+      subject: `You've received an AstroLogAI gift — ${durationLabel} of PREMIUM ✨`,
+      html: `
+        <div style="font-family: Inter, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #0A0A0F; padding: 40px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #FAFAFA; font-size: 32px; margin: 0;">✨ AstroLogAI</h1>
+          </div>
+          <h2 style="color: #FAFAFA; font-size: 24px; margin-bottom: 16px;">You've received a gift!</h2>
+          <p style="color: #A1A1AA; font-size: 16px; line-height: 1.6; margin-bottom: 24px;">
+            Someone special sent you <strong style="color: #8B5CF6;">${durationLabel} of AstroLogAI PREMIUM</strong> —
+            unlimited AI astrology, natal charts, transits, compatibility reports, and more.
+          </p>
+          <div style="background: #12121A; border: 1px solid #8B5CF6; border-radius: 12px; padding: 28px; text-align: center; margin: 28px 0;">
+            <p style="color: #A1A1AA; font-size: 14px; margin: 0 0 12px 0;">Your gift code</p>
+            <p style="color: #FAFAFA; font-size: 28px; font-weight: 700; letter-spacing: 4px; margin: 0;">${code}</p>
+          </div>
+          <div style="text-align: center; margin: 28px 0;">
+            <a href="${redeemUrl}?code=${code}" style="display: inline-block; padding: 14px 28px; background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 100%); color: white; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 16px;">
+              Activate Your Gift
+            </a>
+          </div>
+          <div style="background: rgba(139, 92, 246, 0.1); border-left: 3px solid #8B5CF6; border-radius: 8px; padding: 16px; margin: 24px 0;">
+            <p style="color: #A1A1AA; font-size: 14px; margin: 0;">
+              ✓ Unlimited AI astrologer conversations<br>
+              ✓ Full natal chart + transit analysis<br>
+              ✓ Compatibility reports<br>
+              ✓ Best Days personal calendar<br>
+              ✓ Solar Return report
+            </p>
+          </div>
+          <p style="color: #71717A; font-size: 14px;">Code valid until: <strong style="color: #A1A1AA;">${expiryDate}</strong></p>
+          <p style="color: #52525B; font-size: 12px; margin-top: 40px; border-top: 1px solid #252532; padding-top: 20px;">
+            © 2026 AstroLogAI. All rights reserved.<br>Questions? support@astrologaai.com
+          </p>
+        </div>
+      `,
+    });
+
+    console.log(`[gift email] Recipient notification sent to ${to}`);
+  } catch (err) {
+    console.error('[gift email] Failed to send recipient notification:', err);
+    // Non-fatal
+  }
 }
 
 // ─── Credits webhook helper ────────────────────────────────────────────────
